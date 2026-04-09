@@ -1,0 +1,104 @@
+// Base models for User, Organization, and Channel management
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  is_active Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  ownedOrganizations Organization[] @relation("OrganizationOwner")
+  orgMemberships     OrganizationMember[]
+  channelMemberships ChannelMember[]
+  createdTasks       Task[]         @relation("TaskCreator")
+  taskAssignments    TaskAssignment[]
+  sentChannelMessages ChannelMessage[]
+  sentDirectMessages DirectMessage[]
+  directConversations1 DirectConversation[] @relation("User1")
+  directConversations2 DirectConversation[] @relation("User2")
+
+  @@map("users")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  owner_id  String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  owner User @relation("OrganizationOwner", fields: [owner_id], references: [id], onDelete: Cascade)
+  channels Channel[]
+  members  OrganizationMember[]
+
+  @@map("organizations")
+}
+
+// Navu Table
+model OrganizationMember {
+  id              String   @id @default(cuid())
+  organization_id String
+  user_id         String
+  role            OrgRole  @default(MEMBER) // Admin ke Member
+  joined_at       DateTime @default(now())
+
+  // Relations
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, user_id]) // Ek user ek org ma ek j vaar join thai shake
+  @@map("organization_members")
+}
+
+// 👈 NAVU ENUM UMARYU: Workspace level na roles mate
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+// Ane tamara User table ma aa umeravu pade:
+// joinedOrganizations OrganizationMember[]
+
+// Ane Organization table ma:
+// members OrganizationMember[]
+
+model Channel {
+  id        String   @id @default(cuid())
+  name      String
+  org_id    String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+  members    ChannelMember[]
+  tasks      Task[]
+  messages   ChannelMessage[]
+
+  @@map("channels")
+}
+
+model ChannelMember {
+  id         String   @id @default(cuid())
+  user_id    String
+  channel_id String
+  role       ChannelRole @default(MEMBER)
+  joined_at  DateTime @default(now())
+
+  // Relations
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, channel_id])
+  @@map("channel_members")
+}
+
+enum ChannelRole {
+  MANAGER
+  MEMBER
+}
