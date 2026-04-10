@@ -75,3 +75,6 @@ backend/src/generated/
 
 # OS
 Thumbs.db
+
+
+/public.md

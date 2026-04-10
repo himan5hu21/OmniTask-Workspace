@@ -4,9 +4,19 @@
 import Link from 'next/link';
 import { ArrowRight, LayoutDashboard } from 'lucide-react';
 import { getToken } from '@/lib/api';
+import { useSyncExternalStore } from 'react';
 
 export default function HomePage() {
-  const isAuthenticated = !!getToken();
+  const isMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+  const isAuthenticated = useSyncExternalStore(
+    () => () => {},
+    () => !!getToken(),
+    () => false
+  );
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen bg-slate-50 overflow-hidden text-center px-4">
@@ -29,7 +39,17 @@ export default function HomePage() {
       </p>
       
       <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-        {isAuthenticated ? (
+        {!isMounted ? (
+          <>
+            <Link href="/login" className="flex items-center justify-center gap-2 px-8 py-4 bg-slate-900 text-white font-medium rounded-xl hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-[0.98] w-full sm:w-auto">
+              Get Started
+              <ArrowRight size={20} />
+            </Link>
+            <Link href="/register" className="flex items-center justify-center px-8 py-4 bg-white text-slate-900 font-medium rounded-xl border border-slate-200 hover:bg-slate-50 transition-all shadow-sm active:scale-[0.98] w-full sm:w-auto">
+              Create Account
+            </Link>
+          </>
+        ) : isAuthenticated ? (
           <Link href="/dashboard" className="flex items-center justify-center gap-2 px-8 py-4 bg-slate-900 text-white font-medium rounded-xl hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-[0.98] w-full sm:w-auto">
             <LayoutDashboard size={20} />
             Go to Dashboard

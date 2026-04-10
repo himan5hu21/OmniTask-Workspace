@@ -12,7 +12,9 @@ declare module 'fastify' {
 const socketPlugin: FastifyPluginAsync = async (fastify, options) => {
   const io = new Server(fastify.server, {
     cors: {
-      origin: process.env.CLIENT_URL || '*', // Best practice: Env file mathi URL levanu
+      origin: process.env.CLIENT_URL || 'http://localhost:3000', // Allow frontend origin
+      credentials: true, // Allow cookies/credentials
+      methods: ['GET', 'POST'],
     }
   });
 
