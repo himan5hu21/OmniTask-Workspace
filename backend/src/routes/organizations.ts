@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import * as orgController from '@/controllers/org.controller';
 import * as channelController from '@/controllers/channel.controller';
+import * as messageController from '@/controllers/message.controller';
 
 const orgRoutes: FastifyPluginAsync = async (fastify) => {
   const addMemberSchema = z.object({
@@ -46,6 +47,12 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Get channels in an organization
   fastify.get('/organizations/:orgId/channels', channelController.getOrgChannels);
+
+  // Get messages in a channel
+  fastify.get('/channels/:channelId/messages', messageController.getChannelMessages);
+
+  // Create message in a channel
+  fastify.post('/channels/:channelId/messages', messageController.createChannelMessage);
 
   // TODO aagal jata: fastify.post('/channels/add-member', channelController.addChannelMember);
 };

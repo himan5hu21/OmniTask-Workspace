@@ -128,3 +128,43 @@
     @apply font-sans;
   }
 }
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.708 0 0) transparent;
+}
+
+.dark * {
+  scrollbar-color: oklch(0.556 0 0) transparent;
+}
+
+/* 🔥 Modern Slim Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 120, 120, 0.4);
+  /* border-radius: 9999px; */
+  /* transition: background-color 0.3s ease; */
+  backdrop-filter: blur(6px);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.556 0 0);
+}
+
+/* Dark mode support */
+.dark ::-webkit-scrollbar-thumb {
+  background-color: oklch(0.556 0 0);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.708 0 0);
+}
