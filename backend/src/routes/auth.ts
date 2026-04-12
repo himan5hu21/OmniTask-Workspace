@@ -1,20 +1,19 @@
-import { FastifyPluginAsync } from 'fastify'; //
-// Badha exported functions ne 'authController' na naam thi import kari lo
+import { FastifyPluginAsync } from 'fastify';
 import * as authController from '@/controllers/auth.controller'; 
 
 const authRoutes: FastifyPluginAsync = async (fastify) => { 
   
-  // Ekdum clean ane short routes! Koi .bind() ni jarur nathi.
-  fastify.post('/register',{ config: { isPublic: true } }, authController.register); 
-  fastify.post('/login',{ config: { isPublic: true } }, authController.login); 
+  // Public Routes
+  fastify.post('/register', { config: { isPublic: true } }, authController.register); 
+  fastify.post('/login', { config: { isPublic: true } }, authController.login); 
   
-  // Baki badha routes automatic protected thai jase (isPublic aapvani jarur nathi)
+  // Protected Routes (Tame /me pan rakhi shako chho execution plan pramane, pan /profile pan ekdam barabar chhe)
   fastify.get('/profile', authController.getProfile); 
+  fastify.patch('/profile', authController.updateProfile); // 👈 Navi route
+  
   fastify.post('/logout', authController.logout);
-    
-    // Udaharan:
-    // fastify.put('/update-password', authController.updatePassword);
-    // fastify.delete('/delete-account', authController.deleteAccount);
+  fastify.patch('/change-password', authController.changePassword); // 👈 Navi route
+  fastify.delete('/deactivate', authController.deactivateAccount); // 👈 Navi route
   
 };
 

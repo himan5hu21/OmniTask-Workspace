@@ -241,7 +241,7 @@ export function FormFieldError<TFieldValues extends FieldValues>({
   errors,
   name,
   mode = "inline",
-  className = "mt-1 text-xs font-medium text-red-500",
+  className = "mt-0.5 text-xs font-medium text-red-500 animate-in fade-in slide-in-from-top-1 duration-300",
   toastTitle = "Validation error",
 }: FormFieldErrorProps<TFieldValues>) {
   const error = getNestedError(errors, name);

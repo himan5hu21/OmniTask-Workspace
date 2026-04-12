@@ -1,6 +1,7 @@
 // src/services/message.service.ts
-import { BaseRepository } from '@/respositories/base.repository';
+import { BaseRepository } from '@/repositories/base.repository';
 import { AppError } from '@/utils/AppError';
+import { HttpStatus } from '@/types/api';
 
 const messageRepo = new BaseRepository('channelMessage');
 const channelRepo = new BaseRepository('channel');
@@ -16,13 +17,13 @@ export class MessageService {
     });
 
     if (!membership) {
-      throw new AppError('Access denied to this channel', 403);
+      throw new AppError('Access denied to this channel', HttpStatus.FORBIDDEN);
     }
 
     // Get channel name
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
-      throw new AppError('Channel not found', 404);
+      throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
     }
 
     // Get messages with sender information
@@ -59,7 +60,7 @@ export class MessageService {
     });
 
     if (!membership) {
-      throw new AppError('Access denied to this channel', 403);
+      throw new AppError('Access denied to this channel', HttpStatus.FORBIDDEN);
     }
 
     // Create message

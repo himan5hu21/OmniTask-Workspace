@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { AppError } from '@/utils/AppError';
 import { sendSuccess } from '@/utils/response';
+import { HttpStatus } from '@/types/api';
 
 const healthRoutes: FastifyPluginAsync = async (fastify) => {
   // Basic health check
@@ -36,7 +37,7 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
       }, 'FETCH', 'Detailed health check passed');
     } catch (error) {
       fastify.log.error({ error, message: 'Health check failed' });
-      throw new AppError('Service unavailable', 503);
+      throw new AppError('Service unavailable', HttpStatus.SERVICE_UNAVAILABLE);
     }
   });
 
@@ -57,7 +58,7 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }, 'FETCH', 'Socket health check passed');
     } catch (error) {
-      throw new AppError(error instanceof Error ? error.message : 'Unknown socket error', 503);
+      throw new AppError(error instanceof Error ? error.message : 'Unknown socket error', HttpStatus.SERVICE_UNAVAILABLE);
     }
   });
 };

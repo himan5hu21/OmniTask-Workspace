@@ -71,6 +71,7 @@ model Channel {
   id        String   @id @default(cuid())
   name      String
   org_id    String
+  isDefault Boolean  @default(false)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

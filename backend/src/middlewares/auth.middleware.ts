@@ -1,6 +1,7 @@
 // src/middlewares/auth.middleware.ts
 import { FastifyReply, FastifyRequest } from 'fastify';
 import "@fastify/jwt";
+import { HttpStatus } from '@/types/api';
 
 export async function verifyToken(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -12,7 +13,7 @@ export async function verifyToken(request: FastifyRequest, reply: FastifyReply) 
     await request.jwtVerify();
   } catch (err) {
     // Jo token missing hoy, expire thai gayu hoy ke invalid hoy
-    return reply.status(401).send({
+    return reply.status(HttpStatus.UNAUTHORIZED).send({
       success: false,
       message: "You must be logged in to access this route",
       errors: {

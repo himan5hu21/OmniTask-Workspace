@@ -1,30 +1,30 @@
 // src/services/organization.service.ts
-import { BaseRepository } from '@/respositories/base.repository';
+import { BaseRepository } from '@/repositories/base.repository'; // Typo fixed here
 import { AppError } from '@/utils/AppError';
+import { HttpStatus } from '@/types/api';
 import { prisma } from '@/lib/database';
 
 const orgRepo = new BaseRepository('organization');
 const orgMemberRepo = new BaseRepository('organizationMember');
 const userRepo = new BaseRepository('user');
+const channelRepo = new BaseRepository('channel');
+const channelMemberRepo = new BaseRepository('channelMember');
 
 export class OrganizationService {
-  // Create new organization
+  // 1. Create new organization
   static async createOrganization(orgData: { name: string }, ownerId: string) {
     const { name } = orgData;
 
-    // Check if organization name already exists for this user
     const existingOrg = await orgRepo.findOne({ 
       name,
       owner_id: ownerId 
     });
     
     if (existingOrg) {
-      throw new AppError('Validation failed', 400, { name: 'UNIQUE' });
+      throw new AppError('Organization with this name already exists', 400, { name: 'UNIQUE' });
     }
 
-    // Use transaction to create organization and add owner as member
     const organization = await prisma.$transaction(async (tx) => {
-      // Create organization
       const newOrg = await orgRepo.create(
         {
           name,
@@ -34,12 +34,33 @@ export class OrganizationService {
         tx
       );
 
-      // Add owner as organization member
       await orgMemberRepo.create(
         {
           organization_id: newOrg.id,
           user_id: ownerId,
           role: 'OWNER'
+        },
+        {},
+        tx
+      );
+
+      // Create default channel with organization name
+      const defaultChannel = await channelRepo.create(
+        {
+          name: name,
+          org_id: newOrg.id,
+          isDefault: true
+        },
+        {},
+        tx
+      );
+
+      // Add owner as manager of default channel
+      await channelMemberRepo.create(
+        {
+          channel_id: defaultChannel.id,
+          user_id: ownerId,
+          role: 'MANAGER'
         },
         {},
         tx
@@ -51,9 +72,8 @@ export class OrganizationService {
     return organization;
   }
 
-  // Get user's organizations
+  // 2. Get user's organizations
   static async getUserOrganizations(userId: string) {
-    
     const userOrgs = await orgMemberRepo.getAll({
       where: { user_id: userId },
       include: {
@@ -72,16 +92,15 @@ export class OrganizationService {
     }));
   }
 
-  // Get organization by ID
+  // 3. Get organization by ID
   static async getOrganizationById(orgId: string, userId: string) {
-    // Check if user is member of the organization
     const membership = await orgMemberRepo.findOne({
       organization_id: orgId,
       user_id: userId
     });
 
     if (!membership) {
-      throw new AppError('Access denied', 403);
+      throw new AppError('Access denied. You are not a member of this organization', HttpStatus.FORBIDDEN);
     }
 
     const organization = await orgRepo.getById(orgId, {
@@ -97,107 +116,160 @@ export class OrganizationService {
     });
 
     if (!organization) {
-      throw new AppError('Organization not found', 404);
+      throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
     }
 
     return organization;
   }
 
-  // Add member to organization
+  // 4. Add member to organization
   static async addMember(memberData: { email: string; org_id: string; role: 'ADMIN' | 'MEMBER' }, currentUserId: string) {
     const { email, org_id, role } = memberData;
 
-    // Find user to add
     const userToAdd = await userRepo.findOne({ email });
     if (!userToAdd) {
-      throw new AppError('User not found with this email', 404);
+      throw new AppError('User not found with this email', HttpStatus.NOT_FOUND);
     }
 
-    // Check if current user has permission to add members
+    // 👈 NEW CHECK: Check if user is already a member
+    const existingMember = await orgMemberRepo.findOne({
+      organization_id: org_id,
+      user_id: userToAdd.id
+    });
+
+    if (existingMember) {
+      throw new AppError('This user is already a member of the organization', HttpStatus.BAD_REQUEST);
+    }
+
     const currentUserRole = await orgMemberRepo.findOne({
       organization_id: org_id,
       user_id: currentUserId
     });
 
     if (!currentUserRole || (currentUserRole.role !== 'OWNER' && currentUserRole.role !== 'ADMIN')) {
-      throw new AppError('You do not have permission to add members', 403);
+      throw new AppError('You do not have permission to add members', HttpStatus.FORBIDDEN);
     }
 
-    // Add member to organization
-    const newMember = await orgMemberRepo.create({
-      organization_id: org_id,
-      user_id: userToAdd.id,
-      role: role
+    const newMember = await prisma.$transaction(async (tx) => {
+      // Add member to organization
+      const member = await orgMemberRepo.create(
+        {
+          organization_id: org_id,
+          user_id: userToAdd.id,
+          role: role
+        },
+        {},
+        tx
+      );
+
+      // Find default channel and add member to it
+      const defaultChannel = await channelRepo.findOne(
+        { org_id, isDefault: true },
+        {},
+        tx
+      );
+
+      if (defaultChannel) {
+        await channelMemberRepo.create(
+          {
+            channel_id: defaultChannel.id,
+            user_id: userToAdd.id,
+            role: 'MEMBER'
+          },
+          {},
+          tx
+        );
+      }
+
+      return member;
     });
 
     return newMember;
   }
 
-  // Remove member from organization
+  // 5. Remove member from organization
   static async removeMember(orgId: string, userIdToRemove: string, currentUserId: string) {
-    // Check if current user has permission to remove members
     const currentUserRole = await orgMemberRepo.findOne({
       organization_id: orgId,
       user_id: currentUserId
     });
 
     if (!currentUserRole) {
-      throw new AppError('Access denied', 403);
+      throw new AppError('Access denied', HttpStatus.FORBIDDEN);
     }
 
-    // Check if user to remove is the owner
     const org = await orgRepo.getById(orgId);
     if (org?.owner_id === userIdToRemove) {
-      throw new AppError('Cannot remove organization owner', 400);
+      throw new AppError('Cannot remove the organization owner', HttpStatus.BAD_REQUEST);
     }
 
-    // Check if target user is admin and current user is admin (admin cannot remove admin)
     const targetUserRole = await orgMemberRepo.findOne({
       organization_id: orgId,
       user_id: userIdToRemove
     });
 
-    if (currentUserRole.role === 'ADMIN' && targetUserRole?.role === 'ADMIN') {
-      throw new AppError('Admins cannot remove other admins', 403);
+    if (!targetUserRole) {
+      throw new AppError('User is not a member of this organization', HttpStatus.NOT_FOUND);
     }
 
-    // Only OWNER can remove anyone, ADMIN can remove members only, and users can remove themselves
+    if (currentUserRole.role === 'ADMIN' && targetUserRole.role === 'ADMIN') {
+      throw new AppError('Admins cannot remove other admins', HttpStatus.FORBIDDEN);
+    }
+
     const canRemove = 
       currentUserRole.role === 'OWNER' ||
-      (currentUserRole.role === 'ADMIN' && targetUserRole?.role === 'MEMBER') ||
+      (currentUserRole.role === 'ADMIN' && targetUserRole.role === 'MEMBER') ||
       userIdToRemove === currentUserId;
 
     if (!canRemove) {
-      throw new AppError('You do not have permission to remove this member', 403);
+      throw new AppError('You do not have permission to remove this member', HttpStatus.FORBIDDEN);
     }
 
-    // Remove member
-    await orgMemberRepo.delete(targetUserRole.id);
+    await prisma.$transaction(async (tx) => {
+      // Remove member from organization
+      await orgMemberRepo.delete(targetUserRole.id, tx);
+
+      // Find all channels in the organization
+      const allChannels = await channelRepo.getAll(
+        { where: { org_id: orgId } },
+        tx
+      );
+
+      // Remove user from all channels they are a member of
+      for (const channel of allChannels) {
+        const channelMembership = await channelMemberRepo.findOne(
+          { channel_id: channel.id, user_id: userIdToRemove },
+          {},
+          tx
+        );
+
+        if (channelMembership) {
+          await channelMemberRepo.delete(channelMembership.id, tx);
+        }
+      }
+    });
 
     return { success: true };
   }
 
-  // Update member role
+  // 6. Update member role
   static async updateMemberRole(orgId: string, userId: string, newRole: 'OWNER' | 'ADMIN' | 'MEMBER', currentUserId: string) {
-    // Only owner can change roles
     const org = await orgRepo.getById(orgId);
     if (org?.owner_id !== currentUserId) {
-      throw new AppError('Only organization owner can change member roles', 403);
+      throw new AppError('Only the organization owner can change member roles', HttpStatus.FORBIDDEN);
     }
 
-    // Cannot change owner's role
     if (org.owner_id === userId) {
-      throw new AppError('Cannot change organization owner role', 400);
+      throw new AppError('Cannot change the organization owner role', HttpStatus.BAD_REQUEST);
     }
 
-    // Update member role
     const updatedMember = await orgMemberRepo.findOne({
       organization_id: orgId,
       user_id: userId
     });
 
     if (!updatedMember) {
-      throw new AppError('Member not found', 404);
+      throw new AppError('Member not found', HttpStatus.NOT_FOUND);
     }
 
     await orgMemberRepo.update(updatedMember.id, { role: newRole });
@@ -205,23 +277,21 @@ export class OrganizationService {
     return { success: true };
   }
 
-  // Update organization
+  // 7. Update organization
   static async updateOrganization(orgId: string, updateData: { name?: string }, currentUserId: string) {
-    // Check if user is owner or admin
     const membership = await orgMemberRepo.findOne({
       organization_id: orgId,
       user_id: currentUserId
     });
 
     if (!membership || (membership.role !== 'OWNER' && membership.role !== 'ADMIN')) {
-      throw new AppError('Access denied', 403);
+      throw new AppError('Access denied', HttpStatus.FORBIDDEN);
     }
 
-    // If updating name, check if it already exists for this owner
     if (updateData.name) {
       const org = await orgRepo.getById(orgId);
       if (!org) {
-        throw new AppError('Organization not found', 404);
+        throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
       }
 
       const existingOrg = await orgRepo.findOne({ 
@@ -230,7 +300,7 @@ export class OrganizationService {
       });
       
       if (existingOrg && existingOrg.id !== orgId) {
-        throw new AppError('Validation failed', 400, { name: 'UNIQUE' });
+        throw new AppError('Organization with this name already exists', 400, { name: 'UNIQUE' });
       }
     }
 
@@ -242,30 +312,20 @@ export class OrganizationService {
     return updatedOrg;
   }
 
-  // Delete organization (only owner can delete)
+  // 8. Delete organization
   static async deleteOrganization(orgId: string, currentUserId: string) {
     const org = await orgRepo.getById(orgId);
     if (!org) {
-      throw new AppError('Organization not found', 404);
+      throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
     }
 
     if (org.owner_id !== currentUserId) {
-      throw new AppError('Only organization owner can delete organization', 403);
+      throw new AppError('Only the organization owner can delete the organization', HttpStatus.FORBIDDEN);
     }
 
-    // Use transaction to delete organization and all related data
-    await prisma.$transaction(async (tx) => {
-      // Delete organization members
-      await orgMemberRepo.delete(
-        await orgMemberRepo.getAll({ where: { organization_id: orgId } }).then(members => 
-          members.map((member: any) => member.id)
-        ),
-        tx
-      );
-
-      // Delete organization
-      await orgRepo.delete(orgId, tx);
-    });
+    // 👈 NEW LOGIC: Prisma na "onDelete: Cascade" ne lidhe badha members aapo-aap delete thai jase.
+    // Transaction ni koi jaroor nathi ahiya.
+    await orgRepo.delete(orgId);
 
     return { success: true };
   }

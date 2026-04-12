@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { HttpStatus } from '@/types/api';
 
 const taskRoutes: FastifyPluginAsync = async (fastify) => {
   // Validation schemas
@@ -35,13 +36,13 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       //   include: { subtasks: true }
       // });
 
-      return reply.status(201).send({
+      return reply.status(HttpStatus.CREATED).send({
         message: 'Task created successfully',
         // task
       });
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(400).send({ error: 'Failed to create task' });
+      return reply.status(HttpStatus.BAD_REQUEST).send({ error: 'Failed to create task' });
     }
   });
 
@@ -59,13 +60,13 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       //   },
       // });
 
-      return reply.status(201).send({
+      return reply.status(HttpStatus.CREATED).send({
         message: 'Subtask created successfully',
         // subtask
       });
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(400).send({ error: 'Failed to create subtask' });
+      return reply.status(HttpStatus.BAD_REQUEST).send({ error: 'Failed to create subtask' });
     }
   });
 
@@ -83,13 +84,13 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       //   },
       // });
 
-      return reply.status(201).send({
+      return reply.status(HttpStatus.CREATED).send({
         message: 'Subtask assigned successfully',
         // assignment
       });
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(400).send({ error: 'Failed to assign subtask' });
+      return reply.status(HttpStatus.BAD_REQUEST).send({ error: 'Failed to assign subtask' });
     }
   });
 
@@ -104,13 +105,13 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       //   data: { is_completed: !subtask.is_completed },
       // });
 
-      return reply.send({
+      return reply.status(HttpStatus.OK).send({
         message: 'Subtask toggled successfully',
         // subtask
       });
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(400).send({ error: 'Failed to toggle subtask' });
+      return reply.status(HttpStatus.BAD_REQUEST).send({ error: 'Failed to toggle subtask' });
     }
   });
 
@@ -133,13 +134,13 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       //   }
       // });
 
-      return reply.send({
+      return reply.status(HttpStatus.OK).send({
         message: 'Tasks retrieved successfully',
         // tasks
       });
     } catch (error) {
       fastify.log.error(error);
-      return reply.status(400).send({ error: 'Failed to retrieve tasks' });
+      return reply.status(HttpStatus.BAD_REQUEST).send({ error: 'Failed to retrieve tasks' });
     }
   });
 };

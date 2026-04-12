@@ -16,17 +16,11 @@ export class BaseRepository {
 
   // 1. CREATE
   async create(data: any, options: { include?: any; select?: any } = {}, tx?: any) {
-    if (tx) {
-      return tx[this.modelName].create({
-        data,
-        ...options,
-      });
-    } else {
-      return (prisma as any)[this.modelName].create({
-        data,
-        ...options,
-      });
-    }
+    return this.getClient(tx).create({
+      data,
+      ...options,
+    });
+
   }
 
   // 2. GET BY ID

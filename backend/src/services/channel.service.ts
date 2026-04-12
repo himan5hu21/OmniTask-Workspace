@@ -1,6 +1,7 @@
 // src/services/channel.service.ts
-import { BaseRepository } from '@/respositories/base.repository';
+import { BaseRepository } from '@/repositories/base.repository';
 import { AppError } from '@/utils/AppError';
+import { HttpStatus } from '@/types/api';
 import { prisma } from '@/lib/database';
 
 const channelRepo = new BaseRepository('channel');
@@ -19,7 +20,7 @@ export class ChannelService {
     });
     
     if (existingChannel) {
-      throw new AppError('Channel name already exists in this organization', 400, { name: 'UNIQUE' });
+      throw new AppError('Channel name already exists in this organization', HttpStatus.BAD_REQUEST, { name: 'UNIQUE' });
     }
 
     // Check if user is member of the organization and get their role
@@ -29,12 +30,12 @@ export class ChannelService {
     });
 
     if (!membership) {
-      throw new AppError('You must be a member of the organization to create channels', 403);
+      throw new AppError('You must be a member of the organization to create channels', HttpStatus.FORBIDDEN);
     }
 
     // Only OWNER and ADMIN can create channels
     if (membership.role !== 'OWNER' && membership.role !== 'ADMIN') {
-      throw new AppError('Only organization owners and admins can create channels', 403);
+      throw new AppError('Only organization owners and admins can create channels', HttpStatus.FORBIDDEN);
     }
 
     // Use transaction to create channel and add creator as manager
@@ -72,7 +73,7 @@ export class ChannelService {
     });
 
     if (!isMember) {
-      throw new AppError('Access denied', 403);
+      throw new AppError('Access denied', HttpStatus.FORBIDDEN);
     }
 
     const channels = await channelRepo.getAll({
@@ -115,7 +116,7 @@ export class ChannelService {
       });
 
       if (orgMembership?.role !== 'OWNER' && orgMembership?.role !== 'ADMIN') {
-        throw new AppError('Access denied', 403);
+        throw new AppError('Access denied', HttpStatus.FORBIDDEN);
       }
     }
 
@@ -127,7 +128,7 @@ export class ChannelService {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
-      throw new AppError('Channel not found', 404);
+      throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
     }
 
     // Check if current user is org owner/admin or channel manager
@@ -147,11 +148,11 @@ export class ChannelService {
       channelMembership?.role === 'MANAGER';
 
     if (!canAddMember) {
-      throw new AppError('Only organization owners, admins, or channel managers can add members', 403);
+      throw new AppError('Only organization owners, admins, or channel managers can add members', HttpStatus.FORBIDDEN);
     }
       
     if (channelMembership?.role === 'MANAGER' && role === 'MANAGER') {
-      throw new AppError('Channel managers can only add users as regular MEMBERs', 403);
+      throw new AppError('Channel managers can only add users as regular MEMBERs', HttpStatus.FORBIDDEN);
     }
 
     // Additional check: prevent managers from adding owners/admins
@@ -163,7 +164,7 @@ export class ChannelService {
 
       if (targetUserOrgMembership?.role === 'OWNER' || 
           targetUserOrgMembership?.role === 'ADMIN') {
-        throw new AppError('Channel managers cannot add organization owners or admins as channel members', 403);
+        throw new AppError('Channel managers cannot add organization owners or admins as channel members', HttpStatus.FORBIDDEN);
       }
     }
 
@@ -173,7 +174,7 @@ export class ChannelService {
     });
 
     if (!isOrgMember) {
-      throw new AppError('User is not a member of this organization', 400);
+      throw new AppError('User is not a member of this organization', HttpStatus.BAD_REQUEST);
     }
 
     // Check if user is already a member of the channel
@@ -183,7 +184,7 @@ export class ChannelService {
     });
 
     if (existingMembership) {
-      throw new AppError('User is already a member of this channel', 400);
+      throw new AppError('User is already a member of this channel', HttpStatus.BAD_REQUEST);
     }
 
     // Add member to channel
@@ -201,7 +202,7 @@ export class ChannelService {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
-      throw new AppError('Channel not found', 404);
+      throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
     }
 
     // Check if current user is org owner/admin or channel manager, or removing themselves
@@ -235,12 +236,12 @@ export class ChannelService {
       if (targetUserOrgMembership?.role === 'OWNER' || 
           targetUserOrgMembership?.role === 'ADMIN' ||
           targetUserChannelMembership?.role === 'MANAGER') {
-        throw new AppError('Channel managers cannot remove organization owners, admins, or other managers', 403);
+        throw new AppError('Channel managers cannot remove organization owners, admins, or other managers', HttpStatus.FORBIDDEN);
       }
     }
 
     if (!canRemove) {
-      throw new AppError('You do not have permission to remove this member', 403);
+      throw new AppError('You do not have permission to remove this member', HttpStatus.FORBIDDEN);
     }
 
     // Remove member
@@ -254,7 +255,7 @@ export class ChannelService {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
-      throw new AppError('Channel not found', 404);
+      throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
     }
 
     // Check if current user is org owner/admin or channel manager
@@ -273,7 +274,7 @@ export class ChannelService {
       orgMembership?.role === 'ADMIN';
 
     if (!canUpdateRole) {
-      throw new AppError('Only organization owners, admins, or channel managers can change member roles', 403);
+      throw new AppError('Only organization owners, admins, or channel managers can change member roles', HttpStatus.FORBIDDEN);
     }
 
     // Update member role
@@ -283,7 +284,7 @@ export class ChannelService {
     });
 
     if (!memberToUpdate) {
-      throw new AppError('Member not found', 404);
+      throw new AppError('Member not found', HttpStatus.NOT_FOUND);
     }
 
     await channelMemberRepo.update(memberToUpdate.id, { role: newRole });
@@ -296,21 +297,33 @@ export class ChannelService {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
-      throw new AppError('Channel not found', 404);
+      throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
     }
 
-    // Check if user is organization owner or admin
-    const orgMembership = await orgMemberRepo.findOne({
-      organization_id: channel.org_id,
-      user_id: currentUserId
-    });
+    // For default channels, only the organization owner can rename them
+    if (channel.isDefault && updateData.name) {
+      const orgMembership = await orgMemberRepo.findOne({
+        organization_id: channel.org_id,
+        user_id: currentUserId
+      });
 
-    const canUpdate = 
-      orgMembership?.role === 'OWNER' ||
-      orgMembership?.role === 'ADMIN';
+      if (orgMembership?.role !== 'OWNER') {
+        throw new AppError('Only the organization owner can rename the default channel', HttpStatus.FORBIDDEN);
+      }
+    } else {
+      // For non-default channels, owner or admin can update
+      const orgMembership = await orgMemberRepo.findOne({
+        organization_id: channel.org_id,
+        user_id: currentUserId
+      });
 
-    if (!canUpdate) {
-      throw new AppError('Only organization owners and admins can update channels', 403);
+      const canUpdate = 
+        orgMembership?.role === 'OWNER' ||
+        orgMembership?.role === 'ADMIN';
+
+      if (!canUpdate) {
+        throw new AppError('Only organization owners and admins can update channels', HttpStatus.FORBIDDEN);
+      }
     }
 
     // If updating name, check if it already exists in this organization
@@ -338,7 +351,12 @@ export class ChannelService {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
-      throw new AppError('Channel not found', 404);
+      throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
+    }
+
+    // Prevent deletion of default channels
+    if (channel.isDefault) {
+      throw new AppError('Cannot delete default channel. It will be deleted when the organization is deleted.', HttpStatus.BAD_REQUEST);
     }
 
     // Check if user is organization owner or admin
@@ -352,7 +370,7 @@ export class ChannelService {
       orgMembership?.role === 'ADMIN';
 
     if (!canDelete) {
-      throw new AppError('Only organization owners and admins can delete channels', 403);
+      throw new AppError('Only organization owners and admins can delete channels', HttpStatus.FORBIDDEN);
     }
 
     // Use transaction to delete channel and all related data

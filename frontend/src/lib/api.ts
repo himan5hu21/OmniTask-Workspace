@@ -38,14 +38,58 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor to handle 401 errors
+// Response interceptor to handle 401 and 404 errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      deleteToken();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+    if (error.response) {
+      const requestUrl = error.config?.url || '';
+      const errorData = error.response.data;
+      const status = error.response.status;
+
+      // Don't redirect on login or signup endpoints - let the form handle the error
+      const isAuthRequest = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/signup');
+
+      if (status === 401 && !isAuthRequest) {
+        const hadToken = !!getToken();
+
+        // Log for debugging - helps identify if token was expired or invalid
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[API] 401 Unauthorized:', {
+            url: requestUrl,
+            hadToken,
+            error: errorData?.errors?.token || errorData?.message,
+          });
+        }
+
+        // Clear the invalid/expired token
+        deleteToken();
+
+        // Redirect to login only in browser environment
+        if (typeof window !== 'undefined') {
+          // Optional: store current path to redirect back after login
+          sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+          window.location.href = '/login';
+        }
+      }
+
+      // Handle 404 for profile endpoint - user not found
+      if (status === 404 && requestUrl.includes('/auth/profile')) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[API] 404 Profile not found:', {
+            url: requestUrl,
+            error: errorData?.message,
+          });
+        }
+
+        // Clear token and session
+        deleteToken();
+
+        // Redirect to login only in browser environment
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

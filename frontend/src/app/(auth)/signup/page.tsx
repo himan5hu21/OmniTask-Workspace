@@ -75,16 +75,16 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden py-10 px-4">
+    <div className="relative flex items-center justify-center min-h-screen bg-background font-sans text-foreground overflow-hidden py-10 px-4">
       
       {/* Background Decorative Gradients (Matched with Login) */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-        <div className="absolute top-[10%] -left-[5%] w-[400px] h-[400px] bg-indigo-100/60 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[10%] -right-[5%] w-[500px] h-[500px] bg-blue-100/60 rounded-full blur-[120px]" />
+        <div className="absolute top-[10%] -left-[5%] w-[400px] h-[400px] bg-primary/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[10%] -right-[5%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
       </div>
 
       {/* Main Register Card */}
-      <Card className="w-full max-w-[420px] shadow-2xl shadow-indigo-100/50 border-slate-200/60 bg-white/90 backdrop-blur-xl rounded-2xl overflow-hidden">
+      <Card className="w-full max-w-[420px] shadow-2xl shadow-primary/10 border-border/60 bg-background/90 backdrop-blur-xl rounded-2xl overflow-hidden">
         
         {/* Subtle top color bar */}
         <div className="h-1.5 w-full bg-linear-to-r from-indigo-500 to-blue-500"></div>
@@ -98,10 +98,10 @@ export default function RegisterPage() {
           </div>
           
           <div className="space-y-1.5">
-            <CardTitle className="text-2xl font-extrabold tracking-tight text-slate-900">
+            <CardTitle className="text-2xl font-extrabold tracking-tight text-foreground">
               Create an account
             </CardTitle>
-            <CardDescription className="text-slate-500 text-base font-medium">
+            <CardDescription className="text-muted-foreground text-base font-medium">
               Join OmniTask and start collaborating.
             </CardDescription>
           </div>
@@ -112,11 +112,11 @@ export default function RegisterPage() {
 
             {/* Name Field */}
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-slate-700 font-semibold text-sm">Full Name</Label>
+              <Label htmlFor="name" className="text-foreground font-semibold text-sm">Full Name</Label>
               <Input 
                 id="name" 
                 placeholder="John Doe" 
-                className="h-12 text-base rounded-xl border-slate-300 focus-visible:ring-indigo-500 bg-slate-50 focus:bg-white transition-colors" 
+                className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
                 {...register("name")} 
               />
               <FormFieldError errors={errors} name="name" />
@@ -124,12 +124,12 @@ export default function RegisterPage() {
 
             {/* Email Field */}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-700 font-semibold text-sm">Email address</Label>
+              <Label htmlFor="email" className="text-foreground font-semibold text-sm">Email address</Label>
               <Input 
                 id="email" 
                 type="email" 
                 placeholder="name@company.com" 
-                className="h-12 text-base rounded-xl border-slate-300 focus-visible:ring-indigo-500 bg-slate-50 focus:bg-white transition-colors" 
+                className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
                 {...register("email")} 
               />
               <FormFieldError errors={errors} name="email" />
@@ -137,19 +137,19 @@ export default function RegisterPage() {
 
             {/* Password Field */}
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-700 font-semibold text-sm">Password</Label>
+              <Label htmlFor="password" className="text-foreground font-semibold text-sm">Password</Label>
               <div className="relative">
                 <Input 
                   id="password" 
                   type={showPassword ? "text" : "password"} 
-                  placeholder="••••••••" 
-                  className="h-12 text-base rounded-xl border-slate-300 focus-visible:ring-indigo-500 bg-slate-50 focus:bg-white transition-colors pr-10" 
+                  placeholder="••••••••"
+                  className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all pr-12"
                   {...register("password")} 
                 />
                 <button 
                   type="button" 
                   onClick={() => setShowPassword(!showPassword)} 
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-md"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md flex items-center justify-center"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -159,19 +159,19 @@ export default function RegisterPage() {
 
             {/* Confirm Password Field */}
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-slate-700 font-semibold text-sm">Confirm Password</Label>
+              <Label htmlFor="confirmPassword" className="text-foreground font-semibold text-sm">Confirm Password</Label>
               <div className="relative">
                 <Input 
                   id="confirmPassword" 
                   type={showConfirmPassword ? "text" : "password"} 
-                  placeholder="••••••••" 
-                  className="h-12 text-base rounded-xl border-slate-300 focus-visible:ring-indigo-500 bg-slate-50 focus:bg-white transition-colors pr-10" 
+                  placeholder="••••••••"
+                  className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all pr-12"
                   {...register("confirmPassword")} 
                 />
                 <button 
                   type="button" 
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)} 
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-md"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md flex items-center justify-center"
                 >
                   {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -182,7 +182,7 @@ export default function RegisterPage() {
             {/* Submit Button */}
             <Button 
               type="submit" 
-              className="w-full h-12 mt-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200/50 transition-all font-medium text-base" 
+              className="w-full h-11 mt-4 rounded-xl shadow-md transition-all font-semibold text-base"
               disabled={registerMutation.isPending}
             >
               {registerMutation.isPending ? (
@@ -196,9 +196,9 @@ export default function RegisterPage() {
             </Button>
           </Form>
           
-          <div className="mt-8 text-center text-sm text-slate-500">
+          <div className="mt-8 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <a href="/login" className="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-all">
+            <a href="/login" className="font-semibold text-primary hover:text-primary/80 hover:underline transition-all">
               Sign in
             </a>
           </div>

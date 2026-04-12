@@ -1,7 +1,8 @@
 // src/services/auth.service.ts
 import bcrypt from 'bcrypt';
-import { BaseRepository } from '@/respositories/base.repository';
+import { BaseRepository } from '@/repositories/base.repository';
 import { AppError } from '@/utils/AppError';
+import { HttpStatus } from '@/types/api';
 
 const userRepo = new BaseRepository('user');
 
@@ -47,7 +48,7 @@ export class AuthService {
     );
 
     if (!user || !await bcrypt.compare(password, user.password)) {
-      throw new AppError('Invalid credentials', 401);
+      throw new AppError('Invalid credentials', HttpStatus.UNAUTHORIZED);
     }
 
     return {
@@ -65,7 +66,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new AppError('User not found', 404);
+      throw new AppError('User not found', HttpStatus.NOT_FOUND);
     }
 
     return user;
@@ -77,7 +78,7 @@ export class AuthService {
     if (updateData.email) {
       const existingUser = await userRepo.findOne({ email: updateData.email });
       if (existingUser && existingUser.id !== userId) {
-        throw new AppError('Validation failed', 400, { email: 'UNIQUE' });
+        throw new AppError('Validation failed', HttpStatus.BAD_REQUEST, { email: 'UNIQUE' });
       }
     }
 
@@ -98,13 +99,13 @@ export class AuthService {
     );
 
     if (!user) {
-      throw new AppError('User not found', 404);
+      throw new AppError('User not found', HttpStatus.NOT_FOUND);
     }
 
     // Verify current password
     const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
     if (!isCurrentPasswordValid) {
-      throw new AppError('Current password is incorrect', 400);
+      throw new AppError('Current password is incorrect', HttpStatus.BAD_REQUEST);
     }
 
     // Hash new password

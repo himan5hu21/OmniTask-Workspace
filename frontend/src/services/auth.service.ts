@@ -64,6 +64,7 @@ export async function getUserProfile(): Promise<ProfileResponse> {
 
 export function useProfileQuery(options?: { enabled?: boolean }) {
   const setSession = useAuthStore((state) => state.setSession);
+  const clearSession = useAuthStore((state) => state.clearSession);
 
   const query = useQuery({
     queryKey: authKeys.profile(),
@@ -77,11 +78,22 @@ export function useProfileQuery(options?: { enabled?: boolean }) {
     }
   }, [query.data, setSession]);
 
+  useEffect(() => {
+    if (query.error && typeof query.error === 'object' && 'response' in query.error) {
+      const errorWithResponse = query.error as { response?: { status?: number } };
+      if (errorWithResponse.response?.status === 404) {
+        // Clear auth store when profile is not found
+        clearSession();
+      }
+    }
+  }, [query.error, clearSession]);
+
   return query;
 }
 
 export function useAuthProfile(options?: { enabled?: boolean }) {
-  const query = useProfileQuery(options);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const query = useProfileQuery({ enabled: (options?.enabled ?? true) && isAuthenticated });
 
   return {
     ...query,
