@@ -13,14 +13,27 @@ import { prisma } from "./lib/database";
 
 // dotenv/config ensures env vars are loaded before any other imports
 
+const isProd = process.env.NODE_ENV === "production";
+
 const buildServer = async () => {
-  const app = Fastify({ 
-    logger: {
-      level: 'debug',
-      transport: {
-        target: 'pino-pretty', // Log ne mast format ma dekhadva (pnpm add -D pino-pretty)
+  const app = Fastify({
+    disableRequestLogging: true,
+    logger: isProd
+      ? {
+        level: "info"
       }
-    } 
+      : {
+        level: "debug",
+        transport: {
+          target: "pino-pretty",
+          options: {
+            colorize: true,
+            translateTime: "HH:MM:ss",
+            ignore: "pid,hostname,reqId",
+            singleLine: true,
+          }
+        }
+      }
   });
 
   setupErrorHandler(app);
@@ -32,7 +45,7 @@ const buildServer = async () => {
         return { value: schema.parse(data) };
       } catch (error) {
         // ZodError throw thase je sidho tamara errorHandlers ma jase
-        throw error; 
+        throw error;
       }
     };
   });
@@ -45,10 +58,13 @@ const buildServer = async () => {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
   await app.register(socketPlugin);
-  
+
   // Register JWT plugin
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is required");
+  }
   await app.register(jwt, {
-    secret: process.env.JWT_SECRET || 'fallback-secret'
+    secret: process.env.JWT_SECRET
   });
 
   app.addHook('preHandler', async (request, reply) => {
@@ -59,11 +75,59 @@ const buildServer = async () => {
     await verifyToken(request, reply);
   });
 
+  // Custom request summary hook
+  app.addHook('onResponse', (req, reply, done) => {
+    // 👈 '→' ni jagya e '->' vapryu
+    req.log.info(
+      `${req.method} ${req.url} -> ${reply.statusCode} (${reply.elapsedTime.toFixed(2)} ms)`
+    );
+    if (reply.elapsedTime > 500) {
+      req.log.warn(`Slow API: ${req.method} ${req.url}`);
+    }
+    done();
+  });
+
   // 2. Routes Register Karo (prefix aapvathi routes organized rahe chhe)
   await app.register(healthRoutes, { prefix: '/api/v1' });
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(taskRoutes, { prefix: '/api/v1' });
   await app.register(orgRoutes, { prefix: '/api/v1' });
+
+  // 3. Prisma logs ko Fastify logger ke through pass karo
+  if (!isProd) {
+    prisma.$on('query', (e) => {
+      // app.log.debug(`DB (${e.duration.toFixed(2)}ms) - ${e.query}`);
+
+      let executableQuery = e.query;
+      let params: any[] = [];
+      try {
+        // Parse the query to extract parameters
+        // This is a simplified parser - you might need to adjust based on your needs
+        params = typeof e.params === 'string' ? JSON.parse(e.params) : e.params;
+      } catch (error) {
+        app.log.warn('Failed to parse query parameters', undefined, error);
+      }
+
+      if (params && Array.isArray(params)) {
+        params.forEach((param, index) => {
+          const valueToReplace = typeof param === 'string' ? `'${param}'` : param;
+          executableQuery = executableQuery.replace(
+            new RegExp(`\\$${index + 1}(?!\\d)`, 'g'),
+            valueToReplace
+          );
+        });
+      }
+      app.log.debug(`DB (${e.duration.toFixed(2)}ms) - ${executableQuery}`);
+    });
+  }
+
+  prisma.$on('error', (e) => {
+    app.log.error(e, 'Prisma Error');
+  });
+
+  prisma.$on('warn', (e) => {
+    app.log.warn(e, 'Prisma Warning');
+  });
 
   return app;
 };
@@ -72,7 +136,18 @@ const start = async () => {
   try {
     const app = await buildServer();
     const PORT = Number(process.env.PORT) || 8000;
-    
+
+    // Global error handlers
+    process.on('uncaughtException', (err) => {
+      app.log.fatal(err);
+      process.exit(1);
+    });
+
+    process.on('unhandledRejection', (err) => {
+      app.log.fatal(err);
+      process.exit(1);
+    });
+
     // host: '0.0.0.0' rakhvu best chhe Docker ke cloud hosting mate
     await app.listen({ port: PORT, host: '0.0.0.0' });
     app.log.info(`Synkro server running on http://localhost:${PORT}`);
@@ -80,7 +155,7 @@ const start = async () => {
     // Graceful shutdown handlers 
     const gracefulShutdown = async (signal: string) => {
       app.log.info(`Received ${signal}, shutting down gracefully...`);
-      
+
       const shutdownTimeout = setTimeout(() => {
         app.log.error('Graceful shutdown timed out, forcing exit...');
         process.exit(1);
@@ -88,14 +163,14 @@ const start = async () => {
 
       try {
         await app.close();
-        
+
         // 🔥 Prisma ne disconnect karvu JARURI chhe jethi connection hang na thay
         await prisma.$disconnect();
         app.log.info('Prisma disconnected gracefully');
 
         clearTimeout(shutdownTimeout);
         app.log.info('Server closed successfully');
-        
+
         process.removeAllListeners(signal);
         process.kill(process.pid, signal);
       } catch (err) {
@@ -112,7 +187,7 @@ const start = async () => {
     process.on('SIGBREAK', () => gracefulShutdown('SIGBREAK'));
 
     process.once('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
-    
+
   } catch (err) {
     console.error(err);
     process.exit(1);

@@ -7,7 +7,7 @@ import { HttpStatus, ApiError } from '@/types/api';
 
 export function setupErrorHandler(app: FastifyInstance) {
   app.setErrorHandler((error: any, request: FastifyRequest, reply: FastifyReply) => {
-    
+
     // 1. AppError (Custom Application Errors)
     // instanceof ni jagya e error.name check karvu vadhare safe chhe
     if (error.name === 'AppError' || error instanceof AppError) {
@@ -63,11 +63,29 @@ export function setupErrorHandler(app: FastifyInstance) {
     }
 
     // 5. Internal Server Errors
-    const cleanStack = error.stack?.split('\n').filter((line: string) => !line.includes('node_modules')).join('\n');
-    console.log('\n\x1b[41m\x1b[37m [ UNHANDLED SERVER ERROR ] \x1b[0m');
-    console.log(`\x1b[33mRoute:\x1b[0m   ${request.method} ${request.url}`);
-    console.log(`\x1b[33mMessage:\x1b[0m \x1b[31m${error.message}\x1b[0m`);
-    console.log('\x1b[90m--------------------------------------------------\x1b[0m\n');
+    const stackArray = error.stack?.split('\n') || [];
+
+    // node_modules vagar no clean stack
+    const cleanStackArray = stackArray.filter((line: string) => !line.includes('node_modules'));
+
+    // Error exactly kya file ma thi aavi te extract karvu (Usually 2nd line par hoy chhe)
+    // .trim() thi aagal ni extra spaces nikal jay chhe
+    const exactLocation = cleanStackArray.length > 1 ? cleanStackArray[1].trim() : 'Unknown location';
+    const cleanStackString = cleanStackArray.join('\n');
+
+    // Terminal ma mast design mate template literal no use
+    const formattedErrorLog = `
+[ UNHANDLED SERVER ERROR ]
+--------------------------------------------------
+Route    : ${request.method} ${request.url}
+Message  : ${error.message}
+Location : ${exactLocation}
+--------------------------------------------------
+Stack Trace:
+${cleanStackString}
+`;
+
+    request.log.error(formattedErrorLog);
 
     const apiError: ApiError = {
       success: false,

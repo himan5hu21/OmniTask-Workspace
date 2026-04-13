@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { AppError } from '@/utils/AppError';
 import { sendSuccess } from '@/utils/response';
 import { HttpStatus } from '@/types/api';
+import { prisma } from '@/lib/database';
 
 const healthRoutes: FastifyPluginAsync = async (fastify) => {
   // Basic health check
@@ -16,17 +17,19 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
   // Detailed health check with database
   fastify.get('/health/detailed', { config: { isPublic: true } }, async (request, reply) => {
     try {
-      // TODO: Add database health check
-      // const dbStatus = await checkDatabaseHealth();
-      
+      // Database health check
+      const dbStartTime = Date.now();
+      await prisma.$queryRaw`SELECT 1`;
+      const dbResponseTime = Date.now() - dbStartTime;
+
       return sendSuccess(reply, {
         uptime: process.uptime(),
         service: 'synkro-backend',
         version: '1.0.0',
         checks: {
           database: {
-            status: 'ok', // TODO: Make this dynamic based on actual DB check
-            // responseTime: dbStatus.responseTime
+            status: 'ok',
+            responseTime: `${dbResponseTime}ms`
           },
           memory: {
             used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
