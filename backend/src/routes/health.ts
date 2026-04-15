@@ -9,7 +9,7 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/health', { config: { isPublic: true } }, async (request, reply) => {
     return sendSuccess(reply, {
       uptime: process.uptime(),
-      service: 'synkro-backend',
+      service: 'omnitask-backend',
       version: '1.0.0'
     }, 'FETCH', 'Health check passed');
   });
@@ -24,7 +24,7 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
 
       return sendSuccess(reply, {
         uptime: process.uptime(),
-        service: 'synkro-backend',
+        service: 'omnitask-backend',
         version: '1.0.0',
         checks: {
           database: {

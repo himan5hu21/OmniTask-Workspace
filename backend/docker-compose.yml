@@ -1,0 +1,43 @@
+version: '1.0'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: omnitask-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: omnitask-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Hot-reloading mate local code ne container sathe sync karo
+      - .:/app
+      # Container na node_modules ne local thi override thava thi roko
+      - /app/node_modules
+    environment:
+      - PORT=${PORT:-8000}
+      - NODE_ENV=${NODE_ENV:-development}
+      # Database string 'db' service name no use kare che local 'localhost' ni jagya e
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?schema=public
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - CLIENT_URL=${CLIENT_URL}
+      - SOCKET_CORS_ORIGIN=${SOCKET_CORS_ORIGIN}
+    depends_on:
+      - db
+    # Command override: Container start thay tyare pehla Prisma generate kare ane pachi dev server chalu kare
+    command: sh -c "pnpm run db:generate && pnpm run dev"
+
+volumes:
+  pgdata:

@@ -29,7 +29,7 @@ export const useAuthStore = create<AuthState>()(
       clearSession: () => set({ user: null, isAuthenticated: false }),
     }),
     {
-      name: "synkro-auth",
+      name: "omnitask-auth",
     }
   )
 );

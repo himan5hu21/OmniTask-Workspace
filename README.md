@@ -1,9 +1,9 @@
-# Project Planning Document: Synkro Enterprise Hub
+# Project Planning Document: omnitask Enterprise Hub
 **Document Type:** System Architecture & Blueprint
 **Version:** 1.0
 
 ## 1. Project Overview
-Synkro ek advance, collaborative workspace chhe je team management, real-time chat, ane highly granular task management nu combination chhe. Aa system ma hierarchy (Organization > Channel) pramane data isolate thase ane strictly role-based permissions hase.
+omnitask ek advance, collaborative workspace chhe je team management, real-time chat, ane highly granular task management nu combination chhe. Aa system ma hierarchy (Organization > Channel) pramane data isolate thase ane strictly role-based permissions hase.
 
 ## 2. Technology Stack
 *   **Frontend:** Next.js (App Router), Tailwind CSS, Shadcn UI

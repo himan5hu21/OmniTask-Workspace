@@ -150,7 +150,7 @@ const start = async () => {
 
     // host: '0.0.0.0' rakhvu best chhe Docker ke cloud hosting mate
     await app.listen({ port: PORT, host: '0.0.0.0' });
-    app.log.info(`Synkro server running on http://localhost:${PORT}`);
+    app.log.info(`omnitask server running on http://localhost:${PORT}`);
 
     // Graceful shutdown handlers 
     const gracefulShutdown = async (signal: string) => {

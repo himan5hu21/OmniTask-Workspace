@@ -6,7 +6,7 @@
     "moduleResolution": "bundler",
 
     /* Paths */
-    "rootDir": "./src",
+    "rootDir": "./",
     "outDir": "./dist",
     "baseUrl": "./src",
     "paths": {
@@ -42,5 +42,5 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["src/**/*", "src/types/**/*.d.ts", "src/types.d.ts"]
+  "include": ["src/**/*", "src/types/**/*.d.ts", "src/types.d.ts", "prisma/generated"]
 }

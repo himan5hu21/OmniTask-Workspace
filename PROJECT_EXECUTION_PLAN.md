@@ -823,7 +823,7 @@ You already use `OmniTask` in the frontend. That is good.
 Other possible names:
 
 - OmniTask
-- Synkro
+- omnitask
 - WorkMesh
 - CollabNest
 - TaskFlow Hub

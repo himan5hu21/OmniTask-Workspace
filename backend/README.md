@@ -1,7 +1,7 @@
-# Synkro Backend Setup
+# omnitask Backend Setup
 
 ## Overview
-This is the backend API for Synkro Enterprise Hub - a collaborative workspace with task management and real-time chat features.
+This is the backend API for omnitask Enterprise Hub - a collaborative workspace with task management and real-time chat features.
 
 ## Technology Stack
 - **Framework**: Fastify (Node.js)
@@ -22,7 +22,7 @@ pnpm install
 Copy `.env` file and update with your values:
 ```env
 # Database
-DATABASE_URL="postgresql://username:password@localhost:5432/synkro_db?schema=public"
+DATABASE_URL="postgresql://username:password@localhost:5432/omnitask_db?schema=public"
 
 # JWT
 JWT_SECRET="your-super-secret-jwt-key-change-in-production"

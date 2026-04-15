@@ -55,4 +55,4 @@ const socketPlugin: FastifyPluginAsync = async (fastify, options) => {
 };
 
 // fp() thi wrap karvathi aa plugin globally available thai jase
-export default fp(socketPlugin, { name: 'synkro-socket' });
+export default fp(socketPlugin, { name: 'omnitask-socket' });
