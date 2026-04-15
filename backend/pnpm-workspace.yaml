@@ -1,0 +1,6 @@
+allowBuilds:
+  '@prisma/engines': true
+  bcrypt: true
+  esbuild: true
+  fastify-socket.io: true
+  prisma: true

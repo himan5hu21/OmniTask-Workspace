@@ -1,0 +1,45 @@
+// Chat system models for channel and direct messaging
+
+model ChannelMessage {
+  id        String   @id @default(cuid())
+  channel_id String
+  sender_id  String
+  text       String
+  created_at DateTime @default(now())
+
+  // Relations
+  channel Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  sender  User    @relation(fields: [sender_id], references: [id])
+
+  @@map("channel_messages")
+}
+
+model DirectConversation {
+  id         String   @id @default(cuid())
+  user1_id   String
+  user2_id   String
+  created_at DateTime @default(now())
+
+  // Relations
+  user1 User           @relation("User1", fields: [user1_id], references: [id])
+  user2 User           @relation("User2", fields: [user2_id], references: [id])
+  messages DirectMessage[]
+
+  @@unique([user1_id, user2_id])
+  @@map("direct_conversations")
+}
+
+model DirectMessage {
+  id             String   @id @default(cuid())
+  conversation_id String
+  sender_id       String
+  text            String
+  is_read         Boolean  @default(false)
+  created_at      DateTime @default(now())
+
+  // Relations
+  conversation DirectConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender       User              @relation(fields: [sender_id], references: [id])
+
+  @@map("direct_messages")
+}

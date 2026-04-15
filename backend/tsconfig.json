@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    /* Core */
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+
+    /* Paths */
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["./*"],
+      "@/controllers/*": ["./controllers/*"],
+      "@/middlewares/*": ["./middlewares/*"],
+      "@/routes/*": ["./routes/*"],
+      "@/utils/*": ["./utils/*"],
+      "@/types/*": ["./types/*"],
+      "@/config/*": ["./config/*"]
+    },
+
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    /* Interop */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    /* Node */
+    "types": ["node"],
+
+    /* DX */
+    "skipLibCheck": true,
+    "sourceMap": true,
+
+    /* Optional but useful */
+    "resolveJsonModule": true,
+
+    /* Decorators */
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src/**/*", "src/types/**/*.d.ts", "src/types.d.ts"]
+}

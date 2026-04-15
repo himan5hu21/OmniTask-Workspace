@@ -1,0 +1,56 @@
+// Task management models for nested tasks and assignments
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  channel_id  String
+  creator_id  String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  channel    Channel   @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  creator    User      @relation("TaskCreator", fields: [creator_id], references: [id])
+  subTasks   SubTask[]
+
+  @@map("tasks")
+}
+
+model SubTask {
+  id          String   @id @default(cuid())
+  task_id     String
+  parent_id   String?  // For nested sub-tasks
+  text        String
+  is_completed Boolean @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  task         Task            @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  parent       SubTask?        @relation("SubTaskHierarchy", fields: [parent_id], references: [id])
+  children     SubTask[]       @relation("SubTaskHierarchy")
+  assignments  TaskAssignment[]
+
+  @@map("subtasks")
+}
+
+model TaskAssignment {
+  id             String         @id @default(cuid())
+  subtask_id     String
+  assignee_id    String
+  permission_type TaskPermission
+  assigned_at    DateTime       @default(now())
+
+  // Relations
+  subTask  SubTask @relation(fields: [subtask_id], references: [id], onDelete: Cascade)
+  assignee User    @relation(fields: [assignee_id], references: [id], onDelete: Cascade)
+
+  @@unique([subtask_id, assignee_id])
+  @@map("task_assignments")
+}
+
+enum TaskPermission {
+  VIEW_ONLY
+  CHECK_ONLY
+  EDIT_ALLOWED
+}
