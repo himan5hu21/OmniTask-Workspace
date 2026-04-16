@@ -3,6 +3,7 @@ import { BaseRepository } from '@/repositories/base.repository'; // Typo fixed h
 import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
 import { prisma } from '@/lib/database';
+import type { Server } from 'socket.io';
 
 const orgRepo = new BaseRepository('organization');
 const orgMemberRepo = new BaseRepository('organizationMember');
@@ -12,7 +13,7 @@ const channelMemberRepo = new BaseRepository('channelMember');
 
 export class OrganizationService {
   // 1. Create new organization
-  static async createOrganization(orgData: { name: string }, ownerId: string) {
+  static async createOrganization(orgData: { name: string }, ownerId: string, io?: Server) {
     const { name } = orgData;
 
     const existingOrg = await orgRepo.findOne({ 
@@ -69,6 +70,16 @@ export class OrganizationService {
       return newOrg;
     });
 
+    // Emit socket event
+    if (io) {
+      io.emit('org:created', {
+        orgId: organization.id,
+        name: organization.name,
+        ownerId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return organization;
   }
 
@@ -123,7 +134,7 @@ export class OrganizationService {
   }
 
   // 4. Add member to organization
-  static async addMember(memberData: { email: string; org_id: string; role: 'ADMIN' | 'MEMBER' }, currentUserId: string) {
+  static async addMember(memberData: { email: string; org_id: string; role: 'ADMIN' | 'MEMBER' }, currentUserId: string, io?: Server) {
     const { email, org_id, role } = memberData;
 
     const userToAdd = await userRepo.findOne({ email });
@@ -184,11 +195,22 @@ export class OrganizationService {
       return member;
     });
 
+    // Emit socket event
+    if (io) {
+      io.to(`org:${org_id}`).emit('org:member_added', {
+        user_id: newMember.user_id,
+        email,
+        role,
+        addedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return newMember;
   }
 
   // 5. Remove member from organization
-  static async removeMember(orgId: string, userIdToRemove: string, currentUserId: string) {
+  static async removeMember(orgId: string, userIdToRemove: string, currentUserId: string, io?: Server) {
     const currentUserRole = await orgMemberRepo.findOne({
       organization_id: orgId,
       user_id: currentUserId
@@ -249,11 +271,20 @@ export class OrganizationService {
       }
     });
 
+    // Emit socket event
+    if (io) {
+      io.to(`org:${orgId}`).emit('org:member_removed', {
+        user_id: userIdToRemove,
+        removedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return { success: true };
   }
 
   // 6. Update member role
-  static async updateMemberRole(orgId: string, userId: string, newRole: 'OWNER' | 'ADMIN' | 'MEMBER', currentUserId: string) {
+  static async updateMemberRole(orgId: string, userId: string, newRole: 'OWNER' | 'ADMIN' | 'MEMBER', currentUserId: string, io?: Server) {
     const org = await orgRepo.getById(orgId);
     if (org?.owner_id !== currentUserId) {
       throw new AppError('Only the organization owner can change member roles', HttpStatus.FORBIDDEN);
@@ -274,11 +305,21 @@ export class OrganizationService {
 
     await orgMemberRepo.update(updatedMember.id, { role: newRole });
 
+    // Emit socket event
+    if (io) {
+      io.to(`org:${orgId}`).emit('org:member_role_updated', {
+        user_id: userId,
+        newRole,
+        updatedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return { success: true };
   }
 
   // 7. Update organization
-  static async updateOrganization(orgId: string, updateData: { name?: string }, currentUserId: string) {
+  static async updateOrganization(orgId: string, updateData: { name?: string }, currentUserId: string, io?: Server) {
     const membership = await orgMemberRepo.findOne({
       organization_id: orgId,
       user_id: currentUserId
@@ -309,11 +350,21 @@ export class OrganizationService {
       updated_at: new Date()
     });
 
+    // Emit socket event
+    if (io) {
+      io.to(`org:${orgId}`).emit('org:updated', {
+        orgId: updatedOrg.id,
+        name: updatedOrg.name,
+        updatedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return updatedOrg;
   }
 
   // 8. Delete organization
-  static async deleteOrganization(orgId: string, currentUserId: string) {
+  static async deleteOrganization(orgId: string, currentUserId: string, io?: Server) {
     const org = await orgRepo.getById(orgId);
     if (!org) {
       throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
@@ -323,9 +374,18 @@ export class OrganizationService {
       throw new AppError('Only the organization owner can delete the organization', HttpStatus.FORBIDDEN);
     }
 
-    // 👈 NEW LOGIC: Prisma na "onDelete: Cascade" ne lidhe badha members aapo-aap delete thai jase.
+    // NEW LOGIC: Prisma na "onDelete: Cascade" ne lidhe badha members aapo-aap delete thai jase.
     // Transaction ni koi jaroor nathi ahiya.
     await orgRepo.delete(orgId);
+
+    // Emit socket event
+    if (io) {
+      io.emit('org:deleted', {
+        orgId,
+        deletedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     return { success: true };
   }

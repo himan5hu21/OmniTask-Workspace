@@ -24,16 +24,7 @@ export const createChannelMessage = async (request: FastifyRequest, reply: Fasti
   const { content } = createMessageSchema.parse(request.body);
   const user = (request as any).user;
 
-  const message = await MessageService.createMessage({ content }, channelId, user.userId);
-
-  // Socket Event: Broadcast message to channel
-  request.server.io?.emit(`channel:${channelId}:message_created`, {
-    messageId: message.id,
-    content: message.content,
-    user_id: message.user_id,
-    user_name: message.user_name,
-    created_at: message.created_at
-  });
+  const message = await MessageService.createMessage({ content }, channelId, user.userId, request.server.io);
 
   return sendSuccess(reply, { message }, 'CREATE', 'Message sent successfully');
 };

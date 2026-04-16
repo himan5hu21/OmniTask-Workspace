@@ -2,6 +2,7 @@
 import { BaseRepository } from '@/repositories/base.repository';
 import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
+import type { Server } from 'socket.io';
 
 const messageRepo = new BaseRepository('channelMessage');
 const channelRepo = new BaseRepository('channel');
@@ -50,8 +51,8 @@ export class MessageService {
   }
 
   // Create message in a channel
-  static async createMessage(messageData: { content: string }, channelId: string, userId: string) {
-    const { content } = messageData;
+  static async createMessage(messageInput: { content: string }, channelId: string, userId: string, io?: Server) {
+    const { content } = messageInput;
 
     // Check if user is member of the channel
     const membership = await channelMemberRepo.findOne({
@@ -79,12 +80,19 @@ export class MessageService {
       }
     );
 
-    return {
+    const messageData = {
       id: message.id,
       content: message.text,
       user_id: message.sender_id,
       user_name: message.sender.name,
       created_at: message.created_at
     };
+
+    // Emit socket event
+    if (io) {
+      io.to(`channel:${channelId}`).emit('channel:message_created', messageData);
+    }
+
+    return messageData;
   }
 }

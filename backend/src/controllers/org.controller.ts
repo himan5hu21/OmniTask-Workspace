@@ -37,15 +37,7 @@ export const createOrganization = async (request: FastifyRequest, reply: Fastify
   const { name } = createOrgSchema.parse(request.body);
   const user = (request as any).user;
 
-  const organization = await OrganizationService.createOrganization({ name }, user.userId);
-
-  // Socket Event: Client ne live update aapo
-  request.server.io?.emit('org:created', {
-    orgId: organization.id,
-    name: organization.name,
-    ownerId: user.userId,
-    timestamp: new Date().toISOString()
-  });
+  const organization = await OrganizationService.createOrganization({ name }, user.userId, request.server.io);
 
   return sendSuccess(reply, organization, 'CREATE', 'Organization created successfully');
 };
@@ -79,13 +71,7 @@ export const updateOrganization = async (request: FastifyRequest, reply: Fastify
     Object.entries(data).filter(([_, value]) => value !== undefined)
   );
 
-  const updatedOrg = await OrganizationService.updateOrganization(orgId, updateData, user.userId);
-
-  // Socket: Update event fire karo
-  request.server.io?.emit(`org:${orgId}:updated`, {
-    orgId: updatedOrg.id,
-    name: updatedOrg.name
-  });
+  const updatedOrg = await OrganizationService.updateOrganization(orgId, updateData, user.userId, request.server.io);
 
   return sendSuccess(reply, updatedOrg, 'UPDATE', 'Organization updated successfully');
 };
@@ -95,10 +81,7 @@ export const deleteOrganization = async (request: FastifyRequest, reply: Fastify
   const { orgId } = orgIdParamSchema.parse((request as any).params);
   const user = (request as any).user;
 
-  await OrganizationService.deleteOrganization(orgId, user.userId);
-
-  // Socket: Delete event fire karo jethi clients redirect thai sake
-  request.server.io?.emit(`org:${orgId}:deleted`, { orgId });
+  await OrganizationService.deleteOrganization(orgId, user.userId, request.server.io);
 
   return sendSuccess(reply, null, 'DELETE', 'Organization deleted successfully');
 };
@@ -109,14 +92,7 @@ export const addOrganizationMember = async (request: FastifyRequest, reply: Fast
   const { email, role } = addOrgMemberSchema.parse(request.body);
   const currentUser = (request as any).user;
 
-  const newMember = await OrganizationService.addMember({ email, org_id: orgId, role }, currentUser.userId);
-
-  // Socket Event: Nava member ne live update aapo
-  request.server.io?.emit(`org:${orgId}:member_added`, {
-    user_id: newMember.user_id,
-    email: email,
-    role: role
-  });
+  const newMember = await OrganizationService.addMember({ email, org_id: orgId, role }, currentUser.userId, request.server.io);
 
   return sendSuccess(reply, newMember, 'CREATE', 'Member added to organization successfully');
 };
@@ -127,12 +103,7 @@ export const updateOrganizationMemberRole = async (request: FastifyRequest, repl
   const { role } = updateMemberRoleSchema.parse(request.body);
   const currentUser = (request as any).user;
 
-  await OrganizationService.updateMemberRole(orgId, userId, role, currentUser.userId);
-
-  request.server.io?.emit(`org:${orgId}:member_updated`, {
-    user_id: userId,
-    new_role: role
-  });
+  await OrganizationService.updateMemberRole(orgId, userId, role, currentUser.userId, request.server.io);
 
   return sendSuccess(reply, null, 'UPDATE', 'Member role updated successfully');
 };
@@ -142,11 +113,7 @@ export const removeOrganizationMember = async (request: FastifyRequest, reply: F
   const { orgId, userId } = orgMemberParamSchema.parse((request as any).params);
   const currentUser = (request as any).user;
 
-  await OrganizationService.removeMember(orgId, userId, currentUser.userId);
-
-  request.server.io?.emit(`org:${orgId}:member_removed`, {
-    user_id: userId
-  });
+  await OrganizationService.removeMember(orgId, userId, currentUser.userId, request.server.io);
 
   return sendSuccess(reply, null, 'DELETE', 'Member removed successfully');
 };

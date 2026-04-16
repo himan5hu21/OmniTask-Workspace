@@ -3,6 +3,7 @@ import { BaseRepository } from '@/repositories/base.repository';
 import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
 import { prisma } from '@/lib/database';
+import type { Server } from 'socket.io';
 
 const channelRepo = new BaseRepository('channel');
 const channelMemberRepo = new BaseRepository('channelMember');
@@ -10,15 +11,15 @@ const orgMemberRepo = new BaseRepository('organizationMember');
 
 export class ChannelService {
   // Create new channel
-  static async createChannel(channelData: { name: string; org_id: string }, creatorId: string) {
+  static async createChannel(channelData: { name: string; org_id: string }, creatorId: string, io?: Server) {
     const { name, org_id } = channelData;
 
     // Check if channel name already exists in this organization
-    const existingChannel = await channelRepo.findOne({ 
+    const existingChannel = await channelRepo.findOne({
       name,
-      org_id 
+      org_id
     });
-    
+
     if (existingChannel) {
       throw new AppError('Channel name already exists in this organization', HttpStatus.BAD_REQUEST, { name: 'UNIQUE' });
     }
@@ -60,6 +61,17 @@ export class ChannelService {
 
       return newChannel;
     });
+
+    // Emit socket event
+    if (io) {
+      io.to(`org:${org_id}`).emit('org:channel_created', {
+        channelId: channel.id,
+        name: channel.name,
+        org_id: channel.org_id,
+        creatorId,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     return channel;
   }
@@ -124,7 +136,7 @@ export class ChannelService {
   }
 
   // Add member to channel
-  static async addMember(channelId: string, userId: string, role: 'MANAGER' | 'MEMBER', currentUserId: string) {
+  static async addMember(channelId: string, userId: string, role: 'MANAGER' | 'MEMBER', currentUserId: string, io?: Server) {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
@@ -194,11 +206,22 @@ export class ChannelService {
       role: role
     });
 
+    // Emit socket event
+    if (io) {
+      io.to(`channel:${channelId}`).emit('channel:member_added', {
+        channelId,
+        userId,
+        role,
+        addedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return newMember;
   }
 
   // Remove member from channel
-  static async removeMember(channelId: string, userIdToRemove: string, currentUserId: string) {
+  static async removeMember(channelId: string, userIdToRemove: string, currentUserId: string, io?: Server) {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
@@ -247,11 +270,21 @@ export class ChannelService {
     // Remove member
     await channelMemberRepo.delete(userIdToRemove);
 
+    // Emit socket event
+    if (io) {
+      io.to(`channel:${channelId}`).emit('channel:member_removed', {
+        channelId,
+        userId: userIdToRemove,
+        removedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return { success: true };
   }
 
   // Update member role
-  static async updateMemberRole(channelId: string, userId: string, newRole: 'MANAGER' | 'MEMBER', currentUserId: string) {
+  static async updateMemberRole(channelId: string, userId: string, newRole: 'MANAGER' | 'MEMBER', currentUserId: string, io?: Server) {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
@@ -289,11 +322,22 @@ export class ChannelService {
 
     await channelMemberRepo.update(memberToUpdate.id, { role: newRole });
 
+    // Emit socket event
+    if (io) {
+      io.to(`channel:${channelId}`).emit('channel:member_role_updated', {
+        channelId,
+        userId,
+        newRole,
+        updatedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return { success: true };
   }
 
   // Update channel
-  static async updateChannel(channelId: string, updateData: { name?: string }, currentUserId: string) {
+  static async updateChannel(channelId: string, updateData: { name?: string }, currentUserId: string, io?: Server) {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
@@ -343,11 +387,22 @@ export class ChannelService {
       updated_at: new Date()
     });
 
+    // Emit socket event
+    if (io) {
+      io.to(`org:${channel.org_id}`).emit('org:channel_updated', {
+        channelId: updatedChannel.id,
+        name: updatedChannel.name,
+        org_id: channel.org_id,
+        updatedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return updatedChannel;
   }
 
   // Delete channel
-  static async deleteChannel(channelId: string, currentUserId: string) {
+  static async deleteChannel(channelId: string, currentUserId: string, io?: Server) {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
@@ -386,6 +441,16 @@ export class ChannelService {
       // Delete channel
       await channelRepo.delete(channelId, tx);
     });
+
+    // Emit socket event
+    if (io) {
+      io.to(`org:${channel.org_id}`).emit('org:channel_deleted', {
+        channelId,
+        org_id: channel.org_id,
+        deletedBy: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     return { success: true };
   }

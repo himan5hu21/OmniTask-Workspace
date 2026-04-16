@@ -14,14 +14,7 @@ export const createChannel = async (request: FastifyRequest, reply: FastifyReply
   const { name, org_id } = createChannelSchema.parse(request.body);
   const user = (request as any).user;
 
-  const channel = await ChannelService.createChannel({ name, org_id }, user.userId);
-
-  // Socket Event
-  request.server.io?.emit(`org:${org_id}:channel_created`, {
-    channelId: channel.id,
-    name: channel.name,
-    timestamp: new Date().toISOString()
-  });
+  const channel = await ChannelService.createChannel({ name, org_id }, user.userId, request.server.io);
 
   return sendSuccess(reply, channel, 'CREATE', 'Channel created successfully');
 };

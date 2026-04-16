@@ -33,6 +33,70 @@ const socketPlugin: FastifyPluginAsync = async (fastify, options) => {
     fastify.log.info(`[Socket] Navo user aavyo: ${socket.id}`);
 
     // ==========================================
+    // 🛠️ CHANNEL EVENTS
+    // ==========================================
+
+    // Join channel room
+    socket.on('channel:join', ({ channelId, userId }) => {
+      socket.join(`channel:${channelId}`);
+      fastify.log.info(`[Socket] User ${userId} joined channel:${channelId}`);
+
+      // Notify others in the channel
+      socket.to(`channel:${channelId}`).emit('channel:user_joined', {
+        channelId,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Leave channel room
+    socket.on('channel:leave', ({ channelId, userId }) => {
+      socket.leave(`channel:${channelId}`);
+      fastify.log.info(`[Socket] User ${userId} left channel:${channelId}`);
+
+      // Notify others in the channel
+      socket.to(`channel:${channelId}`).emit('channel:user_left', {
+        channelId,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Join organization room
+    socket.on('organization:join', ({ orgId, userId }) => {
+      socket.join(`org:${orgId}`);
+      fastify.log.info(`[Socket] User ${userId} joined org:${orgId}`);
+    });
+
+    // Leave organization room
+    socket.on('organization:leave', ({ orgId, userId }) => {
+      socket.leave(`org:${orgId}`);
+      fastify.log.info(`[Socket] User ${userId} left org:${orgId}`);
+    });
+
+    // ==========================================
+    // 🛠️ MESSAGE EVENTS
+    // ==========================================
+
+    // Typing indicator
+    socket.on('message:typing', ({ channelId, userId }) => {
+      socket.to(`channel:${channelId}`).emit('channel:typing', {
+        channelId,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Stop typing indicator
+    socket.on('message:stop_typing', ({ channelId, userId }) => {
+      socket.to(`channel:${channelId}`).emit('channel:stop_typing', {
+        channelId,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // ==========================================
     // 🛠️ SAMPLE TEST ROUTE / EVENT
     // ==========================================
     socket.on('test:ping', (data) => {
