@@ -61,8 +61,7 @@ export const login = async (request: FastifyRequest, reply: FastifyReply) => {
     { 
       userId: user.id, 
       email: user.email,
-      name: user.name,
-      created_at: user.created_at
+      name: user.name
     }, 
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } 
   );
@@ -83,10 +82,6 @@ export const login = async (request: FastifyRequest, reply: FastifyReply) => {
 // Get current user profile
 export const getProfile = async (request: FastifyRequest, reply: FastifyReply) => {
     const user = (request as any).user;
-    
-    if (!user) {
-      throw new AppError('User not found', 404);
-    }
     
     const userProfile = await AuthService.getUserById(user.userId);
     

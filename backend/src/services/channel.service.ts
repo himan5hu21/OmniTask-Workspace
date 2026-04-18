@@ -6,8 +6,8 @@ import { prisma } from '@/lib/database';
 import type { Server } from 'socket.io';
 
 const channelRepo = new BaseRepository('channel');
-const channelMemberRepo = new BaseRepository('channelMember');
-const orgMemberRepo = new BaseRepository('organizationMember');
+const channelMemberRepo = new BaseRepository('channelMember', false);
+const orgMemberRepo = new BaseRepository('organizationMember', false);
 
 export class ChannelService {
   // Create new channel

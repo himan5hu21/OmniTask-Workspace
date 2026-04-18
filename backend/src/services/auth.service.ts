@@ -3,60 +3,68 @@ import bcrypt from 'bcrypt';
 import { BaseRepository } from '@/repositories/base.repository';
 import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
+import { prisma } from '@/lib/database';
 
 const userRepo = new BaseRepository('user');
 
 export class AuthService {
-  // Register new user
+  // 1. Updated Register with Reactivation
   static async register(userData: { name: string; email: string; password: string }) {
     const { name, email, password } = userData;
 
-    // Check if user already exists
-    const existingUser = await userRepo.findOne({ email });
+    // We use raw prisma here because we NEED to see soft-deleted users
+    const existingUser = await prisma.user.findFirst({ where: { email } });
+
     if (existingUser) {
-      throw new AppError('Validation failed', 400, { email: 'UNIQUE' });
+      // If user exists and is NOT deleted, it's a standard duplicate error
+      if (existingUser.deleted_at === null) {
+        throw new AppError('User with this email already exists', HttpStatus.BAD_REQUEST, { email: 'UNIQUE' });
+      }
+
+      // If user exists but WAS soft-deleted, we REACTIVATE them
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const reactivatedUser = await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          name,
+          password: hashedPassword,
+          deleted_at: null, // Bring back to life
+          is_active: true   // Ensure they are active
+        }
+      });
+
+      return { id: reactivatedUser.id, name: reactivatedUser.name, email: reactivatedUser.email };
     }
 
-    // Hash password
+    // Standard Create for brand new users
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user
     const user = await userRepo.create({
       name,
       email,
       password: hashedPassword,
       is_active: true,
-      created_at: new Date(),
-      updated_at: new Date()
     });
 
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email
-    };
+    return { id: user.id, name: user.name, email: user.email };
   }
 
-  // Login user
+  // 2. Updated Login to ensure deleted users can't log in
   static async login(credentials: { email: string; password: string }) {
     const { email, password } = credentials;
 
-    // Find user with password
-    const user = await userRepo.findOne(
-      { email, is_active: true },
-      { select: { id: true, name: true, email: true, password: true, created_at: true } }
-    );
+    // userRepo automatically filters out soft-deleted users
+    const user = await userRepo.findOne({ email, is_active: true });
 
-    if (!user || !await bcrypt.compare(password, user.password)) {
-      throw new AppError('Invalid credentials', HttpStatus.UNAUTHORIZED);
+    if (!user) {
+      throw new AppError('Invalid email or password', HttpStatus.UNAUTHORIZED);
     }
 
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      created_at: user.created_at
-    };
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new AppError('Invalid email or password', HttpStatus.UNAUTHORIZED);
+    }
+
+    return { id: user.id, email: user.email, name: user.name };
   }
 
   // Get user by ID

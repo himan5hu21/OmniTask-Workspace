@@ -6,7 +6,7 @@ import type { Server } from 'socket.io';
 
 const messageRepo = new BaseRepository('channelMessage');
 const channelRepo = new BaseRepository('channel');
-const channelMemberRepo = new BaseRepository('channelMember');
+const channelMemberRepo = new BaseRepository('channelMember', false);
 
 export class MessageService {
   // Get messages in a channel

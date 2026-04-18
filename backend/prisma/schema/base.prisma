@@ -1,39 +1,62 @@
 // Base models for User, Organization, and Channel management
 
 model User {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   name      String
-  email     String   @unique
+  email     String  @unique
   password  String
-  is_active Boolean  @default(true)
+  is_active Boolean @default(true)
+
+  // Soft delete
+  deleted_at DateTime?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   // Relations
-  ownedOrganizations Organization[] @relation("OrganizationOwner")
-  orgMemberships     OrganizationMember[]
-  channelMemberships ChannelMember[]
-  createdTasks       Task[]         @relation("TaskCreator")
-  taskAssignments    TaskAssignment[]
-  sentChannelMessages ChannelMessage[]
-  sentDirectMessages DirectMessage[]
+  ownedOrganizations   Organization[]       @relation("OrganizationOwner")
+  orgMemberships       OrganizationMember[]
+  channelMemberships   ChannelMember[]
+  createdTasks         Task[]               @relation("TaskCreator")
+  taskAssignments      TaskAssignment[]
+  sentChannelMessages  ChannelMessage[]
+  sentDirectMessages   DirectMessage[]
   directConversations1 DirectConversation[] @relation("User1")
   directConversations2 DirectConversation[] @relation("User2")
+  refreshTokens        RefreshToken[]
 
   @@map("users")
 }
 
+model RefreshToken {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  user_id    String
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  owner_id  String
+  id       String @id @default(cuid())
+  name     String
+  owner_id String
+
+  // Soft delete
+  deleted_at DateTime?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   // Relations
-  owner User @relation("OrganizationOwner", fields: [owner_id], references: [id], onDelete: Cascade)
+  owner    User                 @relation("OrganizationOwner", fields: [owner_id], references: [id], onDelete: Cascade)
   channels Channel[]
   members  OrganizationMember[]
+  tasks    Task[]
 
   @@map("organizations")
 }
@@ -68,28 +91,34 @@ enum OrgRole {
 // members OrganizationMember[]
 
 model Channel {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   name      String
   org_id    String
-  isDefault Boolean  @default(false)
+  isDefault Boolean @default(false)
+
+  // Soft delete
+  deleted_at DateTime?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   // Relations
-  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
-  members    ChannelMember[]
-  tasks      Task[]
-  messages   ChannelMessage[]
+  organization Organization     @relation(fields: [org_id], references: [id], onDelete: Cascade)
+  members      ChannelMember[]
+  tasks        Task[]
+  messages     ChannelMessage[]
 
+  // Indexing for performance
+  @@index([org_id])
   @@map("channels")
 }
 
 model ChannelMember {
-  id         String   @id @default(cuid())
+  id         String      @id @default(cuid())
   user_id    String
   channel_id String
   role       ChannelRole @default(MEMBER)
-  joined_at  DateTime @default(now())
+  joined_at  DateTime    @default(now())
 
   // Relations
   user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)

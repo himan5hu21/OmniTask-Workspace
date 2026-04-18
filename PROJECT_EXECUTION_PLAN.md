@@ -257,14 +257,18 @@ Follow this exact order.
 
 ## Phase 1. Foundation Setup
 
-- [ ] Finalize project name, domain naming, environment structure
-- [ ] Set up `.env` properly for backend and frontend
-- [ ] Finalize PostgreSQL database
-- [ ] Finalize Prisma schema
-- [ ] Run Prisma generate and migration
-- [ ] Add seed data for demo organization, channels, users
-- [ ] Add shared API response format
-- [ ] Add logging and error handling standards
+- [x] Finalize project name, domain naming, environment structure
+- [x] Set up `.env` properly for backend and frontend
+- [x] Finalize PostgreSQL database
+- [x] Finalize Prisma schema
+- [x] Run Prisma generate and migration
+- [x] Add seed data for demo organization, channels, users
+- [x] Add shared API response format
+- [x] Add logging and error handling standards
+- [x] Refactor Task and SubTask schema into a single self-referencing Task model (with parent_task_id)
+- [x] Add source_message_id to the Task model to support Chat-to-Task integration
+- [x] Add database indexes (@@index) for heavily queried fields like org_id and channel_id
+- [x] Add deleted_at field to core models to implement soft-delete functionality
 
 Deliverable:
 
@@ -274,50 +278,51 @@ Deliverable:
 
 ## Phase 2. Authentication Module
 
-- [ ] Create register API
-- [ ] Create login API
-- [ ] Create current user profile API
-- [ ] Add JWT auth middleware
-- [ ] Add password hashing
+- [x] Create register API
+- [x] Create login API
+- [x] Create current user profile API
+- [x] Add JWT auth middleware
+- [x] Add password hashing
 - [ ] Add refresh token strategy later if needed
-- [ ] Add logout logic
-- [ ] Protect private routes
+- [x] Add logout logic
+- [x] Protect private routes
 
 Backend APIs:
 
-- [ ] `POST /auth/register`
-- [ ] `POST /auth/login`
-- [ ] `POST /auth/logout`
-- [ ] `GET /auth/me`
+- [x] `POST /auth/register`
+- [x] `POST /auth/login`
+- [x] `POST /auth/logout`
+- [x] `GET /auth/me`
 
 Frontend:
 
-- [ ] Register page
-- [ ] Login page
-- [ ] Auth store
-- [ ] Protected route handling
+- [x] Register page
+- [x] Login page
+- [x] Auth store
+- [x] Protected route handling
 
 ## Phase 3. Organization Module
 
-- [ ] Create organization API
-- [ ] Get all user organizations API
-- [ ] Get single organization API
-- [ ] Update organization API
-- [ ] Delete organization API
-- [ ] Add organization member API
-- [ ] Remove organization member API
-- [ ] Update organization member role API
+- [x] Create organization API
+- [x] Get all user organizations API
+- [x] Get single organization API
+- [x] Update organization API
+- [x] Delete organization API
+- [x] Add organization member API
+- [x] Remove organization member API
+- [x] Update organization member role API
+- [ ] Verify onDelete: Cascade in Prisma schema to ensure related channels, tasks, and messages are deleted safely when an organization is removed
 
 Backend APIs:
 
-- [ ] `POST /organizations`
-- [ ] `GET /organizations`
-- [ ] `GET /organizations/:id`
-- [ ] `PATCH /organizations/:id`
-- [ ] `DELETE /organizations/:id`
-- [ ] `POST /organizations/:id/members`
-- [ ] `PATCH /organizations/:id/members/:userId`
-- [ ] `DELETE /organizations/:id/members/:userId`
+- [x] `POST /organizations`
+- [x] `GET /organizations`
+- [x] `GET /organizations/:id`
+- [x] `PATCH /organizations/:id`
+- [x] `DELETE /organizations/:id`
+- [x] `POST /organizations/:id/members`
+- [x] `PATCH /organizations/:id/members/:userId`
+- [x] `DELETE /organizations/:id/members/:userId`
 
 Frontend:
 
@@ -335,25 +340,25 @@ Definition of done:
 
 ## Phase 4. Channel Module
 
-- [ ] Create channel API
-- [ ] Get organization channels API
-- [ ] Get single channel API
-- [ ] Update channel API
-- [ ] Delete channel API
-- [ ] Add member to channel API
-- [ ] Remove member from channel API
-- [ ] Update channel member role API
+- [x] Create channel API
+- [x] Get organization channels API
+- [x] Get single channel API
+- [x] Update channel API
+- [x] Delete channel API
+- [x] Add member to channel API
+- [x] Remove member from channel API
+- [x] Update channel member role API
 
 Backend APIs:
 
-- [ ] `POST /channels`
-- [ ] `GET /organizations/:orgId/channels`
-- [ ] `GET /channels/:id`
-- [ ] `PATCH /channels/:id`
-- [ ] `DELETE /channels/:id`
-- [ ] `POST /channels/:id/members`
-- [ ] `PATCH /channels/:id/members/:userId`
-- [ ] `DELETE /channels/:id/members/:userId`
+- [x] `POST /channels`
+- [x] `GET /organizations/:orgId/channels`
+- [x] `GET /channels/:id`
+- [x] `PATCH /channels/:id`
+- [x] `DELETE /channels/:id`
+- [x] `POST /channels/:id/members`
+- [x] `PATCH /channels/:id/members/:userId`
+- [x] `DELETE /channels/:id/members/:userId`
 
 Frontend:
 
@@ -370,19 +375,22 @@ Definition of done:
 
 ## Phase 5. Channel Chat Module
 
-- [ ] Finalize Socket.IO connection setup
-- [ ] Create channel message send API or socket event
-- [ ] Create channel message list API
+- [x] Finalize Socket.IO connection setup
+- [x] Create channel message send API or socket event
+- [x] Create channel message list API
 - [ ] Add pagination for old messages
 - [ ] Add message delivery in real time
 - [ ] Add read tracking if needed
 - [ ] Add edit/delete message rules
 - [ ] Add basic moderation rules
+- [ ] Implement JWT authentication inside Socket.io connection handshake (io.use)
+- [ ] Validate channel membership before allowing a socket client to join a channel:${channelId} room
+- [ ] Add cursor-based or offset-based pagination to the channel messages API to prevent memory overload
 
 Backend APIs / events:
 
-- [ ] `GET /channels/:id/messages`
-- [ ] `POST /channels/:id/messages`
+- [x] `GET /channels/:id/messages`
+- [x] `POST /channels/:id/messages`
 - [ ] `PATCH /messages/:id`
 - [ ] `DELETE /messages/:id`
 - [ ] socket `channel:join`

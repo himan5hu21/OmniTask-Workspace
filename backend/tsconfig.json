@@ -13,10 +13,14 @@
       "@/*": ["./*"],
       "@/controllers/*": ["./controllers/*"],
       "@/middlewares/*": ["./middlewares/*"],
+      "@/plugins/*": ["./plugins/*"],
+      "@/repositories/*": ["./repositories/*"],
       "@/routes/*": ["./routes/*"],
-      "@/utils/*": ["./utils/*"],
+      "@/services/*": ["./services/*"],
       "@/types/*": ["./types/*"],
-      "@/config/*": ["./config/*"]
+      "@/utils/*": ["./utils/*"],
+      "@/config/*": ["./config/*"],
+      "@/lib/*": ["./lib/*"]
     },
 
     /* Strictness */
@@ -42,5 +46,5 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["src/**/*", "src/types/**/*.d.ts", "src/types.d.ts", "prisma/generated"]
+  "include": ["src/**/*", "src/types/**/*.d.ts", "src/types.d.ts", "prisma/**/*"]
 }

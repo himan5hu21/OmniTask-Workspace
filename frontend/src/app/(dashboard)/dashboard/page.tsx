@@ -18,6 +18,7 @@ import { createZodResolver, Form, FormFieldError } from "@/lib/form";
 import { handleApiError } from "@/lib/api-errors";
 import { useAuthProfile } from "@/services/auth.service";
 import { useOrganizations, useCreateOrganization, useDeleteOrganization } from "@/hooks/useOrganizations";
+import { useIsMounted } from "@/hooks/useIsMounted";
 import type { Organization } from "@/services/organization.service";
 
 const orgSchema = z.object({
@@ -27,8 +28,9 @@ type OrgFormValues = z.infer<typeof orgSchema>;
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user } = useAuthProfile(); 
-  
+  const { user } = useAuthProfile();
+  const isMounted = useIsMounted();
+
   // States for Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [orgToDelete, setOrgToDelete] = useState<Organization | null>(null);
@@ -64,7 +66,7 @@ export default function DashboardPage() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 opacity-70"></div>
         <div className="relative z-10 space-y-2">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-            Welcome back, {user?.name?.split(' ')[0] || "User"} 👋
+            Welcome back, {isMounted ? (user?.name?.split(' ')[0] || "User") : "User"} 👋
           </h1>
           <p className="text-muted-foreground text-base max-w-xl">
             Select an organization to dive into channels, tasks, and team chats.

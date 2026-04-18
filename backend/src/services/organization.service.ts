@@ -6,10 +6,10 @@ import { prisma } from '@/lib/database';
 import type { Server } from 'socket.io';
 
 const orgRepo = new BaseRepository('organization');
-const orgMemberRepo = new BaseRepository('organizationMember');
+const orgMemberRepo = new BaseRepository('organizationMember', false);
 const userRepo = new BaseRepository('user');
 const channelRepo = new BaseRepository('channel');
-const channelMemberRepo = new BaseRepository('channelMember');
+const channelMemberRepo = new BaseRepository('channelMember', false);
 
 export class OrganizationService {
   // 1. Create new organization
@@ -83,10 +83,16 @@ export class OrganizationService {
     return organization;
   }
 
-  // 2. Get user's organizations
+  // 2. Get user's organizations (FIXED FOR SOFT DELETE) 
   static async getUserOrganizations(userId: string) {
     const userOrgs = await orgMemberRepo.getAll({
-      where: { user_id: userId },
+      where: { 
+        user_id: userId,
+        // Filter memberships where the organization is NOT deleted
+        organization: {
+          deleted_at: null
+        }
+      },
       include: {
         organization: true
       },
@@ -364,29 +370,95 @@ export class OrganizationService {
   }
 
   // 8. Delete organization
+  // static async deleteOrganization(orgId: string, currentUserId: string, io?: Server) {
+  //   const org = await orgRepo.getById(orgId);
+  //   if (!org) {
+  //     throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
+  //   }
+
+  //   if (org.owner_id !== currentUserId) {
+  //     throw new AppError('Only the organization owner can delete the organization', HttpStatus.FORBIDDEN);
+  //   }
+
+  //   // NEW LOGIC: Prisma na "onDelete: Cascade" ne lidhe badha members aapo-aap delete thai jase.
+  //   // Transaction ni koi jaroor nathi ahiya.
+  //   await orgRepo.delete(orgId);
+
+  //   // Emit socket event
+  //   if (io) {
+  //     io.emit('org:deleted', {
+  //       orgId,
+  //       deletedBy: currentUserId,
+  //       timestamp: new Date().toISOString()
+  //     });
+  //   }
+
+  //   return { success: true };
+  // }
+
+  // 8. Delete organization with hybrid soft/hard delete
   static async deleteOrganization(orgId: string, currentUserId: string, io?: Server) {
+    // 1. Fetch organization and verify existence
     const org = await orgRepo.getById(orgId);
     if (!org) {
       throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
     }
 
+    // 2. Permission check: Only the owner can delete
     if (org.owner_id !== currentUserId) {
       throw new AppError('Only the organization owner can delete the organization', HttpStatus.FORBIDDEN);
     }
 
-    // NEW LOGIC: Prisma na "onDelete: Cascade" ne lidhe badha members aapo-aap delete thai jase.
-    // Transaction ni koi jaroor nathi ahiya.
-    await orgRepo.delete(orgId);
+    const now = new Date();
 
-    // Emit socket event
+    // 3. Transactional Manual Cascade
+    await prisma.$transaction(async (tx) => {
+      // A. Soft Delete the Organization itself
+      await tx.organization.update({
+        where: { id: orgId },
+        data: { deleted_at: now }
+      });
+
+      // B. Soft Delete all Channels in this Organization
+      await tx.channel.updateMany({
+        where: { org_id: orgId, deleted_at: null },
+        data: { deleted_at: now }
+      });
+
+      // C. Soft Delete all Tasks in this Organization
+      await tx.task.updateMany({
+        where: { org_id: orgId, deleted_at: null },
+        data: { deleted_at: now }
+      });
+
+      // D. Soft Delete all Channel Messages
+      // Note: We target messages where the channel belongs to this org
+      await tx.channelMessage.updateMany({
+        where: { 
+          channel: { org_id: orgId },
+          deleted_at: null 
+        },
+        data: { deleted_at: now }
+      });
+
+      // E. Hard Delete Pivot Relationships
+      // These tables don't have deleted_at columns and should be cleaned up entirely
+      // await tx.organizationMember.deleteMany({ where: { organization_id: orgId } });
+      // await tx.channelMember.deleteMany({ where: { channel: { org_id: orgId } } });
+      // await tx.taskAssignment.deleteMany({ where: { task: { org_id: orgId } } });
+    });
+
+    // 4. Notify via Socket
     if (io) {
       io.emit('org:deleted', {
         orgId,
         deletedBy: currentUserId,
-        timestamp: new Date().toISOString()
+        timestamp: now.toISOString()
       });
     }
 
     return { success: true };
   }
+
+  
 }

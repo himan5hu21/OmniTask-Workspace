@@ -4,19 +4,11 @@
 import Link from 'next/link';
 import { ArrowRight, LayoutDashboard } from 'lucide-react';
 import { getToken } from '@/lib/api';
-import { useSyncExternalStore } from 'react';
+import { useIsMounted, useServerValue } from '@/hooks/useIsMounted';
 
 export default function HomePage() {
-  const isMounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-  const isAuthenticated = useSyncExternalStore(
-    () => () => {},
-    () => !!getToken(),
-    () => false
-  );
+  const isMounted = useIsMounted();
+  const isAuthenticated = useServerValue(() => !!getToken(), false);
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen bg-background overflow-hidden text-center px-4">
