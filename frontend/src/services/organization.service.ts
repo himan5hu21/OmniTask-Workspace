@@ -121,18 +121,21 @@ export async function removeOrganizationMember(
 }
 
 // Query Hooks
-export function useOrganizationsQuery() {
+export function useOrganizationsQuery(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: organizationKeys.list(),
     queryFn: getMyOrganizations,
+    enabled: options?.enabled ?? true,
+    staleTime: 1000 * 60 * 5, // 5 min cache
   });
 }
 
-export function useOrganizationQuery(orgId: string) {
+export function useOrganizationQuery(orgId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: organizationKeys.detail(orgId),
     queryFn: () => getOrganizationById(orgId),
-    enabled: !!orgId,
+    enabled: (options?.enabled ?? true) && !!orgId,
+    staleTime: 1000 * 60 * 5, // 5 min cache
   });
 }
 

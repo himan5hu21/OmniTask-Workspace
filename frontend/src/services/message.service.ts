@@ -55,6 +55,7 @@ export function useChannelMessagesQuery(channelId: string) {
     queryKey: messageKeys.byChannel(channelId),
     queryFn: () => getChannelMessages(channelId),
     enabled: !!channelId,
+    staleTime: 1000 * 30, // 30 sec cache (real-time data)
   });
 }
 

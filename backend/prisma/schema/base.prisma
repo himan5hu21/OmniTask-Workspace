@@ -28,6 +28,8 @@ model User {
   @@map("users")
 }
 
+
+// TODO: Need to complete at the end.
 model RefreshToken {
   id         String   @id @default(cuid())
   token      String   @unique

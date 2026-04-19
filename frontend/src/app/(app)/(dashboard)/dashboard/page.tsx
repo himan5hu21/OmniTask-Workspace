@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -17,7 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { createZodResolver, Form, FormFieldError } from "@/lib/form";
 import { handleApiError } from "@/lib/api-errors";
 import { useAuthProfile } from "@/services/auth.service";
-import { useOrganizations, useCreateOrganization, useDeleteOrganization } from "@/hooks/useOrganizations";
+import { useOrganizations, useCreateOrganization, useDeleteOrganization } from "@/hooks/api/useOrganizations";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import type { Organization } from "@/services/organization.service";
 
@@ -59,7 +60,12 @@ export default function DashboardPage() {
   const onCreate = (data: OrgFormValues) => createMutation.mutate(data);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10">
+    <motion.div
+      className="max-w-6xl mx-auto space-y-10"
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+    >
       
       {/* Welcome Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-background p-8 rounded-2xl border border-border shadow-sm relative overflow-hidden">
@@ -157,7 +163,7 @@ export default function DashboardPage() {
 
       {/* 🟢 Create Workspace Modal */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-[425px] p-6 rounded-xl">
+        <DialogContent open={isCreateOpen} className="sm:max-w-[425px] p-6 rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-foreground">Create Workspace</DialogTitle>
             <DialogDescription className="text-base mt-1.5 text-muted-foreground">
@@ -201,7 +207,7 @@ export default function DashboardPage() {
 
       {/* 🟢 Delete Confirm Modal */}
       <Dialog open={!!orgToDelete} onOpenChange={(open) => !open && setOrgToDelete(null)}>
-        <DialogContent className="sm:max-w-[425px] p-6 rounded-xl border-destructive/20">
+        <DialogContent open={!!orgToDelete} className="sm:max-w-[425px] p-6 rounded-xl border-destructive/20">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold flex items-center gap-2 text-foreground">
               <Trash2 className="h-5 w-5 text-destructive" />
@@ -232,6 +238,6 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
 
-    </div>
+    </motion.div>
   );
 }

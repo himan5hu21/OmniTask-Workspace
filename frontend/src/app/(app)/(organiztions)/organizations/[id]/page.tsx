@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { useParams } from "next/navigation";
-import Link from "next/link";
-import { Settings, Plus, Crown, ShieldCheck, UserCircle, Loader2, Edit2 } from "lucide-react";
+import { Plus, Crown, ShieldCheck, UserCircle, Loader2, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { EditWorkspaceDialog } from "@/components/organizations/edit-workspace-dialog";
 import { useAuthProfile } from "@/services/auth.service";
-import { useOrganizations, useAddOrganizationMember, useOrganization } from "@/hooks/useOrganizations";
+import { useOrganizations, useAddOrganizationMember, useOrganization } from "@/hooks/api/useOrganizations";
 import { handleApiError } from "@/lib/api-errors";
 
 export default function OrganizationDetailPage() {
@@ -31,6 +32,7 @@ export default function OrganizationDetailPage() {
   const userRole = currentUserMember?.role;
 
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<'ADMIN' | 'MEMBER'>('MEMBER');
   const [inviteEmailError, setInviteEmailError] = useState("");
@@ -75,19 +77,16 @@ export default function OrganizationDetailPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
-      
-      {/* 🟢 Header */}
-      <header className="h-14 shrink-0 border-b border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 flex items-center px-6 z-10">
-        <h2 className="font-semibold text-foreground flex items-center gap-2">
-          <Settings className="h-4 w-4 text-muted-foreground" />
-          Workspace Settings
-        </h2>
-      </header>
+    <motion.div
+      className="flex-1 flex flex-col h-full overflow-hidden"
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+    >
 
       {/* 🟢 Content */}
       <div className="flex-1 overflow-y-auto p-6 md:p-8">
-        <div className="max-w-4xl mx-auto space-y-8">
+        <div className="mx-auto space-y-8">
           
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-foreground">Settings for {organization?.name || "Workspace"}</h1>
@@ -101,17 +100,23 @@ export default function OrganizationDetailPage() {
               <p className="text-lg font-semibold text-foreground mt-1">{organization?.name || "Workspace"}</p>
             </div>
             {userRole === 'OWNER' && (
-              <Link href={`/organizations/${orgId}/edit`}>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="h-9 rounded-lg"
-                >
-                  <Edit2 className="h-4 w-4 mr-2" /> Edit
-                </Button>
-              </Link>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 rounded-lg"
+                onClick={() => setIsEditDialogOpen(true)}
+              >
+                <Edit2 className="h-4 w-4 mr-2" /> Edit
+              </Button>
             )}
           </div>
+
+          {isEditDialogOpen ? (
+            <EditWorkspaceDialog
+              orgId={orgId}
+              onClose={() => setIsEditDialogOpen(false)}
+            />
+          ) : null}
 
           {/* Members Card */}
           <Card className="shadow-sm border-border">
@@ -253,6 +258,6 @@ export default function OrganizationDetailPage() {
 
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

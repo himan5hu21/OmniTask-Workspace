@@ -81,7 +81,10 @@ export const deleteOrganization = async (request: FastifyRequest, reply: Fastify
   const { orgId } = orgIdParamSchema.parse((request as any).params);
   const user = (request as any).user;
 
-  await OrganizationService.deleteOrganization(orgId, user.userId, request.server.io);
+  // Commented now. Soft delete.
+  // await OrganizationService.deleteOrganization(orgId, user.userId, request.server.io);
+
+  await OrganizationService.hardDeleteOrganization(orgId, user.userId, request.server.io);
 
   return sendSuccess(reply, null, 'DELETE', 'Organization deleted successfully');
 };

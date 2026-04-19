@@ -369,34 +369,7 @@ export class OrganizationService {
     return updatedOrg;
   }
 
-  // 8. Delete organization
-  // static async deleteOrganization(orgId: string, currentUserId: string, io?: Server) {
-  //   const org = await orgRepo.getById(orgId);
-  //   if (!org) {
-  //     throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
-  //   }
-
-  //   if (org.owner_id !== currentUserId) {
-  //     throw new AppError('Only the organization owner can delete the organization', HttpStatus.FORBIDDEN);
-  //   }
-
-  //   // NEW LOGIC: Prisma na "onDelete: Cascade" ne lidhe badha members aapo-aap delete thai jase.
-  //   // Transaction ni koi jaroor nathi ahiya.
-  //   await orgRepo.delete(orgId);
-
-  //   // Emit socket event
-  //   if (io) {
-  //     io.emit('org:deleted', {
-  //       orgId,
-  //       deletedBy: currentUserId,
-  //       timestamp: new Date().toISOString()
-  //     });
-  //   }
-
-  //   return { success: true };
-  // }
-
-  // 8. Delete organization with hybrid soft/hard delete
+  // 8. Delete organization (Soft Delete with Manual Cascade)
   static async deleteOrganization(orgId: string, currentUserId: string, io?: Server) {
     // 1. Fetch organization and verify existence
     const org = await orgRepo.getById(orgId);
@@ -411,7 +384,7 @@ export class OrganizationService {
 
     const now = new Date();
 
-    // 3. Transactional Manual Cascade
+    // 3. Transactional Manual Cascade for Soft Delete
     await prisma.$transaction(async (tx) => {
       // A. Soft Delete the Organization itself
       await tx.organization.update({
@@ -432,7 +405,6 @@ export class OrganizationService {
       });
 
       // D. Soft Delete all Channel Messages
-      // Note: We target messages where the channel belongs to this org
       await tx.channelMessage.updateMany({
         where: { 
           channel: { org_id: orgId },
@@ -454,6 +426,40 @@ export class OrganizationService {
         orgId,
         deletedBy: currentUserId,
         timestamp: now.toISOString()
+      });
+    }
+
+    return { success: true };
+  }
+
+  // 9. Hard Delete organization (Permanent deletion with Prisma Cascade)
+  static async hardDeleteOrganization(orgId: string, currentUserId: string, io?: Server) {
+    // 1. Fetch organization and verify existence
+    const org = await orgRepo.getById(orgId);
+    if (!org) {
+      throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
+    }
+
+    // 2. Permission check: Only the owner can delete
+    if (org.owner_id !== currentUserId) {
+      throw new AppError('Only the organization owner can delete the organization', HttpStatus.FORBIDDEN);
+    }
+
+    // 3. Hard Delete - Prisma's onDelete: Cascade will automatically delete:
+    //    - Channels
+    //    - Organization Members
+    //    - Tasks
+    //    - Channel Messages (via channel cascade)
+    //    - Channel Members (via channel cascade)
+    //    - Task Assignments (via task cascade)
+    await orgRepo.hardDelete(orgId);
+
+    // 4. Emit socket event
+    if (io) {
+      io.emit('org:deleted', {
+        orgId,
+        deletedBy: currentUserId,
+        timestamp: new Date().toISOString()
       });
     }
 

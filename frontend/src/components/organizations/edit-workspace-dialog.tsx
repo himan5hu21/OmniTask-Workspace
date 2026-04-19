@@ -1,39 +1,55 @@
-// src/app/organizations/[id]/@modal/(.)edit/page.tsx
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { createZodResolver, Form, FormFieldError } from "@/lib/form";
 import { handleApiError } from "@/lib/api-errors";
-import { useUpdateOrganization, useOrganization } from "@/hooks/useOrganizations";
+import { useOrganization, useUpdateOrganization } from "@/hooks/api/useOrganizations";
 
 const orgSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
 });
+
 type OrgFormValues = z.infer<typeof orgSchema>;
 
-export default function EditWorkspacePage() {
-  const params = useParams();
-  const router = useRouter();
-  const orgId = params.id as string;
-
+export function EditWorkspaceDialog({
+  orgId,
+  onClose,
+  forceSolidOverlay = false,
+}: {
+  orgId: string;
+  onClose: () => void;
+  forceSolidOverlay?: boolean;
+}) {
   const { organization } = useOrganization(orgId);
 
-  const { register, handleSubmit, formState: { errors }, setError } = useForm<OrgFormValues>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setError,
+  } = useForm<OrgFormValues>({
     resolver: createZodResolver(orgSchema),
   });
 
   const updateMutation = useUpdateOrganization({
     onSuccess: () => {
       toast.success("Workspace name updated successfully");
-      router.back();
+      onClose();
     },
     onError: (error) => {
       handleApiError(
@@ -41,31 +57,29 @@ export default function EditWorkspacePage() {
         {
           uniqueName: () => setError("name", { type: "manual", message: "A workspace with this name already exists" }),
           accessDenied: () => toast.error("You don't have permission to update this workspace"),
-          onOtherError: (message: string) => toast.error(message)
+          onOtherError: (message: string) => toast.error(message),
         },
         "Failed to update workspace name. Please try again."
       );
-    }
+    },
   });
 
   const onSubmit = (data: OrgFormValues) => {
     updateMutation.mutate({ orgId, data });
   };
 
-  const handleClose = () => {
-    router.back();
-  };
-
   return (
     <div className="relative">
-      <style jsx global>{`
-        [data-slot="dialog-overlay"] {
-          background-color: white !important;
-          backdrop-filter: none !important;
-        }
-      `}</style>
-      <Dialog open={true} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[425px] p-6 rounded-xl">
+      {forceSolidOverlay ? (
+        <style jsx global>{`
+          [data-slot="dialog-overlay"] {
+            background-color: white !important;
+            backdrop-filter: none !important;
+          }
+        `}</style>
+      ) : null}
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent open className="sm:max-w-[425px] p-6 rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-foreground">Edit Workspace</DialogTitle>
             <DialogDescription className="text-base mt-1.5 text-muted-foreground">
@@ -89,7 +103,7 @@ export default function EditWorkspacePage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={handleClose}
+                onClick={onClose}
                 className="h-11 rounded-xl transition-all font-semibold text-base"
               >
                 Cancel
@@ -99,7 +113,7 @@ export default function EditWorkspacePage() {
                 className="h-11 rounded-xl shadow-md transition-all font-semibold text-base"
                 disabled={updateMutation.isPending}
               >
-                {updateMutation.isPending && <Loader2 className="h-5 w-5 animate-spin mr-2" />}
+                {updateMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
                 Save Changes
               </Button>
             </DialogFooter>

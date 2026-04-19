@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { createZodResolver, Form, FormFieldError } from "@/lib/form";
-import { useOrganizations, useCreateOrganization } from "@/hooks/useOrganizations";
+import { useOrganizations, useCreateOrganization } from "@/hooks/api/useOrganizations";
 import { useLogoutMutation, useAuthProfile } from "@/services/auth.service"; // 👈 Tamara user data mate
 
 const createOrgSchema = z.object({

@@ -10,9 +10,21 @@ export const getSocket = () => {
     socket = io(SOCKET_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
+      autoConnect: true,
     });
   }
   return socket;
+};
+
+export const joinChannelRoom = (channelId: string, userId: string) => {
+  const activeSocket = getSocket();
+  activeSocket.emit('channel:join', { channelId, userId });
+  return activeSocket;
+};
+
+export const leaveChannelRoom = (channelId: string, userId: string) => {
+  if (!socket) return;
+  socket.emit('channel:leave', { channelId, userId });
 };
 
 export const disconnectSocket = () => {

@@ -70,6 +70,7 @@ export function useProfileQuery(options?: { enabled?: boolean }) {
     queryKey: authKeys.profile(),
     queryFn: getUserProfile,
     enabled: options?.enabled,
+    staleTime: 1000 * 60 * 5, // 5 min cache
   });
 
   useEffect(() => {

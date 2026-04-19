@@ -33,5 +33,6 @@ export function useOrgChannelsQuery(orgId: string) {
     queryKey: channelKeys.byOrg(orgId),
     queryFn: () => getOrgChannels(orgId),
     enabled: !!orgId,
+    staleTime: 1000 * 60 * 5, // 5 min cache
   });
 }

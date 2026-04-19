@@ -439,7 +439,8 @@ export class ChannelService {
       );
 
       // Delete channel
-      await channelRepo.delete(channelId, tx);
+      // await channelRepo.delete(channelId, tx);
+      await channelRepo.hardDelete(channelId, tx);
     });
 
     // Emit socket event

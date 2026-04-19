@@ -19,8 +19,8 @@ import type {
   UpdateMemberRoleInput,
 } from "@/services/organization.service";
 
-export const useOrganizations = () => {
-  const query = useOrganizationsQuery();
+export const useOrganizations = (options?: { enabled?: boolean }) => {
+  const query = useOrganizationsQuery(options);
 
   return {
     ...query,
@@ -28,8 +28,8 @@ export const useOrganizations = () => {
   };
 };
 
-export const useOrganization = (orgId: string) => {
-  const query = useOrganizationQuery(orgId);
+export const useOrganization = (orgId: string, options?: { enabled?: boolean }) => {
+  const query = useOrganizationQuery(orgId, options);
 
   return {
     ...query,
