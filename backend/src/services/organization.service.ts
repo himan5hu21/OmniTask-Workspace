@@ -12,6 +12,18 @@ const channelRepo = new BaseRepository('channel');
 const channelMemberRepo = new BaseRepository('channelMember', false);
 
 export class OrganizationService {
+  private static buildOrgPermissions(role?: 'OWNER' | 'ADMIN' | 'MEMBER') {
+    return {
+      canEditSettings: role === 'OWNER' || role === 'ADMIN',
+      canDeleteOrganization: role === 'OWNER',
+      canInviteMembers: role === 'OWNER' || role === 'ADMIN',
+      canChangeMemberRoles: role === 'OWNER',
+      canRemoveMembers: role === 'OWNER' || role === 'ADMIN',
+      canCreateChannels: role === 'OWNER' || role === 'ADMIN',
+      canManageChannels: role === 'OWNER' || role === 'ADMIN',
+    };
+  }
+
   // 1. Create new organization
   static async createOrganization(orgData: { name: string }, ownerId: string, io?: Server) {
     const { name } = orgData;
@@ -84,10 +96,23 @@ export class OrganizationService {
   }
 
   // 2. Get user's organizations (FIXED FOR SOFT DELETE) 
-  static async getUserOrganizations(userId: string) {
-    const userOrgs = await orgMemberRepo.getAll({
+  static async getUserOrganizations(
+    userId: string,
+    options: { page?: number; limit?: number; search?: string; role?: 'OWNER' | 'ADMIN' | 'MEMBER' } = {}
+  ) {
+    const { page = 1, limit = 12, search, role } = options;
+    const { data: userOrgs, meta } = await orgMemberRepo.getPaginated({
+      page,
+      limit,
+      search,
+      searchWhere: (term: string) => ({
+        organization: {
+          name: { contains: term, mode: 'insensitive' }
+        }
+      }),
       where: { 
         user_id: userId,
+        ...(role ? { role } : {}),
         // Filter memberships where the organization is NOT deleted
         organization: {
           deleted_at: null
@@ -99,14 +124,17 @@ export class OrganizationService {
       orderBy: { joined_at: 'desc' }
     });
 
-    return userOrgs.map((member: any) => ({
-      id: member.organization.id,
-      name: member.organization.name,
-      role: member.role,
-      is_owner: member.organization.owner_id === userId,
-      created_at: member.organization.created_at,
-      joined_at: member.joined_at
-    }));
+    return {
+      organizations: userOrgs.map((member: any) => ({
+        id: member.organization.id,
+        name: member.organization.name,
+        role: member.role,
+        is_owner: member.organization.owner_id === userId,
+        created_at: member.organization.created_at,
+        joined_at: member.joined_at
+      })),
+      pagination: meta
+    };
   }
 
   // 3. Get organization by ID
@@ -122,11 +150,11 @@ export class OrganizationService {
 
     const organization = await orgRepo.getById(orgId, {
       include: {
-        members: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true }
-            }
+        _count: {
+          select: {
+            members: true,
+            channels: true,
+            tasks: true
           }
         }
       }
@@ -136,7 +164,69 @@ export class OrganizationService {
       throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
     }
 
-    return organization;
+    return {
+      ...organization,
+      currentUserRole: membership.role,
+      permissions: this.buildOrgPermissions(membership.role),
+      stats: {
+        memberCount: organization._count.members,
+        channelCount: organization._count.channels,
+        taskCount: organization._count.tasks
+      }
+    };
+  }
+
+  static async getOrganizationMembers(
+    orgId: string,
+    userId: string,
+    options: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      role?: 'OWNER' | 'ADMIN' | 'MEMBER';
+    } = {}
+  ) {
+    const membership = await orgMemberRepo.findOne({
+      organization_id: orgId,
+      user_id: userId
+    });
+
+    if (!membership) {
+      throw new AppError('Access denied. You are not a member of this organization', HttpStatus.FORBIDDEN);
+    }
+
+    const { page = 1, limit = 10, search, role } = options;
+    const { data, meta } = await orgMemberRepo.getPaginated({
+      page,
+      limit,
+      search,
+      searchWhere: (term: string) => ({
+        OR: [
+          { user: { name: { contains: term, mode: 'insensitive' } } },
+          { user: { email: { contains: term, mode: 'insensitive' } } }
+        ]
+      }),
+      where: {
+        organization_id: orgId,
+        ...(role ? { role } : {})
+      },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true }
+        }
+      },
+      orderBy: [
+        { role: 'asc' },
+        { joined_at: 'asc' }
+      ]
+    });
+
+    return {
+      members: data,
+      pagination: meta,
+      currentUserRole: membership.role,
+      permissions: this.buildOrgPermissions(membership.role)
+    };
   }
 
   // 4. Add member to organization

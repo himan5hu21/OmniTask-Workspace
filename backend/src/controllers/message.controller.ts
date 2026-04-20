@@ -8,12 +8,18 @@ const createMessageSchema = z.object({
   content: z.string().min(1, 'Message content is required')
 });
 
+const getChannelMessagesQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20)
+});
+
 // Get messages in a channel
 export const getChannelMessages = async (request: FastifyRequest, reply: FastifyReply) => {
   const { channelId } = request.params as { channelId: string };
   const user = (request as any).user;
+  const { page, limit } = getChannelMessagesQuerySchema.parse(request.query ?? {});
 
-  const messagesData = await MessageService.getChannelMessages(channelId, user.userId);
+  const messagesData = await MessageService.getChannelMessages(channelId, user.userId, { page, limit });
 
   return sendSuccess(reply, messagesData, 'FETCH', 'Messages retrieved successfully');
 };

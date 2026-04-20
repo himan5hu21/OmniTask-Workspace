@@ -1,4 +1,3 @@
-// src/hooks/useOrganizations.ts
 import {
   useOrganizationsQuery,
   useOrganizationQuery,
@@ -8,23 +7,27 @@ import {
   useAddOrganizationMemberMutation,
   useUpdateOrganizationMemberRoleMutation,
   useRemoveOrganizationMemberMutation,
+  useOrganizationMembersQuery,
 } from "@/services/organization.service";
 import type { UseMutationOptions } from "@tanstack/react-query";
 import type {
+  AddMemberInput,
   CreateOrganizationInput,
-  UpdateOrganizationInput,
+  OrganizationListQuery,
+  OrganizationMembersQuery,
   OrganizationResponse,
   SuccessResponse,
-  AddMemberInput,
   UpdateMemberRoleInput,
+  UpdateOrganizationInput,
 } from "@/services/organization.service";
 
-export const useOrganizations = (options?: { enabled?: boolean }) => {
-  const query = useOrganizationsQuery(options);
+export const useOrganizations = (query: OrganizationListQuery = {}, options?: { enabled?: boolean }) => {
+  const queryResult = useOrganizationsQuery(query, options);
 
   return {
-    ...query,
-    organizations: query.data?.success ? query.data.data : [],
+    ...queryResult,
+    organizations: queryResult.data?.success ? queryResult.data.data.organizations : [],
+    pagination: queryResult.data?.success ? queryResult.data.data.pagination : null,
   };
 };
 
@@ -37,38 +40,38 @@ export const useOrganization = (orgId: string, options?: { enabled?: boolean }) 
   };
 };
 
+export const useOrganizationMembers = (orgId: string, query: OrganizationMembersQuery = {}) => {
+  const queryResult = useOrganizationMembersQuery(orgId, query);
+
+  return {
+    ...queryResult,
+    members: queryResult.data?.success ? queryResult.data.data.members : [],
+    pagination: queryResult.data?.success ? queryResult.data.data.pagination : null,
+    currentUserRole: queryResult.data?.success ? queryResult.data.data.currentUserRole : null,
+    permissions: queryResult.data?.success ? queryResult.data.data.permissions : null,
+  };
+};
+
 export const useCreateOrganization = (
   options?: UseMutationOptions<OrganizationResponse, unknown, CreateOrganizationInput>
-) => {
-  return useCreateOrganizationMutation(options);
-};
+) => useCreateOrganizationMutation(options);
 
 export const useUpdateOrganization = (
   options?: UseMutationOptions<OrganizationResponse, unknown, { orgId: string; data: UpdateOrganizationInput }>
-) => {
-  return useUpdateOrganizationMutation(options);
-};
+) => useUpdateOrganizationMutation(options);
 
 export const useDeleteOrganization = (
   options?: UseMutationOptions<SuccessResponse, unknown, string>
-) => {
-  return useDeleteOrganizationMutation(options);
-};
+) => useDeleteOrganizationMutation(options);
 
 export const useAddOrganizationMember = (
   options?: UseMutationOptions<SuccessResponse, unknown, { orgId: string; data: AddMemberInput }>
-) => {
-  return useAddOrganizationMemberMutation(options);
-};
+) => useAddOrganizationMemberMutation(options);
 
 export const useUpdateOrganizationMemberRole = (
   options?: UseMutationOptions<SuccessResponse, unknown, { orgId: string; userId: string; data: UpdateMemberRoleInput }>
-) => {
-  return useUpdateOrganizationMemberRoleMutation(options);
-};
+) => useUpdateOrganizationMemberRoleMutation(options);
 
 export const useRemoveOrganizationMember = (
   options?: UseMutationOptions<SuccessResponse, unknown, { orgId: string; userId: string }>
-) => {
-  return useRemoveOrganizationMemberMutation(options);
-};
+) => useRemoveOrganizationMemberMutation(options);

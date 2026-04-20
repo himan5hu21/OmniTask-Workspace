@@ -10,6 +10,25 @@ const channelMemberRepo = new BaseRepository('channelMember', false);
 const orgMemberRepo = new BaseRepository('organizationMember', false);
 
 export class ChannelService {
+  private static buildChannelPermissions(args: {
+    orgRole?: 'OWNER' | 'ADMIN' | 'MEMBER';
+    channelRole?: 'MANAGER' | 'MEMBER';
+    isDefault?: boolean;
+  }) {
+    const { orgRole, channelRole, isDefault } = args;
+    const isOwnerOrAdmin = orgRole === 'OWNER' || orgRole === 'ADMIN';
+    const isManager = channelRole === 'MANAGER';
+
+    return {
+      canEditChannel: isDefault ? orgRole === 'OWNER' : isOwnerOrAdmin,
+      canDeleteChannel: !isDefault && isOwnerOrAdmin,
+      canAddMembers: isOwnerOrAdmin || isManager,
+      canRemoveMembers: isOwnerOrAdmin || isManager,
+      canChangeMemberRoles: isOwnerOrAdmin,
+      canPromoteManagers: isOwnerOrAdmin,
+    };
+  }
+
   // Create new channel
   static async createChannel(channelData: { name: string; org_id: string }, creatorId: string, io?: Server) {
     const { name, org_id } = channelData;
@@ -77,39 +96,98 @@ export class ChannelService {
   }
 
   // Get all channels for an organization
-  static async getOrganizationChannels(orgId: string, userId: string) {
+  static async getOrganizationChannels(
+    orgId: string,
+    userId: string,
+    options: { page?: number; limit?: number; search?: string; membership?: 'ALL' | 'JOINED' | 'MANAGED' } = {}
+  ) {
     // Check if user is member of the organization
-    const isMember = await orgMemberRepo.findOne({
+    const membership = await orgMemberRepo.findOne({
       organization_id: orgId,
       user_id: userId
     });
 
-    if (!isMember) {
+    if (!membership) {
       throw new AppError('Access denied', HttpStatus.FORBIDDEN);
     }
 
-    const channels = await channelRepo.getAll({
-      where: { org_id: orgId },
+    const { page = 1, limit = 12, search, membership: membershipFilter = 'ALL' } = options;
+    const isOwnerOrAdmin = membership.role === 'OWNER' || membership.role === 'ADMIN';
+    const memberWhere =
+      membershipFilter === 'JOINED'
+        ? { some: { user_id: userId } }
+        : membershipFilter === 'MANAGED'
+          ? { some: { user_id: userId, role: 'MANAGER' } }
+          : undefined;
+
+    const where: any = { org_id: orgId };
+    if (!isOwnerOrAdmin) {
+      where.members = { some: { user_id: userId } };
+    } else if (memberWhere) {
+      where.members = memberWhere;
+    }
+
+    const { data, meta } = await channelRepo.getPaginated({
+      page,
+      limit,
+      search,
+      searchFields: ['name'],
+      where,
       include: {
-        members: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true }
-            }
+        _count: {
+          select: {
+            members: true,
+            messages: true
           }
+        },
+        members: {
+          where: { user_id: userId },
+          select: { role: true }
         }
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: [
+        { isDefault: 'desc' },
+        { created_at: 'desc' }
+      ]
     });
 
-    return channels;
+    return {
+      channels: data.map((channel: any) => {
+        const currentChannelRole = channel.members[0]?.role;
+
+        return {
+          id: channel.id,
+          name: channel.name,
+          org_id: channel.org_id,
+          isDefault: channel.isDefault,
+          created_at: channel.created_at,
+          updated_at: channel.updated_at,
+          currentUserChannelRole: currentChannelRole ?? null,
+          memberCount: channel._count.members,
+          messageCount: channel._count.messages,
+          permissions: this.buildChannelPermissions({
+            orgRole: membership.role,
+            channelRole: currentChannelRole,
+            isDefault: channel.isDefault
+          })
+        };
+      }),
+      pagination: meta,
+      currentUserOrgRole: membership.role
+    };
   }
 
   // Get channel by ID
   static async getChannelById(channelId: string, userId: string) {
     const channel = await channelRepo.getById(channelId, {
       include: {
-        members: { include: { user: { select: { id: true, name: true, email: true } } } }
+        _count: {
+          select: {
+            members: true,
+            messages: true,
+            tasks: true
+          }
+        }
       }
     });
 
@@ -121,18 +199,95 @@ export class ChannelService {
       user_id: userId
     });
 
-    if (!channelMembership) {
-      const orgMembership = await orgMemberRepo.findOne({
-        organization_id: channel.org_id,
-        user_id: userId
-      });
+    const orgMembership = await orgMemberRepo.findOne({
+      organization_id: channel.org_id,
+      user_id: userId
+    });
 
-      if (orgMembership?.role !== 'OWNER' && orgMembership?.role !== 'ADMIN') {
-        throw new AppError('Access denied', HttpStatus.FORBIDDEN);
-      }
+    if (!channelMembership && orgMembership?.role !== 'OWNER' && orgMembership?.role !== 'ADMIN') {
+      throw new AppError('Access denied', HttpStatus.FORBIDDEN);
     }
 
-    return channel;
+    const effectiveOrgRole = orgMembership?.role;
+    const effectiveChannelRole = channelMembership?.role;
+
+    return {
+      ...channel,
+      currentUserOrgRole: effectiveOrgRole ?? null,
+      currentUserChannelRole: effectiveChannelRole ?? null,
+      permissions: this.buildChannelPermissions({
+        orgRole: effectiveOrgRole,
+        channelRole: effectiveChannelRole,
+        isDefault: channel.isDefault
+      }),
+      stats: {
+        memberCount: channel._count.members,
+        messageCount: channel._count.messages,
+        taskCount: channel._count.tasks
+      }
+    };
+  }
+
+  static async getChannelMembers(
+    channelId: string,
+    userId: string,
+    options: { page?: number; limit?: number; search?: string; role?: 'MANAGER' | 'MEMBER' } = {}
+  ) {
+    const channel = await channelRepo.getById(channelId);
+    if (!channel) {
+      throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
+    }
+
+    const orgMembership = await orgMemberRepo.findOne({
+      organization_id: channel.org_id,
+      user_id: userId
+    });
+    const channelMembership = await channelMemberRepo.findOne({
+      channel_id: channelId,
+      user_id: userId
+    });
+
+    if (!channelMembership && orgMembership?.role !== 'OWNER' && orgMembership?.role !== 'ADMIN') {
+      throw new AppError('Access denied', HttpStatus.FORBIDDEN);
+    }
+
+    const { page = 1, limit = 10, search, role } = options;
+    const { data, meta } = await channelMemberRepo.getPaginated({
+      page,
+      limit,
+      search,
+      searchWhere: (term: string) => ({
+        OR: [
+          { user: { name: { contains: term, mode: 'insensitive' } } },
+          { user: { email: { contains: term, mode: 'insensitive' } } }
+        ]
+      }),
+      where: {
+        channel_id: channelId,
+        ...(role ? { role } : {})
+      },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true }
+        }
+      },
+      orderBy: [
+        { role: 'asc' },
+        { joined_at: 'asc' }
+      ]
+    });
+
+    return {
+      members: data,
+      pagination: meta,
+      currentUserOrgRole: orgMembership?.role ?? null,
+      currentUserChannelRole: channelMembership?.role ?? null,
+      permissions: this.buildChannelPermissions({
+        orgRole: orgMembership?.role,
+        channelRole: channelMembership?.role,
+        isDefault: channel.isDefault
+      })
+    };
   }
 
   // Add member to channel
@@ -242,7 +397,8 @@ export class ChannelService {
     const canRemove = 
       orgMembership?.role === 'OWNER' ||
       orgMembership?.role === 'ADMIN' ||
-      (channelMembership?.role === 'MANAGER' && userIdToRemove === currentUserId);
+      channelMembership?.role === 'MANAGER' ||
+      userIdToRemove === currentUserId;
 
     // Additional check: prevent managers from removing owners/admins/other managers
     if (channelMembership?.role === 'MANAGER' && userIdToRemove !== currentUserId) {
@@ -267,8 +423,17 @@ export class ChannelService {
       throw new AppError('You do not have permission to remove this member', HttpStatus.FORBIDDEN);
     }
 
+    const membershipToRemove = await channelMemberRepo.findOne({
+      channel_id: channelId,
+      user_id: userIdToRemove
+    });
+
+    if (!membershipToRemove) {
+      throw new AppError('Member not found', HttpStatus.NOT_FOUND);
+    }
+
     // Remove member
-    await channelMemberRepo.delete(userIdToRemove);
+    await channelMemberRepo.delete(membershipToRemove.id);
 
     // Emit socket event
     if (io) {
@@ -307,7 +472,7 @@ export class ChannelService {
       orgMembership?.role === 'ADMIN';
 
     if (!canUpdateRole) {
-      throw new AppError('Only organization owners, admins, or channel managers can change member roles', HttpStatus.FORBIDDEN);
+      throw new AppError('Only organization owners or admins can change member roles', HttpStatus.FORBIDDEN);
     }
 
     // Update member role

@@ -6,18 +6,18 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
   // Validation schemas
   const createTaskSchema = z.object({
     title: z.string().min(1),
-    channel_id: z.string().cuid(),
+    channel_id: z.cuid(),
   });
 
   const createSubTaskSchema = z.object({
-    task_id: z.string().cuid(),
-    parent_id: z.string().cuid().optional(),
+    task_id: z.cuid(),
+    parent_id: z.cuid().optional(),
     text: z.string().min(1),
   });
 
   const assignSubTaskSchema = z.object({
-    subtask_id: z.string().cuid(),
-    assignee_id: z.string().cuid(),
+    subtask_id: z.cuid(),
+    assignee_id: z.cuid(),
     permission_type: z.enum(['VIEW_ONLY', 'CHECK_ONLY', 'EDIT_ALLOWED']),
   });
 

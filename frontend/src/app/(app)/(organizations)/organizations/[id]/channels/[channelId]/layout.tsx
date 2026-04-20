@@ -3,14 +3,13 @@
 import { useParams } from "next/navigation";
 
 import { ChannelHeader } from "@/components/layout/app-shell-headers";
-import { useOrgChannelsQuery } from "@/services/channel.service";
+import { useOrgChannels } from "@/hooks/api/useChannels";
 
 export default function ChannelLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const orgId = params.id as string;
   const channelId = params.channelId as string;
-  const { data } = useOrgChannelsQuery(orgId);
-  const channels = data?.success ? data.data : [];
+  const { channels } = useOrgChannels(orgId, { page: 1, limit: 50 });
   const channel = channels.find((item) => item.id === channelId);
 
   return (

@@ -42,13 +42,29 @@ export class BaseRepository {
 
   // 4. GET PAGINATION DATA
   async getPaginated(params: any, tx?: any) {
-    const { page = 1, limit = 10, where = {}, search, searchFields = [], include, select, orderBy } = params;
-    const skip = (page - 1) * limit;
+    const {
+      page = 1,
+      limit = 10,
+      where = {},
+      search,
+      searchFields = [],
+      searchWhere,
+      include,
+      select,
+      orderBy,
+    } = params;
+    const normalizedPage = Math.max(1, Number(page) || 1);
+    const normalizedLimit = Math.max(1, Number(limit) || 10);
+    const skip = (normalizedPage - 1) * normalizedLimit;
     
     const queryWhere: any = { ...where };
     if (this.hasSoftDelete) queryWhere.deleted_at = null; // Only apply if true
 
-    if (search && searchFields.length > 0) {
+    if (search && searchWhere) {
+      const customSearchCondition =
+        typeof searchWhere === 'function' ? searchWhere(search) : searchWhere;
+      queryWhere.AND = queryWhere.AND ? [...queryWhere.AND, customSearchCondition] : [customSearchCondition];
+    } else if (search && searchFields.length > 0) {
       const searchCondition = {
         OR: searchFields.map((field: string) => ({
           [field]: { contains: search, mode: 'insensitive' },
@@ -61,11 +77,20 @@ export class BaseRepository {
 
     // Run data fetching and counting in parallel
     const [data, total] = await Promise.all([
-      client.findMany({ where: queryWhere, skip, take: limit, include, select, orderBy }),
+      client.findMany({ where: queryWhere, skip, take: normalizedLimit, include, select, orderBy }),
       client.count({ where: queryWhere }),
     ]);
 
-    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: {
+        total,
+        page: normalizedPage,
+        limit: normalizedLimit,
+        totalPages: Math.ceil(total / normalizedLimit),
+        hasMore: normalizedPage < Math.ceil(total / normalizedLimit),
+      },
+    };
   }
 
   // 5. UPDATE

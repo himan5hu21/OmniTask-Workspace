@@ -12,7 +12,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const orgId = pathname.split("/")[2];
   const isChannelRoute = pathname.includes("/channels/");
-  const { organizations = [] } = useOrganizations({ enabled: !isChannelRoute });
+  const { organizations = [] } = useOrganizations({}, { enabled: !isChannelRoute });
   const organization = organizations.find((org) => org.id === orgId);
 
   if (isLoadingUser) {
@@ -33,7 +33,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
         organizationName={organization?.name}
         onSettingsClick={() => router.push(`/organizations/${orgId}`)}
       />
-      <div className="h-full min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 lg:p-10">
+      <div className="h-full min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 lg:p-6">
         {children}
       </div>
     </>

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -96,6 +97,12 @@
   --sidebar-accent-foreground: oklch(0.511 0.262 275.75);
   --sidebar-border: oklch(0.92 0.01 260);
   --sidebar-ring: oklch(0.511 0.262 275.75);
+
+  --code-block-bg: oklch(0.22 0.02 260);
+  --code-block-border: oklch(0.32 0.03 260);
+  --code-block-foreground: oklch(0.97 0.01 260);
+  --code-inline-bg: oklch(0.93 0.01 260);
+  --code-inline-foreground: oklch(0.22 0.02 260);
 }
 
 .dark {
@@ -142,6 +149,12 @@
   --sidebar-accent-foreground: oklch(0.98 0.01 260);
   --sidebar-border: oklch(0.25 0.02 260);
   --sidebar-ring: oklch(0.585 0.233 277.11);
+
+  --code-block-bg: oklch(0.2 0.02 260);
+  --code-block-border: oklch(0.32 0.03 260);
+  --code-block-foreground: oklch(0.98 0.01 260);
+  --code-inline-bg: oklch(0.26 0.02 260);
+  --code-inline-foreground: oklch(0.98 0.01 260);
 }
 
 @layer base {
@@ -153,6 +166,14 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@utility prose-brand {
+  @apply prose;
+  & > * {
+    --tw-prose-links: var(--color-primary); /* Assuming you have a primary color variable */
+    --tw-prose-headings: var(--color-foreground);
   }
 }
 
@@ -193,4 +214,100 @@
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background-color: oklch(0.8 0.02 260);
+}
+
+.chat-editor {
+  color: var(--foreground);
+}
+
+.chat-editor.ProseMirror,
+.chat-editor .ProseMirror {
+  min-height: 24px;
+}
+
+.chat-editor.ProseMirror-focused,
+.chat-editor .ProseMirror-focused {
+  outline: none;
+}
+
+.chat-editor.ProseMirror p.is-editor-empty:first-child::before,
+.chat-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--muted-foreground);
+}
+
+.chat-editor.ProseMirror code,
+.chat-editor .ProseMirror code,
+.chat-rich-text code {
+  border: 1px solid color-mix(in oklab, var(--code-block-border) 55%, var(--border));
+  background: var(--code-inline-bg);
+  color: var(--code-inline-foreground);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.12rem 0.45rem;
+  font-size: 0.8em;
+  font-family: var(--font-mono);
+}
+
+.chat-editor.ProseMirror pre,
+.chat-editor .ProseMirror pre,
+.chat-rich-text pre {
+  border: 1px solid var(--code-block-border);
+  background: var(--code-block-bg);
+  color: var(--code-block-foreground);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  box-shadow: none;
+}
+
+.chat-editor.ProseMirror pre code,
+.chat-editor .ProseMirror pre code,
+.chat-rich-text pre code {
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1.65;
+  border-radius: 0;
+  font-family: var(--font-mono);
+}
+
+.chat-rich-text a {
+  color: var(--primary);
+}
+
+.chat-rich-text blockquote {
+  border-left: 3px solid var(--primary);
+  color: var(--muted-foreground);
+}
+
+.chat-rich-text ul {
+  list-style: disc;
+}
+
+.chat-rich-text ol {
+  list-style: decimal;
+}
+
+.chat-rich-text--own a {
+  color: var(--primary-foreground);
+}
+
+.chat-rich-text--own code {
+  border-color: color-mix(in oklab, var(--primary-foreground) 18%, var(--code-block-border));
+  background: color-mix(in oklab, var(--code-block-bg) 78%, var(--primary));
+  color: var(--code-block-foreground);
+}
+
+.chat-rich-text--own pre {
+  border-color: color-mix(in oklab, var(--primary-foreground) 14%, var(--code-block-border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--code-block-bg) 86%, var(--primary)),
+    color-mix(in oklab, var(--code-block-bg) 70%, var(--primary))
+  );
+  color: var(--code-block-foreground);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 9%, transparent),
+    0 8px 18px color-mix(in oklab, var(--primary) 26%, transparent);
 }

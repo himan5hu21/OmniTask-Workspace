@@ -10,7 +10,13 @@ const channelMemberRepo = new BaseRepository('channelMember', false);
 
 export class MessageService {
   // Get messages in a channel
-  static async getChannelMessages(channelId: string, userId: string) {
+  static async getChannelMessages(
+    channelId: string,
+    userId: string,
+    options: { page?: number; limit?: number } = {}
+  ) {
+    const { page = 1, limit = 20 } = options;
+
     // Check if user is member of the channel
     const membership = await channelMemberRepo.findOne({
       channel_id: channelId,
@@ -27,16 +33,19 @@ export class MessageService {
       throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
     }
 
-    // Get messages with sender information
-    const messages = await messageRepo.getAll({
+    // Load latest messages first, then reverse the page so UI can render oldest -> newest.
+    const { data: paginatedMessages, meta } = await messageRepo.getPaginated({
+      page,
+      limit,
       where: { channel_id: channelId },
       include: {
         sender: {
           select: { id: true, name: true, email: true }
         }
       },
-      orderBy: { created_at: 'asc' }
+      orderBy: { created_at: 'desc' }
     });
+    const messages = [...paginatedMessages].reverse();
 
     return {
       messages: messages.map((msg: any) => ({
@@ -46,7 +55,11 @@ export class MessageService {
         user_name: msg.sender.name,
         created_at: msg.created_at
       })),
-      channelName: channel.name
+      channelName: channel.name,
+      pagination: {
+        ...meta,
+        hasMore: meta.page < meta.totalPages
+      }
     };
   }
 

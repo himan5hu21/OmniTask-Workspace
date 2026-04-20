@@ -32,6 +32,20 @@ const orgMemberParamSchema = z.object({
   userId: z.cuid('Invalid User ID')
 });
 
+const organizationListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(12),
+  search: z.string().trim().optional(),
+  role: z.enum(['OWNER', 'ADMIN', 'MEMBER']).optional()
+});
+
+const organizationMembersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().trim().optional(),
+  role: z.enum(['OWNER', 'ADMIN', 'MEMBER']).optional()
+});
+
 // 1. Create Organization
 export const createOrganization = async (request: FastifyRequest, reply: FastifyReply) => {
   const { name } = createOrgSchema.parse(request.body);
@@ -45,8 +59,9 @@ export const createOrganization = async (request: FastifyRequest, reply: Fastify
 // 2. Get My Organizations
 export const getMyOrganizations = async (request: FastifyRequest, reply: FastifyReply) => {
   const user = (request as any).user;
+  const query = organizationListQuerySchema.parse(request.query ?? {});
 
-  const myOrgs = await OrganizationService.getUserOrganizations(user.userId);
+  const myOrgs = await OrganizationService.getUserOrganizations(user.userId, query);
 
   return sendSuccess(reply, myOrgs, 'FETCH', 'Organizations retrieved successfully');
 };
@@ -58,6 +73,16 @@ export const getOrganizationById = async (request: FastifyRequest, reply: Fastif
 
   const organization = await OrganizationService.getOrganizationById(orgId, user.userId);
   return sendSuccess(reply, organization, 'FETCH', 'Organization details retrieved successfully');
+};
+
+export const getOrganizationMembers = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { orgId } = orgIdParamSchema.parse((request as any).params);
+  const user = (request as any).user;
+  const query = organizationMembersQuerySchema.parse(request.query ?? {});
+
+  const members = await OrganizationService.getOrganizationMembers(orgId, user.userId, query);
+
+  return sendSuccess(reply, members, 'FETCH', 'Organization members retrieved successfully');
 };
 
 // 4. Update Organization

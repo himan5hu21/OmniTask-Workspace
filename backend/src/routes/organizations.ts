@@ -13,6 +13,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/organizations', orgController.createOrganization);
   fastify.get('/organizations', orgController.getMyOrganizations);
   fastify.get('/organizations/:orgId', orgController.getOrganizationById);
+  fastify.get('/organizations/:orgId/members', orgController.getOrganizationMembers);
   fastify.patch('/organizations/:orgId', orgController.updateOrganization);
   fastify.delete('/organizations/:orgId', orgController.deleteOrganization);
 
@@ -29,36 +30,17 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // ==========================================
   fastify.post('/channels', channelController.createChannel);
   fastify.get('/organizations/:orgId/channels', channelController.getOrgChannels);
+  fastify.get('/channels/:id', channelController.getChannelById);
+  fastify.get('/channels/:id/members', channelController.getChannelMembers);
+  fastify.patch('/channels/:id', channelController.updateChannel);
+  fastify.delete('/channels/:id', channelController.deleteChannel);
 
-  const addMemberSchema = z.object({
-    user_id: z.uuid(),
-    channel_id: z.uuid(),
-    role: z.enum(['MANAGER', 'MEMBER']).default('MEMBER'),
-  });
-
-  // Add member to channel
-  fastify.post('/channels/members', async (request, reply) => {
-    try {
-      const { user_id, channel_id, role } = addMemberSchema.parse(request.body);
-
-      // TODO: Add Prisma channel member creation
-      // const member = await prisma.channelMember.create({
-      //   data: {
-      //     user_id,
-      //     channel_id,
-      //     role,
-      //   },
-      // });
-
-      return reply.status(HttpStatus.CREATED).send({
-        message: 'Member added to channel successfully',
-        // member
-      });
-    } catch (error) {
-      fastify.log.error(error);
-      return reply.status(HttpStatus.BAD_REQUEST).send({ error: 'Failed to add member to channel' });
-    }
-  });
+  // ==========================================
+  // CHANNEL MEMBER ROUTES
+  // ==========================================
+  fastify.post('/channels/:id/members', channelController.addChannelMember);
+  fastify.delete('/channels/:id/members/:userId', channelController.removeChannelMember);
+  fastify.patch('/channels/:id/members/:userId', channelController.updateChannelMemberRole);
 
   // ==========================================
   // CHANNEL MESSAGES ROUTES
