@@ -23,6 +23,14 @@ const nextConfig: NextConfig = {
   // ✅ Image optimization
   images: {
     formats: ["image/avif", "image/webp"],
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '8000',
+        pathname: '/uploads/**',
+      },
+    ],
   },
 };
 

@@ -4,7 +4,7 @@ model ChannelMessage {
   id         String @id @default(cuid())
   channel_id String
   sender_id  String
-  text       String
+  text       String?
 
   // Soft delete
   deleted_at DateTime?
@@ -12,9 +12,10 @@ model ChannelMessage {
   created_at DateTime @default(now())
 
   // Relations
-  channel Channel @relation(fields: [channel_id], references: [id], onDelete: Cascade)
-  sender  User    @relation(fields: [sender_id], references: [id])
-  tasks   Task[]  @relation("MessageToTask") // Chat-to-Task relation
+  channel     Channel             @relation(fields: [channel_id], references: [id], onDelete: Cascade)
+  sender      User                @relation(fields: [sender_id], references: [id])
+  tasks       Task[]              @relation("MessageToTask") // Chat-to-Task relation
+  attachments MessageAttachment[]
 
   // Indexing for performance
   @@index([channel_id])
@@ -41,13 +42,41 @@ model DirectMessage {
   id              String   @id @default(cuid())
   conversation_id String
   sender_id       String
-  text            String
+  text            String?
   is_read         Boolean  @default(false)
   created_at      DateTime @default(now())
 
   // Relations
-  conversation DirectConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  sender       User               @relation(fields: [sender_id], references: [id])
+  conversation DirectConversation  @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender       User                @relation(fields: [sender_id], references: [id])
+  attachments  MessageAttachment[]
 
   @@map("direct_messages")
+}
+
+enum MessageAttachmentType {
+  IMAGE
+  DOCUMENT
+  FILE
+}
+
+model MessageAttachment {
+  id                 String                @id @default(cuid())
+  channel_message_id String?
+  direct_message_id  String?
+  file_name          String
+  file_url           String
+  file_size          Int
+  mime_type          String
+  type               MessageAttachmentType @default(FILE)
+
+  created_at DateTime @default(now())
+
+  // Relations
+  channel_message ChannelMessage? @relation(fields: [channel_message_id], references: [id], onDelete: Cascade)
+  direct_message  DirectMessage?  @relation(fields: [direct_message_id], references: [id], onDelete: Cascade)
+
+  @@index([channel_message_id])
+  @@index([direct_message_id])
+  @@map("message_attachments")
 }

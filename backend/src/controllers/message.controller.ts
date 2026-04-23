@@ -5,7 +5,11 @@ import { MessageService } from '@/services/message.service';
 import { sendSuccess } from '@/utils/response';
 
 const createMessageSchema = z.object({
-  content: z.string().min(1, 'Message content is required')
+  content: z.string().optional().or(z.literal('')),
+  attachments: z.array(z.any()).optional()
+}).refine(data => (data.content && data.content.trim().length > 0) || (data.attachments && data.attachments.length > 0), {
+  message: "Either message content or attachments are required",
+  path: ["content"]
 });
 
 const getChannelMessagesQuerySchema = z.object({
@@ -27,10 +31,10 @@ export const getChannelMessages = async (request: FastifyRequest, reply: Fastify
 // Create message in a channel
 export const createChannelMessage = async (request: FastifyRequest, reply: FastifyReply) => {
   const { channelId } = request.params as { channelId: string };
-  const { content } = createMessageSchema.parse(request.body);
+  const { content, attachments } = createMessageSchema.parse(request.body);
   const user = (request as any).user;
 
-  const message = await MessageService.createMessage({ content }, channelId, user.userId, request.server.io);
+  const message = await MessageService.createMessage({ content, attachments }, channelId, user.userId, request.server.io);
 
   return sendSuccess(reply, { message }, 'CREATE', 'Message sent successfully');
 };

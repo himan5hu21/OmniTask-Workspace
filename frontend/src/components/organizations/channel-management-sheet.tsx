@@ -4,12 +4,13 @@ import { useMemo, useState } from "react";
 import {
   Hash,
   Loader2,
-  PencilLine,
-  Shield,
   Trash2,
   UserMinus,
   UserPlus,
   Users,
+  MessageSquareText,
+  Plus,
+  Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,6 +33,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -53,16 +61,17 @@ import {
   useUpdateChannel,
   useUpdateChannelMemberRole,
 } from "@/hooks/api/useChannels";
-import { useOrganizationMembers } from "@/hooks/api/useOrganizations";
+import { useOrganization, useOrganizationMembers } from "@/hooks/api/useOrganizations";
 import { handleApiError } from "@/lib/api-errors";
+import { useAuthProfile } from "@/services/auth.service";
 
 function ChannelRoleBadge({ role }: { role: "MANAGER" | "MEMBER" }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
+      className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
         role === "MANAGER"
-          ? "bg-primary/10 text-primary"
-          : "bg-muted text-muted-foreground"
+          ? "bg-primary/10 text-primary border border-primary/20"
+          : "bg-muted text-muted-foreground border border-border/50"
       }`}
     >
       {role}
@@ -89,8 +98,12 @@ export function ChannelManagementSheet({
   const [nameDraft, setNameDraft] = useState("");
   const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isEditNameOpen, setIsEditNameOpen] = useState(false);
 
   const { channel, isLoading: isLoadingChannel } = useChannel(channelId, { enabled: open });
+  const { user } = useAuthProfile();
+  const { organization } = useOrganization(orgId);
   const {
     members,
     pagination,
@@ -114,6 +127,10 @@ export function ChannelManagementSheet({
     () => orgMembers.filter((member) => !channelMemberIds.has(member.user_id)),
     [channelMemberIds, orgMembers]
   );
+
+  const orgOwnerId = useMemo(() => {
+    return orgMembers.find(m => m.role === 'OWNER')?.user_id;
+  }, [orgMembers]);
 
   const updateChannelMutation = useUpdateChannel({
     onSuccess: () => toast.success("Channel updated successfully"),
@@ -199,16 +216,14 @@ export function ChannelManagementSheet({
         }}
       >
         <SheetTrigger asChild>{trigger}</SheetTrigger>
-        <SheetContent side="right" className="w-full overflow-y-auto border-l border-border bg-background sm:max-w-2xl">
-          <SheetHeader className="border-b border-border/60 pb-5">
-            <SheetTitle className="flex items-center gap-3 text-xl">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Hash className="h-5 w-5" />
-              </span>
-              Channel Management
+        <SheetContent side="right" className="w-full overflow-y-auto border-l border-border bg-background sm:max-w-2xl p-0">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/50">
+            <SheetTitle className="flex items-center gap-2 text-lg font-bold">
+              {channel?.isDefault ? <MessageSquareText className="h-4 w-4 text-primary" /> : <Hash className="h-4 w-4 text-primary" />}
+              {channel?.isDefault ? "Organization Chat Management" : "Channel Management"}
             </SheetTitle>
-            <SheetDescription>
-              Rename the channel, review membership, and manage access with role-aware controls.
+            <SheetDescription className="text-xs">
+              Manage settings and membership for this channel.
             </SheetDescription>
           </SheetHeader>
 
@@ -217,119 +232,130 @@ export function ChannelManagementSheet({
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
           ) : channel ? (
-            <div className="space-y-6 py-6">
-              <Card className="overflow-hidden rounded-3xl border-border/80 bg-card shadow-sm">
-                <CardHeader className="border-b border-border/60 bg-muted/20">
-                  <CardTitle className="text-base">Channel Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-5 p-5">
-                  <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-                    <div className="space-y-2">
-                      <Label htmlFor={`channel-name-${channelId}`}>Channel Name</Label>
-                      <Input
-                        id={`channel-name-${channelId}`}
-                        value={nameDraft || channel.name}
-                        onChange={(event) => setNameDraft(event.target.value)}
-                        disabled={!canEdit || updateChannelMutation.isPending}
-                        className="h-11 rounded-2xl"
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <Button
-                        onClick={handleSaveName}
-                        disabled={!canEdit || updateChannelMutation.isPending || !nameDraft.trim() || nameDraft.trim() === channel.name}
-                        className="h-11 rounded-2xl px-5"
-                      >
-                        {updateChannelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PencilLine className="mr-2 h-4 w-4" />}
-                        Save
-                      </Button>
-                    </div>
-                  </div>
+            <div className="space-y-6 p-6">
+              {/* Channel Header */}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/50 pb-6">
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                    <span className="text-primary/60 font-mono">#</span>
+                    {channel.name}
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-1">Manage this channel's settings and members.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {canEdit && (
+                    <Button 
+                      variant="outline"
+                      size="sm" 
+                      className="h-11 rounded-xl px-4 font-semibold shadow-sm transition-all bg-background" 
+                      onClick={() => {
+                        setNameDraft(channel.name);
+                        setIsEditNameOpen(true);
+                      }}
+                    >
+                      <Settings2 className="mr-1.5 h-4 w-4" />
+                      Edit
+                    </Button>
+                  )}
+                  {canAddMembers && (
+                    <Button 
+                      size="sm" 
+                      className="h-11 rounded-xl px-4 font-semibold shadow-sm transition-all" 
+                      onClick={() => setIsAddMemberOpen(true)}
+                    >
+                      <Plus className="mr-1.5 h-4 w-4" />
+                      Add Member
+                    </Button>
+                  )}
+                </div>
+              </div>
 
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Members</p>
-                      <p className="mt-2 text-2xl font-semibold text-foreground">{channel.stats.memberCount}</p>
-                    </div>
-                    <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Messages</p>
-                      <p className="mt-2 text-2xl font-semibold text-foreground">{channel.stats.messageCount}</p>
-                    </div>
-                    <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Tasks</p>
-                      <p className="mt-2 text-2xl font-semibold text-foreground">{channel.stats.taskCount}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="overflow-hidden rounded-3xl border-border/80 bg-card shadow-sm">
-                <CardHeader className="border-b border-border/60 bg-muted/20">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <CardTitle className="text-base">Channel Members</CardTitle>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Search existing members, adjust access, or add organization teammates to this channel.
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Input
-                        value={memberSearch}
-                        onChange={(event) => setMemberSearch(event.target.value)}
-                        placeholder="Search member"
-                        className="h-10 w-full rounded-2xl sm:w-56"
-                      />
-                      <Select value={memberRoleFilter} onValueChange={(value) => setMemberRoleFilter(value as "ALL" | "MANAGER" | "MEMBER")}>
-                        <SelectTrigger className="h-10 w-full rounded-2xl sm:w-40">
-                          <SelectValue placeholder="Role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">All roles</SelectItem>
-                          <SelectItem value="MANAGER">Managers</SelectItem>
-                          <SelectItem value="MEMBER">Members</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-5 p-5">
-                  {canAddMembers ? (
-                    <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4">
-                      <div className="flex items-center gap-2">
-                        <UserPlus className="h-4 w-4 text-primary" />
-                        <p className="text-sm font-semibold text-foreground">Add from workspace members</p>
-                      </div>
-                      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              {canEdit && (
+                <Dialog open={isEditNameOpen} onOpenChange={setIsEditNameOpen}>
+                  <DialogContent open={isEditNameOpen} className="sm:max-w-md rounded-xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-bold">Edit Channel</DialogTitle>
+                      <DialogDescription className="text-xs">
+                        Update the name of this channel.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-channel-name" className="text-foreground font-semibold text-sm">Channel Name</Label>
                         <Input
-                          value={candidateSearch}
-                          onChange={(event) => setCandidateSearch(event.target.value)}
-                          placeholder="Search workspace members"
-                          className="h-10 rounded-2xl"
+                          id="edit-channel-name"
+                          value={nameDraft}
+                          onChange={(event) => setNameDraft(event.target.value)}
+                          placeholder="e.g. general"
+                          className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
+                          autoFocus
                         />
-                        <Select value={selectedAddRole} onValueChange={(value) => setSelectedAddRole(value as "MANAGER" | "MEMBER")}>
-                          <SelectTrigger className="h-10 rounded-2xl sm:w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="MEMBER">Member</SelectItem>
-                            <SelectItem value="MANAGER">Manager</SelectItem>
-                          </SelectContent>
-                        </Select>
                       </div>
-                      <div className="mt-4 space-y-2">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" className="rounded-xl h-11 px-6 font-semibold" onClick={() => setIsEditNameOpen(false)}>Cancel</Button>
+                        <Button 
+                          className="rounded-xl h-11 px-6 font-semibold shadow-md"
+                          onClick={handleSaveName}
+                          disabled={updateChannelMutation.isPending || !nameDraft.trim() || nameDraft.trim() === channel.name}
+                        >
+                          {updateChannelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+
+              {canAddMembers && (
+                <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
+                  <DialogContent open={isAddMemberOpen} className="sm:max-w-md rounded-xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-bold">Add Member</DialogTitle>
+                      <DialogDescription className="text-xs">
+                        Add an existing workspace member to this channel.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-foreground font-semibold text-sm">Select Role</Label>
+                          <Select value={selectedAddRole} onValueChange={(value) => setSelectedAddRole(value as "MANAGER" | "MEMBER")}>
+                            <SelectTrigger className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="MEMBER">Member</SelectItem>
+                              <SelectItem value="MANAGER">Manager</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label className="text-foreground font-semibold text-sm">Search Workspace</Label>
+                          <Input
+                            value={candidateSearch}
+                            onChange={(event) => setCandidateSearch(event.target.value)}
+                            placeholder="Type name or email..."
+                            className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1 max-h-60 overflow-y-auto pt-2">
                         {candidateMembers.length > 0 ? (
                           candidateMembers.map((member) => (
                             <div
                               key={member.id}
-                              className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/80 px-4 py-3"
+                              className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-3 py-2"
                             >
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-foreground">{member.user.name}</p>
-                                <p className="truncate text-xs text-muted-foreground">{member.user.email}</p>
+                                <p className="truncate text-xs font-bold">{member.user.name}</p>
+                                <p className="truncate text-[10px] text-muted-foreground">{member.user.email}</p>
                               </div>
                               <Button
                                 size="sm"
-                                className="rounded-xl"
+                                variant="secondary"
+                                className="h-8 rounded-xl text-[11px] font-bold px-4"
                                 disabled={addMemberMutation.isPending}
                                 onClick={() =>
                                   addMemberMutation.mutate({
@@ -338,42 +364,91 @@ export function ChannelManagementSheet({
                                   })
                                 }
                               >
-                                {addMemberMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
+                                {addMemberMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
                               </Button>
                             </div>
                           ))
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No eligible workspace members match this search.</p>
-                        )}
+                        ) : candidateSearch ? (
+                          <p className="text-[11px] text-muted-foreground text-center py-6">No workspace members found.</p>
+                        ) : null}
                       </div>
                     </div>
-                  ) : null}
+                  </DialogContent>
+                </Dialog>
+              )}
+              <Card className="rounded-xl border-border shadow-sm">
+                <CardHeader className="pb-3 px-5 pt-5">
+                  <CardTitle className="text-sm font-bold">Quick Stats</CardTitle>
+                </CardHeader>
+                <CardContent className="px-5 pb-5">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-border bg-muted/20 p-3">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Members</p>
+                      <p className="mt-1 text-lg font-bold">{channel.stats.memberCount}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-muted/20 p-3">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Messages</p>
+                      <p className="mt-1 text-lg font-bold">{channel.stats.messageCount}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-muted/20 p-3">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Tasks</p>
+                      <p className="mt-1 text-lg font-bold">{channel.stats.taskCount}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
+              <Card className="rounded-xl border-border shadow-sm overflow-hidden">
+                <CardHeader className="border-b border-border/50 bg-muted/20 px-5 py-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <CardTitle className="text-sm font-bold">Members</CardTitle>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        value={memberSearch}
+                        onChange={(event) => setMemberSearch(event.target.value)}
+                        placeholder="Search members..."
+                        className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all w-48"
+                      />
+                      <Select value={memberRoleFilter} onValueChange={(value) => setMemberRoleFilter(value as "ALL" | "MANAGER" | "MEMBER")}>
+                        <SelectTrigger className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all w-32">
+                          <SelectValue placeholder="Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">All</SelectItem>
+                          <SelectItem value="MANAGER">Managers</SelectItem>
+                          <SelectItem value="MEMBER">Members</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                </CardHeader>
+                <CardContent className="p-0">
                   {isLoadingMembers ? (
-                    <div className="flex items-center justify-center py-10 text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin" />
+                    <div className="flex h-32 items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                   ) : members.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="divide-y divide-border/50">
                       {members.map((member) => (
                         <div
                           key={member.id}
-                          className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-muted/15 p-4 md:flex-row md:items-center md:justify-between"
+                          className="flex items-center justify-between px-5 py-2.5 transition-colors hover:bg-muted/30"
                         >
                           <div className="flex min-w-0 items-center gap-3">
-                            <Avatar className="h-11 w-11 border border-border/70">
-                              <AvatarFallback className="bg-primary/10 text-primary">
-                                {member.user.name.charAt(0).toUpperCase()}
+                            <Avatar className="h-8 w-8 border border-border">
+                              <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary uppercase">
+                                {member.user.name.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-foreground">{member.user.name}</p>
-                              <p className="truncate text-xs text-muted-foreground">{member.user.email}</p>
+                              <p className="truncate text-[13px] font-semibold">{member.user.name}</p>
+                              <p className="truncate text-[10px] text-muted-foreground">{member.user.email}</p>
                             </div>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-2">
                             <ChannelRoleBadge role={member.role} />
-                            {canChangeRoles ? (
+                            {canChangeRoles && member.user_id !== orgOwnerId && (
                               <Select
                                 value={member.role}
                                 onValueChange={(value) =>
@@ -384,7 +459,7 @@ export function ChannelManagementSheet({
                                   })
                                 }
                               >
-                                <SelectTrigger className="h-9 w-[130px] rounded-xl">
+                                <SelectTrigger className="h-8 w-28 rounded-xl text-[10px] font-bold bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -392,12 +467,12 @@ export function ChannelManagementSheet({
                                   <SelectItem value="MANAGER">Manager</SelectItem>
                                 </SelectContent>
                               </Select>
-                            ) : null}
-                            {canRemoveMembers ? (
+                            )}
+                            {canRemoveMembers && member.user_id !== orgOwnerId && member.user_id !== user?.id && (
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                className="rounded-xl border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
                                 onClick={() =>
                                   setMemberToRemove({
                                     id: member.user_id,
@@ -405,42 +480,35 @@ export function ChannelManagementSheet({
                                   })
                                 }
                               >
-                                <UserMinus className="mr-2 h-4 w-4" />
-                                Remove
+                                <UserMinus className="h-3.5 w-3.5" />
                               </Button>
-                            ) : null}
+                            )}
                           </div>
                         </div>
                       ))}
-                      <p className="text-xs text-muted-foreground">
-                        Showing {members.length} of {pagination?.total ?? members.length} channel members.
-                      </p>
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-border/80 bg-muted/10 p-8 text-center">
-                      <Users className="mx-auto h-8 w-8 text-muted-foreground" />
-                      <p className="mt-3 text-sm font-medium text-foreground">No members match this view</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Try clearing search or changing the role filter.</p>
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Users className="h-6 w-6 text-muted-foreground/30 mb-1" />
+                      <p className="text-xs font-bold text-foreground">No members found</p>
                     </div>
                   )}
                 </CardContent>
               </Card>
 
               {canDelete ? (
-                <Card className="overflow-hidden rounded-3xl border-destructive/20 bg-destructive/5 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base text-destructive">Delete Channel</CardTitle>
+                <Card className="rounded-xl border-destructive/20 bg-destructive/5 shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-bold text-destructive">Danger Zone</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Deleting this channel will remove its member list and messages. This action cannot be undone.
-                    </p>
+                  <CardContent>
                     <Button
                       variant="destructive"
-                      className="rounded-2xl"
+                      size="sm"
+                      className="w-full rounded-md"
                       onClick={() => setConfirmDelete(true)}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
+                      <Trash2 className="mr-2 h-3.5 w-3.5" />
                       Delete Channel
                     </Button>
                   </CardContent>
@@ -449,9 +517,9 @@ export function ChannelManagementSheet({
             </div>
           ) : null}
 
-          <SheetFooter className="border-t border-border/60 pt-4">
-            <p className="text-xs text-muted-foreground">
-              Role-aware controls are enforced by the backend, so unavailable actions stay blocked even if someone tries them manually.
+          <SheetFooter className="px-6 py-4 border-t border-border/50">
+            <p className="text-[10px] text-muted-foreground italic">
+              Organization owners have persistent access to all sectors.
             </p>
           </SheetFooter>
         </SheetContent>

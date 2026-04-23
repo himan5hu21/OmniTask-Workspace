@@ -14,6 +14,7 @@ import type { ApiSuccess } from "@/types/api";
 
 export type Message = {
   id: string;
+  attachments?: any[];
   content: string;
   user_id: string;
   user_name: string;
@@ -21,6 +22,7 @@ export type Message = {
 };
 
 export type CreateMessageInput = {
+  attachments?: any[];
   content: string;
 };
 
@@ -54,6 +56,18 @@ export async function getChannelMessages(
     params: { page, limit },
   });
   return response.data;
+}
+
+export async function uploadFiles(files: File[]): Promise<{ files: any[] }> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("files", file));
+
+  const response = await api.post<ApiSuccess<{ files: any[] }>>("/upload", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data.data;
 }
 
 export async function createChannelMessage(

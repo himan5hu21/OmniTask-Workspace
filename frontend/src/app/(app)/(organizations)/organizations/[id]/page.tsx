@@ -9,6 +9,7 @@ import {
   Filter,
   Hash,
   Loader2,
+  MessageSquareText,
   PencilLine,
   Plus,
   Search,
@@ -80,8 +81,8 @@ import { handleApiError } from "@/lib/api-errors";
 function OrganizationRoleBadge({ role }: { role: "OWNER" | "ADMIN" | "MEMBER" }) {
   if (role === "OWNER") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
-        <Crown className="h-3.5 w-3.5" />
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 border border-amber-500/20">
+        <Crown className="h-3 w-3" />
         Owner
       </span>
     );
@@ -89,16 +90,16 @@ function OrganizationRoleBadge({ role }: { role: "OWNER" | "ADMIN" | "MEMBER" })
 
   if (role === "ADMIN") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-        <ShieldCheck className="h-3.5 w-3.5" />
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary border border-primary/20">
+        <ShieldCheck className="h-3 w-3" />
         Admin
       </span>
     );
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-      <UserCircle className="h-3.5 w-3.5" />
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border border-border/50">
+      <UserCircle className="h-3 w-3" />
       Member
     </span>
   );
@@ -154,13 +155,17 @@ export default function OrganizationDetailPage() {
     membership: channelMembershipFilter,
   });
 
+
   const currentUserRole = organization?.currentUserRole;
-  const canCreateChannels = organization?.permissions?.canCreateChannels;
-  const canInviteMembers = organization?.permissions?.canInviteMembers;
-  const canDeleteOrganization = organization?.permissions?.canDeleteOrganization;
-  const canEditSettings = organization?.permissions?.canEditSettings;
-  const canChangeRoles = organization?.permissions?.canChangeMemberRoles;
-  const canRemoveMembers = organization?.permissions?.canRemoveMembers;
+
+  const canCreateChannels = permissions?.canCreateChannels ?? false;
+  const canInviteMembers = permissions?.canInviteMembers ?? false;
+  const canDeleteOrganization = permissions?.canDeleteOrganization ?? false;
+  const canEditSettings = permissions?.canEditSettings ?? false;
+  const canChangeRoles = permissions?.canChangeMemberRoles ?? false;
+  const canRemoveMembers = permissions?.canRemoveMembers ?? false;
+
+  console.log("Permissions:", permissions);
 
   const addMemberMutation = useAddOrganizationMember({
     onSuccess: () => {
@@ -226,11 +231,23 @@ export default function OrganizationDetailPage() {
       }),
   });
 
+  console.log("Is Create Channel Open:", isCreateChannelOpen);
+
   const canShowRemove = useMemo(
-    () =>
-      (member: (typeof members)[number]) =>
-        member.user_id === user?.id || (canRemoveMembers && member.role !== "OWNER"),
-    [canRemoveMembers, user?.id, members]
+    () => (member: (typeof members)[number]) => {
+      // 1. Users cannot remove themselves from the listing UI (done via channel settings if needed)
+      if (member.user_id === user?.id) return false;
+
+      // 2. Organization Owner cannot be removed by anyone through this UI
+      if (member.role === "OWNER") return false;
+
+      // 3. Admins cannot remove other Admins (enforced by backend)
+      if (currentUserRole === "ADMIN" && member.role === "ADMIN") return false;
+
+      // 4. Otherwise, respect the general canRemoveMembers permission
+      return canRemoveMembers;
+    },
+    [canRemoveMembers, currentUserRole, user?.id]
   );
 
   const handleInviteMember = () => {
@@ -277,170 +294,162 @@ export default function OrganizationDetailPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
-      <section className="overflow-hidden rounded-[32px] border border-border/70 bg-card shadow-sm">
-        <div className="relative px-6 py-8 sm:px-8">
-          <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top_right,rgba(88,80,236,0.16),transparent_45%),radial-gradient(circle_at_top_left,rgba(14,165,233,0.08),transparent_35%)]" />
-          <div className="relative flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                <Building2 className="h-3.5 w-3.5" />
-                Workspace Control Center
-              </div>
-              <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{organization.name}</h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Manage channels, access, and workspace operations from a single premium admin surface with role-aware actions.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <OrganizationRoleBadge role={currentUserRole ?? "MEMBER"} />
-                <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  {organization.stats.memberCount} members
-                </span>
-                <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  {organization.stats.channelCount} channels
-                </span>
-              </div>
-            </div>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 pb-12">
+      {/* Simple Professional Header */}
+      <section className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            <Building2 className="h-3.5 w-3.5" />
+            Workspace
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            {organization.name}
+          </h1>
+          <div className="flex items-center gap-3">
+            <OrganizationRoleBadge role={currentUserRole ?? "MEMBER"} />
+            <span className="text-xs font-medium text-muted-foreground">
+              {organization.stats.memberCount} members · {organization.stats.channelCount} channels
+            </span>
+          </div>
+        </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[420px]">
-              <div className="rounded-3xl border border-border/70 bg-background/80 p-4 backdrop-blur-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Members</p>
-                <p className="mt-3 text-3xl font-semibold text-foreground">{organization.stats.memberCount}</p>
-              </div>
-              <div className="rounded-3xl border border-border/70 bg-background/80 p-4 backdrop-blur-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Channels</p>
-                <p className="mt-3 text-3xl font-semibold text-foreground">{organization.stats.channelCount}</p>
-              </div>
-              <div className="rounded-3xl border border-border/70 bg-background/80 p-4 backdrop-blur-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Tasks</p>
-                <p className="mt-3 text-3xl font-semibold text-foreground">{organization.stats.taskCount}</p>
-              </div>
-            </div>
+        <div className="flex gap-2">
+          <div className="rounded-lg border border-border bg-card p-3 shadow-sm min-w-[100px]">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tasks</p>
+            <p className="mt-1 text-xl font-bold">{organization.stats.taskCount}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-card p-3 shadow-sm min-w-[100px]">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Channels</p>
+            <p className="mt-1 text-xl font-bold">{organization.stats.channelCount}</p>
           </div>
         </div>
       </section>
 
-      <div className="grid gap-8 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <div className="space-y-6">
-          <Card className="rounded-[28px] border-border/80 shadow-sm">
-            <CardHeader>
-              <CardTitle>Workspace Settings</CardTitle>
-              <CardDescription>High-level controls for this workspace.</CardDescription>
+      <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
+        <aside className="space-y-6">
+          <Card className="rounded-xl border-border shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-sm font-bold">Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Workspace name</p>
-                <p className="mt-2 text-lg font-semibold text-foreground">{organization.name}</p>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Workspace Name</p>
+                <p className="text-sm font-semibold">{organization.name}</p>
               </div>
-              <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Your access</p>
-                <p className="mt-2 text-lg font-semibold text-foreground">{currentUserRole}</p>
-              </div>
-              <div className="flex flex-col gap-3">
+              
+              <div className="flex flex-col gap-2">
                 <Button
                   variant="outline"
-                  className="justify-start rounded-2xl"
+                  size="sm"
+                  className="w-full justify-start rounded-md"
                   disabled={!canEditSettings}
                   onClick={() => setIsEditDialogOpen(true)}
                 >
-                  <PencilLine className="mr-2 h-4 w-4" />
-                  Edit workspace name
+                  <PencilLine className="mr-2 h-3.5 w-3.5" />
+                  Edit Name
                 </Button>
-                <Dialog open={isCreateChannelOpen} onOpenChange={setIsCreateChannelOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="justify-start rounded-2xl" disabled={!canCreateChannels}>
+                
+                {canCreateChannels && (
+                  <>
+                    <Button 
+                      size="sm" 
+                      className="w-full justify-start rounded-md" 
+                      onClick={() => setIsCreateChannelOpen(true)}
+                    >
                       <Plus className="mr-2 h-4 w-4" />
-                      Create new channel
+                      New Channel
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="rounded-3xl">
-                    <DialogHeader>
-                      <DialogTitle>Create channel</DialogTitle>
-                      <DialogDescription>
-                        Add a new collaboration space inside {organization.name}.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-2 py-2">
-                      <Label htmlFor="channel-name">Channel name</Label>
-                      <Input
-                        id="channel-name"
-                        value={channelName}
-                        onChange={(event) => {
-                          setChannelName(event.target.value);
-                          setChannelNameError("");
+                    <Dialog open={isCreateChannelOpen} onOpenChange={setIsCreateChannelOpen}>
+                      <DialogContent open={isCreateChannelOpen} className="sm:max-w-sm rounded-xl">
+                      <DialogHeader>
+                        <DialogTitle className="text-lg font-bold">Create Channel</DialogTitle>
+                        <DialogDescription className="text-xs">
+                          Initialize a new sector for team communication.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleCreateChannel();
                         }}
-                        placeholder="e.g. product-launch"
-                        className="h-11 rounded-2xl"
-                      />
-                      {channelNameError ? <p className="text-sm text-destructive">{channelNameError}</p> : null}
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" className="rounded-2xl" onClick={() => setIsCreateChannelOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button className="rounded-2xl" onClick={handleCreateChannel} disabled={createChannelMutation.isPending}>
-                        {createChannelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create channel"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                        className="space-y-4 py-4"
+                      >
+                        <div className="space-y-2">
+                          <Label htmlFor="channel-name" className="text-foreground font-semibold text-sm">Name</Label>
+                          <Input
+                            id="channel-name"
+                            value={channelName}
+                            onChange={(event) => {
+                              setChannelName(event.target.value);
+                              setChannelNameError("");
+                            }}
+                            placeholder="e.g. general"
+                            className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
+                            autoFocus
+                          />
+                          {channelNameError ? <p className="text-xs text-destructive">{channelNameError}</p> : null}
+                        </div>
+                        <DialogFooter>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreateChannelOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button 
+                            type="submit"
+                            size="sm"
+                            disabled={createChannelMutation.isPending || !channelName.trim()}
+                          >
+                            {createChannelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                      </DialogContent>
+                    </Dialog>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
 
           {canDeleteOrganization ? (
-            <Card className="rounded-[28px] border-destructive/20 bg-destructive/5 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-destructive">
-                  <ShieldAlert className="h-5 w-5" />
+            <Card className="rounded-xl border-destructive/20 bg-destructive/5 shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-sm font-bold text-destructive flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4" />
                   Danger Zone
                 </CardTitle>
-                <CardDescription className="text-destructive/80">
-                  Permanent actions for this workspace.
-                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm leading-6 text-muted-foreground">
-                  Deleting this workspace removes channels, tasks, and access for everyone in the organization.
-                </p>
+              <CardContent>
                 <Button
                   variant="destructive"
-                  className="w-full rounded-2xl"
+                  size="sm"
+                  className="w-full rounded-md"
                   onClick={() => setIsDeleteDialogOpen(true)}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete workspace
+                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  Delete Workspace
                 </Button>
               </CardContent>
             </Card>
           ) : null}
-        </div>
+        </aside>
 
-        <div className="space-y-8">
-          <Card className="rounded-[28px] border-border/80 shadow-sm">
-            <CardHeader className="border-b border-border/60">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <main className="min-w-0 space-y-6">
+          <Card className="rounded-xl border-border shadow-sm overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle className="text-xl">Member Management</CardTitle>
-                  <CardDescription className="mt-1">
-                    Invite members, change roles, and remove access with workspace-level permissions.
-                  </CardDescription>
+                  <CardTitle className="text-lg font-bold">Members</CardTitle>
                 </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={memberSearch}
-                      onChange={(event) => {
-                        setMemberSearch(event.target.value);
-                        setMemberPage(1);
-                      }}
-                      placeholder="Search members"
-                      className="h-11 rounded-2xl pl-10 sm:w-56"
-                    />
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    value={memberSearch}
+                    onChange={(event) => {
+                      setMemberSearch(event.target.value);
+                      setMemberPage(1);
+                    }}
+                    placeholder="Search..."
+                    className="h-11 px-4 text-base rounded-xl sm:w-48 bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
+                  />
                   <Select
                     value={memberRoleFilter}
                     onValueChange={(value) => {
@@ -448,34 +457,43 @@ export default function OrganizationDetailPage() {
                       setMemberPage(1);
                     }}
                   >
-                    <SelectTrigger className="h-11 rounded-2xl sm:w-40">
-                      <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <SelectTrigger className="h-11 px-4 text-base rounded-xl sm:w-36 bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all">
                       <SelectValue placeholder="Role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL">All roles</SelectItem>
-                      <SelectItem value="OWNER">Owner</SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
-                      <SelectItem value="MEMBER">Member</SelectItem>
+                      <SelectItem value="ALL">All Roles</SelectItem>
+                      <SelectItem value="OWNER">Owners</SelectItem>
+                      <SelectItem value="ADMIN">Admins</SelectItem>
+                      <SelectItem value="MEMBER">Members</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="h-11 rounded-2xl" disabled={!canInviteMembers}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Invite member
+                  {canInviteMembers && (
+                    <>
+                      <Button 
+                        size="sm" 
+                        className="h-9 rounded-md" 
+                        onClick={() => setIsInviteDialogOpen(true)}
+                      >
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        Invite
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent className="rounded-3xl">
+                      <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                        <DialogContent open={isInviteDialogOpen} className="sm:max-w-sm rounded-xl">
                       <DialogHeader>
-                        <DialogTitle>Invite workspace member</DialogTitle>
-                        <DialogDescription>
-                          Add someone to {organization.name} by email and assign their initial workspace role.
+                        <DialogTitle className="text-lg font-bold">Invite Member</DialogTitle>
+                        <DialogDescription className="text-xs">
+                          Grant workspace access to a new team operative.
                         </DialogDescription>
                       </DialogHeader>
-                      <div className="space-y-4 py-2">
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleInviteMember();
+                        }}
+                        className="space-y-4 py-4"
+                      >
                         <div className="space-y-2">
-                          <Label htmlFor="invite-email">Email</Label>
+                          <Label htmlFor="invite-email" className="text-foreground font-semibold text-sm">Email</Label>
                           <Input
                             id="invite-email"
                             value={inviteEmail}
@@ -484,14 +502,15 @@ export default function OrganizationDetailPage() {
                               setInviteEmailError("");
                             }}
                             placeholder="name@company.com"
-                            className="h-11 rounded-2xl"
+                            className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
+                            autoFocus
                           />
-                          {inviteEmailError ? <p className="text-sm text-destructive">{inviteEmailError}</p> : null}
+                          {inviteEmailError ? <p className="text-xs text-destructive">{inviteEmailError}</p> : null}
                         </div>
                         <div className="space-y-2">
-                          <Label>Role</Label>
+                          <Label className="text-foreground font-semibold text-sm">Role</Label>
                           <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as "ADMIN" | "MEMBER")}>
-                            <SelectTrigger className="h-11 rounded-2xl">
+                            <SelectTrigger className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -500,53 +519,53 @@ export default function OrganizationDetailPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" className="rounded-2xl" onClick={() => setIsInviteDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button className="rounded-2xl" onClick={handleInviteMember} disabled={addMemberMutation.isPending}>
-                          {addMemberMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send invite"}
-                        </Button>
-                      </DialogFooter>
+                        <DialogFooter className="pt-2">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setIsInviteDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" size="sm" disabled={addMemberMutation.isPending || !inviteEmail.trim()}>
+                            {addMemberMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Invite"}
+                          </Button>
+                        </DialogFooter>
+                      </form>
                     </DialogContent>
                   </Dialog>
+                  </>
+                  )}
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4 p-5">
+            <CardContent className="p-0">
               {isLoadingMembers ? (
-                <div className="flex items-center justify-center py-10 text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                <div className="flex h-32 items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : members.length > 0 ? (
-                <>
+                <div className="divide-y divide-border/50">
                   {members.map((member) => (
                     <div
                       key={member.id}
-                      className="flex flex-col gap-4 rounded-3xl border border-border/70 bg-muted/10 p-4 lg:flex-row lg:items-center lg:justify-between"
+                      className="flex items-center justify-between px-6 py-3 transition-colors hover:bg-muted/30"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <Avatar className="h-12 w-12 border border-border/70">
-                          <AvatarFallback className="bg-primary/10 text-primary">
-                            {member.user.name.charAt(0).toUpperCase()}
+                        <Avatar className="h-9 w-9 border border-border">
+                          <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary uppercase">
+                            {member.user.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-foreground">{member.user.name}</p>
-                            {member.user_id === user?.id ? (
-                              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                                You
-                              </span>
-                            ) : null}
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-semibold">{member.user.name}</p>
+                            {member.user_id === user?.id && (
+                              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">You</span>
+                            )}
                           </div>
-                          <p className="truncate text-xs text-muted-foreground">{member.user.email}</p>
+                          <p className="truncate text-[11px] text-muted-foreground">{member.user.email}</p>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <OrganizationRoleBadge role={member.role} />
-                        {canChangeRoles && member.role !== "OWNER" ? (
+                        {canChangeRoles && member.role !== "OWNER" && (
                           <Select
                             value={member.role}
                             onValueChange={(value) =>
@@ -557,7 +576,7 @@ export default function OrganizationDetailPage() {
                               })
                             }
                           >
-                            <SelectTrigger className="h-10 w-[130px] rounded-2xl">
+                            <SelectTrigger className="h-9 w-28 rounded-xl text-[11px] font-bold bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -565,36 +584,39 @@ export default function OrganizationDetailPage() {
                               <SelectItem value="MEMBER">Member</SelectItem>
                             </SelectContent>
                           </Select>
-                        ) : null}
-                        {canShowRemove(member) ? (
+                        )}
+                        {canShowRemove(member) && member.role !== "OWNER" && (
                           <Button
-                            variant="outline"
-                            className="rounded-2xl border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
                             onClick={() => setMemberToRemove({ id: member.user_id, name: member.user.name })}
                           >
-                            <UserMinus className="mr-2 h-4 w-4" />
-                            Remove
+                            <UserMinus className="h-4 w-4" />
                           </Button>
-                        ) : null}
+                        )}
                       </div>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-muted/10 px-4 py-3">
-                    <p className="text-sm text-muted-foreground">
-                      Page {memberPagination?.page ?? 1} of {memberPagination?.totalPages ?? 1}
+                  
+                  <div className="flex items-center justify-between bg-muted/10 px-6 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Page {memberPagination?.page ?? 1} / {memberPagination?.totalPages ?? 1}
                     </p>
                     <div className="flex gap-2">
                       <Button
-                        variant="outline"
-                        className="rounded-2xl"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-md"
                         disabled={!memberPagination || memberPagination.page <= 1}
                         onClick={() => setMemberPage((page) => Math.max(1, page - 1))}
                       >
-                        Previous
+                        Prev
                       </Button>
                       <Button
-                        variant="outline"
-                        className="rounded-2xl"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-md"
                         disabled={!memberPagination?.hasMore}
                         onClick={() => setMemberPage((page) => page + 1)}
                       >
@@ -602,39 +624,32 @@ export default function OrganizationDetailPage() {
                       </Button>
                     </div>
                   </div>
-                </>
+                </div>
               ) : (
-                <div className="rounded-3xl border border-dashed border-border/80 bg-muted/10 p-10 text-center">
-                  <Users className="mx-auto h-9 w-9 text-muted-foreground" />
-                  <p className="mt-3 text-base font-semibold text-foreground">No members found</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Try adjusting the search or role filter.</p>
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Users className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                  <p className="text-sm font-bold text-foreground">No Members</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="rounded-[28px] border-border/80 shadow-sm">
-            <CardHeader className="border-b border-border/60">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <Card className="rounded-xl border-border shadow-sm overflow-hidden">
+            <CardHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle className="text-xl">Channel Studio</CardTitle>
-                  <CardDescription className="mt-1">
-                    Create channels, open settings, and keep channel access organized with premium controls.
-                  </CardDescription>
+                  <CardTitle className="text-lg font-bold">Channels</CardTitle>
                 </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={channelSearch}
-                      onChange={(event) => {
-                        setChannelSearch(event.target.value);
-                        setChannelPage(1);
-                      }}
-                      placeholder="Search channels"
-                      className="h-11 rounded-2xl pl-10 sm:w-56"
-                    />
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    value={channelSearch}
+                    onChange={(event) => {
+                      setChannelSearch(event.target.value);
+                      setChannelPage(1);
+                    }}
+                    placeholder="Search..."
+                    className="h-11 px-4 text-base rounded-xl sm:w-48 bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
+                  />
                   <Select
                     value={channelMembershipFilter}
                     onValueChange={(value) => {
@@ -642,96 +657,86 @@ export default function OrganizationDetailPage() {
                       setChannelPage(1);
                     }}
                   >
-                    <SelectTrigger className="h-11 rounded-2xl sm:w-40">
-                      <SelectValue />
+                    <SelectTrigger className="h-11 px-4 text-base rounded-xl sm:w-36 bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all">
+                      <SelectValue placeholder="Role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL">All channels</SelectItem>
-                      <SelectItem value="JOINED">Joined only</SelectItem>
-                      <SelectItem value="MANAGED">Managed only</SelectItem>
+                      <SelectItem value="ALL">All</SelectItem>
+                      <SelectItem value="JOINED">Joined</SelectItem>
+                      <SelectItem value="MANAGED">Managed</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4 p-5">
+            <CardContent className="p-0">
               {isLoadingChannels ? (
-                <div className="flex items-center justify-center py-10 text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                <div className="flex h-32 items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : channels.length > 0 ? (
-                <>
+                <div className="divide-y divide-border/50">
                   {channels.map((channel) => (
                     <div
                       key={channel.id}
-                      className="flex flex-col gap-5 rounded-3xl border border-border/70 bg-muted/10 p-5 xl:flex-row xl:items-center xl:justify-between"
+                      className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-muted/30"
                     >
-                      <div className="min-w-0 space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                            <Hash className="h-5 w-5" />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate text-base font-semibold text-foreground">{channel.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {channel.memberCount ?? 0} members · {channel.messageCount ?? 0} messages
-                            </p>
-                          </div>
-                          {channel.isDefault ? (
-                            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-                              Default
-                            </span>
-                          ) : null}
+                      <div className="flex min-w-0 items-center gap-4">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          {channel.isDefault ? <MessageSquareText className="h-5 w-5" /> : <Hash className="h-5 w-5" />}
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          {channel.currentUserChannelRole ? (
-                            <span className="rounded-full bg-muted px-3 py-1 font-semibold uppercase tracking-[0.16em]">
-                              Channel role: {channel.currentUserChannelRole}
-                            </span>
-                          ) : null}
-                          <span className="rounded-full bg-muted px-3 py-1 font-semibold uppercase tracking-[0.16em]">
-                            Workspace role: {currentUserRole}
-                          </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-bold">{channel.isDefault ? "Organization Chat" : channel.name}</p>
+                            {channel.isDefault && (
+                              <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">Default</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            {channel.memberCount ?? 0} members · {channel.messageCount ?? 0} msgs
+                          </p>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-3">
+                      <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
-                          className="rounded-2xl"
+                          size="sm"
+                          className="h-8 rounded-md text-xs font-bold"
                           onClick={() => router.push(`/organizations/${orgId}/channels/${channel.id}`)}
                         >
-                          Open channel
-                          <ArrowRight className="ml-2 h-4 w-4" />
+                          Open
                         </Button>
                         <ChannelManagementSheet
                           channelId={channel.id}
                           orgId={orgId}
                           trigger={
-                            <Button className="rounded-2xl">
-                              <Shield className="mr-2 h-4 w-4" />
-                              Manage
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <Shield className="h-4 w-4" />
                             </Button>
                           }
                         />
                       </div>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-muted/10 px-4 py-3">
-                    <p className="text-sm text-muted-foreground">
-                      Page {channelPagination?.page ?? 1} of {channelPagination?.totalPages ?? 1}
+                  
+                  <div className="flex items-center justify-between bg-muted/10 px-6 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Page {channelPagination?.page ?? 1} / {channelPagination?.totalPages ?? 1}
                     </p>
                     <div className="flex gap-2">
                       <Button
-                        variant="outline"
-                        className="rounded-2xl"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-md"
                         disabled={!channelPagination || channelPagination.page <= 1}
                         onClick={() => setChannelPage((page) => Math.max(1, page - 1))}
                       >
-                        Previous
+                        Prev
                       </Button>
                       <Button
-                        variant="outline"
-                        className="rounded-2xl"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-md"
                         disabled={!channelPagination?.hasMore}
                         onClick={() => setChannelPage((page) => page + 1)}
                       >
@@ -739,17 +744,16 @@ export default function OrganizationDetailPage() {
                       </Button>
                     </div>
                   </div>
-                </>
+                </div>
               ) : (
-                <div className="rounded-3xl border border-dashed border-border/80 bg-muted/10 p-10 text-center">
-                  <Hash className="mx-auto h-9 w-9 text-muted-foreground" />
-                  <p className="mt-3 text-base font-semibold text-foreground">No channels found</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Create a new channel or broaden your filters.</p>
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Hash className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                  <p className="text-sm font-bold text-foreground">No Channels</p>
                 </div>
               )}
             </CardContent>
           </Card>
-        </div>
+        </main>
       </div>
 
       {isEditDialogOpen ? <EditWorkspaceDialog orgId={orgId} onClose={() => setIsEditDialogOpen(false)} /> : null}

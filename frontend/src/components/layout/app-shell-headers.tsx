@@ -14,6 +14,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChannelManagementSheet } from "@/components/organizations/channel-management-sheet";
 import { cn } from "@/lib/utils";
 
 export function DashboardHeader() {
@@ -163,9 +172,25 @@ export function ChannelHeader({
         <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
           <Bell className="h-5 w-5" />
         </Button>
-        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
-          <MoreHorizontal className="h-5 w-5" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
+              <MoreHorizontal className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-lg border-border">
+            <ChannelManagementSheet
+              channelId={channelId}
+              orgId={organizationId}
+              trigger={
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="rounded-lg cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Manage Channel</span>
+                </DropdownMenuItem>
+              }
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

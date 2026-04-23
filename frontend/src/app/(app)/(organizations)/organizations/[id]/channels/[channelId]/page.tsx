@@ -2,25 +2,67 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback, type SyntheticEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Loader2, MessageSquareText, Sparkles } from "lucide-react";
+import { Loader2, MessageSquareText, Sparkles, MoreHorizontal, Settings } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthProfile } from "@/services/auth.service";
 import { useMessages, useCreateMessage } from "@/hooks/api/useMessages";
 import { useChannel } from "@/hooks/api/useChannels";
-import { leaveChannelRoom, joinChannelRoom } from "@/lib/socket";
-import type { Message } from "@/services/message.service";
+import { joinChannelRoom, leaveChannelRoom } from "@/lib/socket";
+import { uploadFiles, type Message } from "@/services/message.service";
 import ChatInputBox from "@/components/ChatInputBox";
 import { Button } from "@/components/ui/button";
-import { ChannelManagementSheet } from "@/components/organizations/channel-management-sheet";
+import { FileText, ImageIcon } from "lucide-react";
+import Image from "next/image";
 
 const COLLAPSED_MAX_HEIGHT = 320;
 const LONG_MESSAGE_TEXT_LENGTH = 420;
 
 const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-function MessageContent({ content, isOwnMessage }: { content: string; isOwnMessage: boolean }) {
+function FileAttachment({ attachment, isOwnMessage }: { attachment: any, isOwnMessage: boolean }) {
+  const isImage = attachment.type === "IMAGE";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+  
+  // Robust URL construction: Strip /api/v1 and ensure we don't have double slashes
+  const baseUrl = apiUrl.replace(/\/api\/v1\/?$/, "");
+  const fileUrl = `${baseUrl}${attachment.file_url}`;
+
+  if (isImage) {
+    return (
+      <Image 
+        src={fileUrl} 
+        alt={attachment.file_name} 
+        width={500}
+        height={500}
+        className="mt-2 rounded-lg border border-border/50 max-h-96 w-auto object-contain bg-background/50"
+        unoptimized={true}
+      />
+    );
+  }
+
+  return (
+    <a 
+      href={fileUrl} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className={`mt-2 flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
+        isOwnMessage 
+          ? "border-primary-foreground/20 bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground" 
+          : "border-border bg-background/50 hover:bg-muted text-foreground"
+      }`}
+    >
+      <FileText className="h-4 w-4 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-semibold">{attachment.file_name}</div>
+        <div className="text-[10px] opacity-70">{(attachment.file_size / 1024).toFixed(1)} KB</div>
+      </div>
+    </a>
+  );
+}
+
+function MessageContent({ content, isOwnMessage, attachments }: { content: string; isOwnMessage: boolean; attachments?: any[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLongMessage, setIsLongMessage] = useState(false);
   const isCollapsed = isLongMessage && !isExpanded;
@@ -79,9 +121,9 @@ function MessageContent({ content, isOwnMessage }: { content: string; isOwnMessa
               }
             : undefined
         }
-        className={`chat-rich-text whitespace-pre-wrap wrap-anywhere text-sm leading-6 max-w-none transition-[max-height] duration-200
-          [&_a]:no-underline hover:[&_a]:underline [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_ul]:ml-5 [&_ol]:ml-5 [&_p]:m-0 [&_blockquote]:pl-4
-          ${isOwnMessage ? "chat-rich-text--own text-primary-foreground" : "text-card-foreground"}`}
+        className={`chat-rich-text whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed max-w-none transition-[max-height] duration-200
+          [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_ul]:ml-5 [&_ol]:ml-5 [&_p]:m-0 [&_blockquote]:pl-4
+          ${isOwnMessage ? "chat-rich-text--own text-primary-foreground" : "text-foreground"}`}
         dangerouslySetInnerHTML={{ __html: content }}
       />
 
@@ -96,6 +138,14 @@ function MessageContent({ content, isOwnMessage }: { content: string; isOwnMessa
           {isExpanded ? "Read less" : "Read more"}
         </button>
       ) : null}
+
+      {attachments && attachments.length > 0 && (
+        <div className="mt-1 flex flex-col gap-1">
+          {attachments.map((att) => (
+            <FileAttachment key={att.id} attachment={att} isOwnMessage={isOwnMessage} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -259,10 +309,22 @@ export default function ChannelDetailPage() {
     }
   }, [scrollToBottom]);
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = async (content: string, attachments: File[]) => {
     shouldSmoothScrollRef.current = true;
     stickToBottomRef.current = true;
-    createMessage.mutate({ content });
+
+    try {
+      let uploadedAttachments = undefined;
+      if (attachments && attachments.length > 0) {
+        const uploadResult = await uploadFiles(attachments);
+        uploadedAttachments = uploadResult.files;
+      }
+      createMessage.mutate({ content, attachments: uploadedAttachments });
+    } catch (error) {
+      console.error("Failed to send message with attachments:", error);
+      // Fallback: send message without attachments if upload fails
+      createMessage.mutate({ content });
+    }
   };
 
   if (isLoadingUser || isLoadingMessages) {
@@ -278,25 +340,6 @@ export default function ChannelDetailPage() {
       {activeTab === "chat" ? (
         <>
           <section className="flex min-h-0 flex-1 flex-col">
-            <div className="border-b border-border/60 bg-background/80 px-6 py-3 backdrop-blur-sm lg:px-8">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Channel operations</p>
-                  <p className="text-xs text-muted-foreground">
-                    Manage channel details and membership without leaving the conversation.
-                  </p>
-                </div>
-                <ChannelManagementSheet
-                  channelId={channelId}
-                  orgId={params.id as string}
-                  trigger={
-                    <Button className="rounded-2xl">
-                      Manage channel
-                    </Button>
-                  }
-                />
-              </div>
-            </div>
             <div
               ref={scrollContainerRef}
               onScroll={handleScroll}
@@ -333,17 +376,17 @@ export default function ChannelDetailPage() {
                           </AvatarFallback>
                         </Avatar>
                         <div
-                          className={`min-w-0 max-w-[78%] rounded-3xl px-4 py-3 shadow-sm ${
+                          className={`min-w-0 max-w-[85%] rounded-2xl px-5 py-3.5 shadow-sm transition-all ${
                             isOwnMessage
-                              ? "bg-primary text-primary-foreground"
-                              : "border border-border bg-card text-card-foreground"
+                              ? "bg-primary text-primary-foreground shadow-primary/20"
+                              : "border border-border bg-muted/30 text-foreground"
                           }`}
                         >
-                          <div className="mb-1 flex items-center gap-2">
-                            <span className="text-xs font-semibold">
+                          <div className={`mb-1.5 flex items-center gap-2 ${isOwnMessage ? "justify-end" : ""}`}>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                               {isOwnMessage ? "You" : message.user_name || "Unknown"}
                             </span>
-                            <span className="text-[10px] opacity-70">
+                            <span className={`text-[10px] ${isOwnMessage ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
                               {new Date(message.created_at).toLocaleTimeString([], {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -351,7 +394,11 @@ export default function ChannelDetailPage() {
                             </span>
                           </div>
                           
-                          <MessageContent content={message.content} isOwnMessage={isOwnMessage} />
+                          <MessageContent 
+                            content={message.content} 
+                            isOwnMessage={isOwnMessage} 
+                            attachments={message.attachments}
+                          />
                         </div>
                       </div>
                     );
@@ -371,42 +418,6 @@ export default function ChannelDetailPage() {
             </div>
           </section>
 
-          <aside className="hidden w-80 shrink-0 border-l border-border bg-muted/20 xl:flex xl:flex-col">
-            <div className="border-b border-border px-6 py-5">
-              <p className="text-sm font-semibold text-foreground">Channel overview</p>
-              <p className="mt-1 text-xs text-muted-foreground">Context and activity for {channelName || "this channel"}</p>
-            </div>
-            <div className="flex-1 space-y-4 overflow-y-auto p-6">
-              <Card className="rounded-2xl border-border/80">
-                <CardHeader>
-                  <CardTitle className="text-base">Conversation stats</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-muted-foreground">
-                  <div className="flex items-center justify-between">
-                    <span>Channel role</span>
-                    <span className="font-semibold text-foreground">{channel?.currentUserChannelRole ?? channel?.currentUserOrgRole ?? "Viewer"}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Total messages</span>
-                    <span className="font-semibold text-foreground">{allMessages.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Active view</span>
-                    <span className="font-semibold text-foreground">Chat</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl border-border/80">
-                <CardHeader>
-                  <CardTitle className="text-base">Next step</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  Convert important discussions into tasks from the task tab once backend task flows are finalized.
-                </CardContent>
-              </Card>
-            </div>
-          </aside>
         </>
       ) : (
         <section className="min-h-0 flex-1 overflow-y-auto px-6 py-5 lg:px-8">

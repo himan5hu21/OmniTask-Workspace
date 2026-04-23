@@ -3,6 +3,7 @@ import { BaseRepository } from '@/repositories/base.repository';
 import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
 import type { Server } from 'socket.io';
+import { AttachmentService, AttachmentData } from './attachment.service';
 
 const messageRepo = new BaseRepository('channelMessage');
 const channelRepo = new BaseRepository('channel');
@@ -41,7 +42,8 @@ export class MessageService {
       include: {
         sender: {
           select: { id: true, name: true, email: true }
-        }
+        },
+        attachments: true
       },
       orderBy: { created_at: 'desc' }
     });
@@ -53,7 +55,8 @@ export class MessageService {
         content: msg.text,
         user_id: msg.sender_id,
         user_name: msg.sender.name,
-        created_at: msg.created_at
+        created_at: msg.created_at,
+        attachments: msg.attachments
       })),
       channelName: channel.name,
       pagination: {
@@ -64,7 +67,12 @@ export class MessageService {
   }
 
   // Create message in a channel
-  static async createMessage(messageInput: { content: string }, channelId: string, userId: string, io?: Server) {
+  static async createMessage(
+    messageInput: { content?: string; attachments?: AttachmentData[] | undefined }, 
+    channelId: string, 
+    userId: string, 
+    io?: Server
+  ) {
     const { content } = messageInput;
 
     // Check if user is member of the channel
@@ -93,12 +101,29 @@ export class MessageService {
       }
     );
 
+    // Create attachments if any
+    if (messageInput.attachments?.length) {
+      await AttachmentService.createMessageAttachments(message.id, 'CHANNEL', messageInput.attachments);
+    }
+
+    // Re-fetch message with attachments
+    const fullMessage = await messageRepo.findOne(
+      { id: message.id },
+      {
+        include: {
+          sender: { select: { id: true, name: true, email: true } },
+          attachments: true
+        }
+      }
+    );
+
     const messageData = {
-      id: message.id,
-      content: message.text,
-      user_id: message.sender_id,
-      user_name: message.sender.name,
-      created_at: message.created_at
+      id: fullMessage.id,
+      content: fullMessage.text,
+      user_id: fullMessage.sender_id,
+      user_name: fullMessage.sender.name,
+      created_at: fullMessage.created_at,
+      attachments: fullMessage.attachments
     };
 
     // Emit socket event

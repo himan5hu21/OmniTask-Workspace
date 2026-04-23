@@ -7,8 +7,13 @@ import taskRoutes from '@/routes/tasks';
 import orgRoutes from '@/routes/organizations';
 import healthRoutes from '@/routes/health';
 import jwt from '@fastify/jwt';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setupErrorHandler } from '@/middlewares/errorHandlers';
 import { verifyToken } from '@/middlewares/auth.middleware';
+import uploadRoutes from '@/routes/upload';
 import { prisma } from "./lib/database";
 
 // dotenv/config ensures env vars are loaded before any other imports
@@ -59,6 +64,20 @@ const buildServer = async () => {
   });
   await app.register(socketPlugin);
 
+  // Register Multipart for file uploads
+  await app.register(multipart, {
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB
+    },
+  });
+
+  // Register Static for serving uploads
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  await app.register(fastifyStatic, {
+    root: path.join(__dirname, '../uploads'),
+    prefix: '/uploads',
+  });
+
   // Register JWT plugin
   if (!process.env.JWT_SECRET) {
     throw new Error("JWT_SECRET is required");
@@ -68,8 +87,12 @@ const buildServer = async () => {
   });
 
   app.addHook('preHandler', async (request, reply) => {
-    // Skip auth for OPTIONS requests (CORS preflight) and public routes
-    if (request.method === 'OPTIONS' || request.routeOptions.config?.isPublic) {
+    // Skip auth for OPTIONS requests, public routes, and uploads
+    if (
+      request.method === 'OPTIONS' || 
+      request.routeOptions.config?.isPublic ||
+      request.url.startsWith('/uploads')
+    ) {
       return;
     }
     await verifyToken(request, reply);
@@ -92,6 +115,7 @@ const buildServer = async () => {
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(taskRoutes, { prefix: '/api/v1' });
   await app.register(orgRoutes, { prefix: '/api/v1' });
+  await app.register(uploadRoutes, { prefix: '/api/v1' });
 
   // 3. Prisma logs ko Fastify logger ke through pass karo
   if (!isProd) {

@@ -15,7 +15,7 @@ export default function ChatInputBox({
   onAddTask
 }: { 
   channelName: string; 
-  onSendMessage: (text: string) => void; 
+  onSendMessage: (text: string, attachments: File[]) => void; 
   isPending: boolean;
   onAddTask?: () => void;
 }) {
@@ -53,7 +53,7 @@ export default function ChatInputBox({
           const htmlContent = view.state.doc.textContent.trim() ? editor?.getHTML() : "";
           
           if (htmlContent || attachments.length > 0) {
-            onSendMessage(htmlContent || "");
+            onSendMessage(htmlContent || "", attachments);
             editor?.commands.clearContent();
             setAttachments([]);
             setIsEditorEmpty(true);
@@ -123,7 +123,7 @@ export default function ChatInputBox({
     const htmlContent = editor?.getText().trim() ? editor.getHTML() : "";
     if (!htmlContent && attachments.length === 0) return;
     
-    onSendMessage(htmlContent);
+    onSendMessage(htmlContent, attachments);
     editor?.commands.clearContent();
     setAttachments([]);
     setIsEditorEmpty(true);
@@ -155,7 +155,7 @@ export default function ChatInputBox({
         </div>
       )}
 
-      <EditorContent editor={editor} className="min-h-[24px]" />
+      <EditorContent editor={editor} className="chat-editor min-h-[24px]" />
       <input type="file" multiple hidden ref={fileInputRef} onChange={handleFileSelect} />
 
       <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-2">

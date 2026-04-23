@@ -14,14 +14,19 @@ export class ChannelService {
     orgRole?: 'OWNER' | 'ADMIN' | 'MEMBER';
     channelRole?: 'MANAGER' | 'MEMBER';
     isDefault?: boolean;
+    creatorId?: string | null;
+    ownerId?: string;
   }) {
-    const { orgRole, channelRole, isDefault } = args;
+    const { orgRole, channelRole, isDefault, creatorId, ownerId } = args;
     const isOwnerOrAdmin = orgRole === 'OWNER' || orgRole === 'ADMIN';
     const isManager = channelRole === 'MANAGER';
 
+    const isCreatedByOwner = creatorId && creatorId === ownerId;
+    const canManageChannelSettings = orgRole === 'OWNER' || (orgRole === 'ADMIN' && !isCreatedByOwner);
+
     return {
-      canEditChannel: isDefault ? orgRole === 'OWNER' : isOwnerOrAdmin,
-      canDeleteChannel: !isDefault && isOwnerOrAdmin,
+      canEditChannel: isDefault ? orgRole === 'OWNER' : canManageChannelSettings,
+      canDeleteChannel: !isDefault && canManageChannelSettings,
       canAddMembers: isOwnerOrAdmin || isManager,
       canRemoveMembers: isOwnerOrAdmin || isManager,
       canChangeMemberRoles: isOwnerOrAdmin,
@@ -62,7 +67,7 @@ export class ChannelService {
     const channel = await prisma.$transaction(async (tx) => {
       // Create channel
       const newChannel = await channelRepo.create(
-        { name, org_id },
+        { name, org_id, creator_id: creatorId },
         {},
         tx
       );
@@ -143,6 +148,9 @@ export class ChannelService {
         members: {
           where: { user_id: userId },
           select: { role: true }
+        },
+        organization: {
+          select: { owner_id: true }
         }
       },
       orderBy: [
@@ -168,7 +176,9 @@ export class ChannelService {
           permissions: this.buildChannelPermissions({
             orgRole: membership.role,
             channelRole: currentChannelRole,
-            isDefault: channel.isDefault
+            isDefault: channel.isDefault,
+            creatorId: channel.creator_id,
+            ownerId: channel.organization.owner_id
           })
         };
       }),
@@ -187,6 +197,9 @@ export class ChannelService {
             messages: true,
             tasks: true
           }
+        },
+        organization: {
+          select: { owner_id: true }
         }
       }
     });
@@ -218,7 +231,9 @@ export class ChannelService {
       permissions: this.buildChannelPermissions({
         orgRole: effectiveOrgRole,
         channelRole: effectiveChannelRole,
-        isDefault: channel.isDefault
+        isDefault: channel.isDefault,
+        creatorId: channel.creator_id,
+        ownerId: channel.organization.owner_id
       }),
       stats: {
         memberCount: channel._count.members,
@@ -233,7 +248,13 @@ export class ChannelService {
     userId: string,
     options: { page?: number; limit?: number; search?: string; role?: 'MANAGER' | 'MEMBER' } = {}
   ) {
-    const channel = await channelRepo.getById(channelId);
+    const channel = await channelRepo.getById(channelId, {
+      include: {
+        organization: {
+          select: { owner_id: true }
+        }
+      }
+    });
     if (!channel) {
       throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
     }
@@ -285,7 +306,9 @@ export class ChannelService {
       permissions: this.buildChannelPermissions({
         orgRole: orgMembership?.role,
         channelRole: channelMembership?.role,
-        isDefault: channel.isDefault
+        isDefault: channel.isDefault,
+        creatorId: channel.creator_id,
+        ownerId: channel.organization.owner_id
       })
     };
   }
