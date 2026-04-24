@@ -86,45 +86,62 @@ Build the system in this hierarchy:
 
 ## 4. Core Roles And Permission Model
 
-Use a professional RBAC model from the beginning.
+> 📄 **Full permission tables:** [`ROLE_PERMISSIONS.md`](./ROLE_PERMISSIONS.md)
+> 📋 **Full architecture plan:** [`ROLE_MANAGEMENT_PLAN.md`](./ROLE_MANAGEMENT_PLAN.md)
 
-### Organization roles
+OmniTask uses a **production-grade Hybrid RBAC + Capability system** (v3).
+See the files above for complete permission tables, guard implementation, JWT strategy, and frontend CASL setup.
 
-- `OWNER`
-- `ADMIN`
-- `MEMBER`
+### Organization Roles (`OrgRole`)
 
-### Channel roles
+| Role | Description |
+|------|-------------|
+| `OWNER` | Org creator. Full control. Critical actions require confirmation. |
+| `ADMIN` | Manages members, channels, labels. Cannot delete org. |
+| `MEMBER` | Default role. Creates tasks, sends messages. |
+| `GUEST` | External collaborator. View-only by default. |
 
-- `MANAGER`
-- `MEMBER`
+### Channel Roles (`ChannelRole`)
 
-### Task permissions
+| Role | Description |
+|------|-------------|
+| `MANAGER` | Full channel control — settings, members, board lists. |
+| `CONTRIBUTOR` | Can message and create tasks. Cannot manage. |
+| `VIEWER` | Read-only. Cannot post or create tasks. |
 
-- `VIEW_ONLY`
-- `CHECK_ONLY`
-- `EDIT_ALLOWED`
+### Task Assignment Flags (per user, per task)
 
-### Recommended permission behavior
+| Flag | Default | Description |
+|------|---------|-------------|
+| `can_view` | `true` | Can see the task |
+| `can_edit` | `false` | Can edit title, status, priority, due date |
+| `can_check` | `false` | Can tick/untick checklist items |
+| `can_comment` | `false` | Can post comments |
 
-- `OWNER`
-  - full organization control
-  - create/update/delete organization
-  - create/update/delete channels
-  - add/remove organization members
-  - override any task and assignment
-- `ADMIN`
-  - manage channels and members
-  - manage tasks inside the organization
-- `CHANNEL_MANAGER`
-  - manage a specific channel
-  - assign tasks in that channel
-  - moderate channel chat
-- `MEMBER`
-  - chat in channels they belong to
-  - send direct messages
-  - create tasks where allowed
-  - update only own or assigned tasks based on permission
+### Platform Role
+
+| Field | Description |
+|-------|-------------|
+| `is_superadmin` | OmniTask platform operator. Bypasses all org/channel checks. |
+
+### Permission Resolution Order
+
+```
+1. is_superadmin = true       → ALLOW
+2. orgRole = OWNER            → ALLOW (+ confirmation on critical actions)
+3. Org capability matches     → ALLOW
+4. Channel capability matches → ALLOW
+5. Task flag matches          → ALLOW
+6. Fallback                   → DENY (403)
+```
+
+### Core Behavior Rules
+
+- `OWNER` and `ADMIN` **bypass all channel and task-level checks** automatically.
+- Task **creator always has full edit access** unless removed from the channel.
+- `MEMBER` capabilities can be extended dynamically via `OrganizationSettings` flags.
+- All capabilities follow the format `resource.action` (e.g., `channel.delete`, `task.edit`).
+- Never hardcode `if (role === 'ADMIN')` — always use the capability check `can('action')`.
 
 ## 5. How The System Should Work
 

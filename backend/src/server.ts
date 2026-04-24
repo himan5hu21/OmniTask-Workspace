@@ -141,7 +141,7 @@ const buildServer = async () => {
           );
         });
       }
-      app.log.debug(`DB (${e.duration.toFixed(2)}ms) - ${executableQuery}`);
+      app.log.debug(`\nDB (${e.duration.toFixed(2)}ms) - ${executableQuery}`);
     });
   }
 
@@ -197,6 +197,7 @@ const start = async () => {
 
         process.removeAllListeners(signal);
         process.kill(process.pid, signal);
+        process.exit(0);
       } catch (err) {
         clearTimeout(shutdownTimeout);
         app.log.error(err, 'Error during shutdown:');
