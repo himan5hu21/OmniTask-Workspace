@@ -26,3 +26,11 @@ export const sendSuccess = (reply: FastifyReply, data: any, action: ActionType =
     data
   });
 };
+
+export const sendError = (reply: FastifyReply, statusCode: number, message: string, errors?: any) => {
+  return reply.code(statusCode).send({
+    success: false,
+    message,
+    errors
+  });
+};

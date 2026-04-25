@@ -6,6 +6,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   // Public Routes
   fastify.post('/register', { config: { isPublic: true } }, authController.register); 
   fastify.post('/login', { config: { isPublic: true } }, authController.login); 
+  fastify.post('/refresh', { config: { isPublic: true } }, authController.refreshToken); 
   
   // Protected Routes (Tame /me pan rakhi shako chho execution plan pramane, pan /profile pan ekdam barabar chhe)
   fastify.get('/profile', authController.getProfile); 

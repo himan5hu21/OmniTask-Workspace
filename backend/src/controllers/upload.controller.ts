@@ -12,17 +12,22 @@ export const uploadFiles = async (request: FastifyRequest, reply: FastifyReply) 
   for await (const part of parts) {
     if (part.type !== 'file') continue;
 
-    const buffer = await part.toBuffer();
-    const saved = await StorageService.saveFile({
-      filename: part.filename,
-      buffer
-    });
+    try {
+      const buffer = await part.toBuffer();
+      const saved = await StorageService.saveFile({
+        filename: part.filename,
+        buffer,
+        mimetype: part.mimetype
+      });
 
-    results.push({
-      ...saved,
-      mime_type: part.mimetype,
-      type: AttachmentService.getAttachmentType(part.mimetype)
-    });
+      results.push({
+        ...saved,
+        mime_type: part.mimetype,
+        type: AttachmentService.getAttachmentType(part.mimetype)
+      });
+    } catch (err: any) {
+      throw new AppError(err.message || 'File upload failed', HttpStatus.BAD_REQUEST);
+    }
   }
 
   if (results.length === 0) {

@@ -173,8 +173,6 @@ model TaskAssignment {
   created_at DateTime @default(now())
 
   @@unique([task_id, user_id])
-  @@index([task_id])
-  @@index([user_id])
   @@map("task_assignments")
 }
 

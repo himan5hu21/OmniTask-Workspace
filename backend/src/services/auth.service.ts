@@ -4,6 +4,7 @@ import { BaseRepository } from '@/repositories/base.repository';
 import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
 import { prisma } from '@/lib/database';
+import crypto from 'node:crypto';
 
 const userRepo = new BaseRepository('user');
 
@@ -64,7 +65,82 @@ export class AuthService {
       throw new AppError('Invalid email or password', HttpStatus.UNAUTHORIZED);
     }
 
-    return { id: user.id, email: user.email, name: user.name };
+    return { id: user.id, email: user.email, name: user.name, is_superadmin: user.is_superadmin };
+  }
+
+  // 3. Generate Token Pair (Access + Refresh)
+  static async generateTokenPair(user: { id: string; email: string; name: string; is_superadmin?: boolean; token_version?: number }, jwt: any) {
+    const accessToken = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        is_superadmin: user.is_superadmin || false,
+        tokenVersion: user.token_version || 0
+      },
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' } // Short lived
+    );
+
+    const refreshToken = crypto.randomBytes(40).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+
+    await this.storeRefreshToken(user.id, refreshToken, expiresAt);
+
+    return { accessToken, refreshToken };
+  }
+
+  // 4. Store Refresh Token (Hashed)
+  static async storeRefreshToken(userId: string, token: string, expiresAt: Date) {
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    await prisma.refreshToken.create({
+      data: {
+        user_id: userId,
+        hashedToken,
+        expires_at: expiresAt
+      }
+    });
+  }
+
+  // 5. Refresh Access Token (Rotation)
+  static async refreshAccessToken(refreshToken: string, jwt: any) {
+    const hashedToken = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+    const tokenDoc = await prisma.refreshToken.findUnique({
+      where: { hashedToken },
+      include: { user: true }
+    });
+
+    if (!tokenDoc || tokenDoc.revoked || tokenDoc.expires_at < new Date()) {
+      throw new AppError('Invalid or expired refresh token', HttpStatus.UNAUTHORIZED);
+    }
+
+    // Mark current token as revoked (rotation)
+    await prisma.refreshToken.delete({
+      where: { id: tokenDoc.id }
+    });
+
+    // Generate new pair
+    return this.generateTokenPair(
+      {
+        id: tokenDoc.user.id,
+        email: tokenDoc.user.email,
+        name: tokenDoc.user.name,
+        is_superadmin: tokenDoc.user.is_superadmin,
+        token_version: tokenDoc.user.token_version
+      },
+      jwt
+    );
+  }
+
+  // 6. Revoke Refresh Token
+  static async revokeRefreshToken(refreshToken: string) {
+    const hashedToken = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+    await prisma.refreshToken.deleteMany({
+      where: { hashedToken }
+    });
   }
 
   // Get user by ID
@@ -122,6 +198,7 @@ export class AuthService {
     // Update password
     await userRepo.update(userId, {
       password: hashedNewPassword,
+      token_version: { increment: 1 },
       updated_at: new Date()
     });
 
@@ -132,6 +209,7 @@ export class AuthService {
   static async deactivateAccount(userId: string) {
     await userRepo.update(userId, {
       is_active: false,
+      token_version: { increment: 1 },
       updated_at: new Date()
     });
 

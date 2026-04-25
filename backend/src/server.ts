@@ -8,6 +8,7 @@ import orgRoutes from '@/routes/organizations';
 import healthRoutes from '@/routes/health';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
+import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,12 +71,22 @@ const buildServer = async () => {
       fileSize: 10 * 1024 * 1024, // 10MB
     },
   });
+  
+  await app.register(cookie, {
+    secret: process.env.COOKIE_SECRET || 'omnitask-secret',
+  });
 
   // Register Static for serving uploads
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   await app.register(fastifyStatic, {
     root: path.join(__dirname, '../uploads'),
     prefix: '/uploads',
+    setHeaders: (res) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      // For higher security, we can force attachment. 
+      // Note: This might need adjustment if you want images to display directly.
+      res.setHeader('Content-Disposition', 'attachment');
+    }
   });
 
   // Register JWT plugin

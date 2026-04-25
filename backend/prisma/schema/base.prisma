@@ -5,7 +5,10 @@ model User {
   name      String
   email     String  @unique
   password  String
-  is_active Boolean @default(true)
+  is_superadmin Boolean @default(false)
+  token_version Int     @default(0)
+  is_active     Boolean @default(true)
+  avatar_url    String?
 
   // Soft delete
   deleted_at DateTime?
@@ -27,22 +30,25 @@ model User {
   createdChannels      Channel[]            @relation("ChannelCreator")
   taskComments         TaskComment[]
   taskAttachments      TaskAttachment[]
+  auditLogs            AuditLog[]
 
   @@map("users")
 }
 
 
-// TODO: Need to complete at the end.
 model RefreshToken {
-  id         String   @id @default(cuid())
-  token      String   @unique
-  user_id    String
-  expires_at DateTime
-  created_at DateTime @default(now())
+  id           String   @id @default(cuid())
+  hashedToken  String   @unique
+  user_id      String
+  revoked      Boolean  @default(false)
+  replacedBy   String?
+  expires_at   DateTime
+  created_at   DateTime @default(now())
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([expires_at])
   @@map("refresh_tokens")
 }
 
@@ -63,6 +69,7 @@ model Organization {
   members  OrganizationMember[]
   tasks    Task[]
   labels   Label[]
+  settings OrganizationSettings?
 
   @@map("organizations")
 }
@@ -74,6 +81,7 @@ model OrganizationMember {
   user_id         String
   role            OrgRole  @default(MEMBER) // Admin ke Member
   joined_at       DateTime @default(now())
+  role_updated_at DateTime @default(now())
 
   // Relations
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
@@ -101,7 +109,8 @@ model Channel {
   name      String
   org_id    String
   creator_id String?
-  isDefault Boolean @default(false)
+  isDefault  Boolean @default(false)
+  is_private Boolean @default(false)
 
   // Soft delete
   deleted_at DateTime?
@@ -126,7 +135,7 @@ model ChannelMember {
   id         String      @id @default(cuid())
   user_id    String
   channel_id String
-  role       ChannelRole @default(MEMBER)
+  role       ChannelRole @default(CONTRIBUTOR)
   joined_at  DateTime    @default(now())
 
   // Relations
@@ -139,5 +148,35 @@ model ChannelMember {
 
 enum ChannelRole {
   MANAGER
-  MEMBER
+  CONTRIBUTOR
+  VIEWER
+}
+
+model OrganizationSettings {
+  id                          String  @id @default(cuid())
+  org_id                      String  @unique
+  allow_member_create_channel Boolean @default(true)
+  allow_member_invite         Boolean @default(false)
+  default_task_open_edit      Boolean @default(true)
+
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+
+  @@map("organization_settings")
+}
+
+// AuditLog — IMMUTABLE. No deleted_at. No updated_at. Append-only.
+model AuditLog {
+  id          String   @id @default(cuid())
+  user_id     String
+  action      String   // e.g. "member.remove", "channel.delete"
+  entity_type String   // "Organization" | "Channel" | "Task" | "Member"
+  entity_id   String
+  metadata    Json?    // { targetUserId, previousRole, newRole, etc. }
+  created_at  DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@index([entity_type, entity_id])
+  @@map("audit_logs")
 }
