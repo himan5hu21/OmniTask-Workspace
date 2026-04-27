@@ -88,6 +88,8 @@ Build the system in this hierarchy:
 
 > 📄 **Full permission tables:** [`ROLE_PERMISSIONS.md`](./ROLE_PERMISSIONS.md)
 > 📋 **Full architecture plan:** [`ROLE_MANAGEMENT_PLAN.md`](./ROLE_MANAGEMENT_PLAN.md)
+> 🏗️ **Frontend Architecture:** [`FRONTEND_ARCHITECTURE.md`](./FRONTEND_ARCHITECTURE.md)
+> ⚙️ **Backend Architecture:** [`BACKEND_ARCHITECTURE.md`](./BACKEND_ARCHITECTURE.md)
 
 OmniTask uses a **production-grade Hybrid RBAC + Capability system** (v3).
 See the files above for complete permission tables, guard implementation, JWT strategy, and frontend CASL setup.
