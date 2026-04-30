@@ -63,7 +63,7 @@ import {
 
 import { EditWorkspaceDialog } from "@/components/organizations/edit-workspace-dialog";
 import { ChannelManagementSheet } from "@/components/organizations/channel-management-sheet";
-import { useAuthProfile } from "@/services/auth.service";
+import { useAuthProfile } from "@/api/auth";
 import {
   useAddOrganizationMember,
   useDeleteOrganization,
@@ -71,11 +71,11 @@ import {
   useOrganizationMembers,
   useRemoveOrganizationMember,
   useUpdateOrganizationMemberRole,
-} from "@/hooks/api/useOrganizations";
+} from "@/api/organizations";
 import {
   useCreateChannel,
   useOrgChannels,
-} from "@/hooks/api/useChannels";
+} from "@/api/channels";
 import { handleApiError } from "@/lib/api-errors";
 
 function OrganizationRoleBadge({ role }: { role: "OWNER" | "ADMIN" | "MEMBER" }) {
@@ -138,6 +138,7 @@ export default function OrganizationDetailPage() {
     pagination: memberPagination,
     permissions,
     isLoading: isLoadingMembers,
+    currentUserRole,
   } = useOrganizationMembers(orgId, {
     page: memberPage,
     limit: 8,
@@ -156,7 +157,8 @@ export default function OrganizationDetailPage() {
   });
 
 
-  const currentUserRole = organization?.currentUserRole;
+  // currentUserRole is already destructured from useOrganizationMembers above
+
 
   const canCreateChannels = permissions?.canCreateChannels ?? false;
   const canInviteMembers = permissions?.canInviteMembers ?? false;
@@ -167,69 +169,20 @@ export default function OrganizationDetailPage() {
 
   console.log("Permissions:", permissions);
 
-  const addMemberMutation = useAddOrganizationMember({
-    onSuccess: () => {
-      setInviteEmail("");
-      setInviteRole("MEMBER");
-      setInviteEmailError("");
-      setIsInviteDialogOpen(false);
-      toast.success("Member invited successfully");
-    },
-    onError: (error) =>
-      handleApiError(error, {
-        uniqueEmail: () => setInviteEmailError("This email is already part of the workspace"),
-        accessDenied: () => toast.error("You do not have permission to invite members"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
+  const addMemberMutation = useAddOrganizationMember();
 
-  const updateRoleMutation = useUpdateOrganizationMemberRole({
-    onSuccess: () => toast.success("Member role updated successfully"),
-    onError: (error) =>
-      handleApiError(error, {
-        accessDenied: () => toast.error("Only the owner can change workspace roles"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
 
-  const removeMemberMutation = useRemoveOrganizationMember({
-    onSuccess: () => {
-      toast.success("Member removed successfully");
-      setMemberToRemove(null);
-    },
-    onError: (error) =>
-      handleApiError(error, {
-        accessDenied: () => toast.error("You do not have permission to remove this member"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
+  const updateRoleMutation = useUpdateOrganizationMemberRole();
 
-  const deleteOrgMutation = useDeleteOrganization({
-    onSuccess: () => {
-      toast.success("Workspace deleted successfully");
-      router.push("/dashboard");
-    },
-    onError: (error) =>
-      handleApiError(error, {
-        accessDenied: () => toast.error("Only the workspace owner can delete it"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
 
-  const createChannelMutation = useCreateChannel({
-    onSuccess: () => {
-      setChannelName("");
-      setChannelNameError("");
-      setIsCreateChannelOpen(false);
-      toast.success("Channel created successfully");
-    },
-    onError: (error) =>
-      handleApiError(error, {
-        uniqueName: () => setChannelNameError("That channel name already exists in this workspace"),
-        accessDenied: () => toast.error("You do not have permission to create channels"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
+  const removeMemberMutation = useRemoveOrganizationMember();
+
+
+  const deleteOrgMutation = useDeleteOrganization();
+
+
+  const createChannelMutation = useCreateChannel();
+
 
   console.log("Is Create Channel Open:", isCreateChannelOpen);
 
@@ -259,6 +212,20 @@ export default function OrganizationDetailPage() {
     addMemberMutation.mutate({
       orgId,
       data: { email: inviteEmail.trim(), role: inviteRole },
+    }, {
+      onSuccess: () => {
+        setInviteEmail("");
+        setInviteRole("MEMBER");
+        setInviteEmailError("");
+        setIsInviteDialogOpen(false);
+        toast.success("Member invited successfully");
+      },
+      onError: (error) =>
+        handleApiError(error, {
+          uniqueEmail: () => setInviteEmailError("This email is already part of the workspace"),
+          accessDenied: () => toast.error("You do not have permission to invite members"),
+          onOtherError: (message) => toast.error(message),
+        }),
     });
   };
 
@@ -271,6 +238,19 @@ export default function OrganizationDetailPage() {
     createChannelMutation.mutate({
       name: channelName.trim(),
       org_id: orgId,
+    }, {
+      onSuccess: () => {
+        setChannelName("");
+        setChannelNameError("");
+        setIsCreateChannelOpen(false);
+        toast.success("Channel created successfully");
+      },
+      onError: (error) =>
+        handleApiError(error, {
+          uniqueName: () => setChannelNameError("That channel name already exists in this workspace"),
+          accessDenied: () => toast.error("You do not have permission to create channels"),
+          onOtherError: (message) => toast.error(message),
+        }),
     });
   };
 
@@ -308,7 +288,7 @@ export default function OrganizationDetailPage() {
           <div className="flex items-center gap-3">
             <OrganizationRoleBadge role={currentUserRole ?? "MEMBER"} />
             <span className="text-xs font-medium text-muted-foreground">
-              {organization.stats.memberCount} members · {organization.stats.channelCount} channels
+              {organization.stats?.memberCount ?? 0} members · {organization.stats?.channelCount ?? 0} channels
             </span>
           </div>
         </div>
@@ -316,11 +296,11 @@ export default function OrganizationDetailPage() {
         <div className="flex gap-2">
           <div className="rounded-lg border border-border bg-card p-3 shadow-sm min-w-[100px]">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tasks</p>
-            <p className="mt-1 text-xl font-bold">{organization.stats.taskCount}</p>
+            <p className="mt-1 text-xl font-bold">{organization.stats?.taskCount ?? 0}</p>
           </div>
           <div className="rounded-lg border border-border bg-card p-3 shadow-sm min-w-[100px]">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Channels</p>
-            <p className="mt-1 text-xl font-bold">{organization.stats.channelCount}</p>
+            <p className="mt-1 text-xl font-bold">{organization.stats?.channelCount ?? 0}</p>
           </div>
         </div>
       </section>
@@ -550,17 +530,17 @@ export default function OrganizationDetailPage() {
                       <div className="flex min-w-0 items-center gap-3">
                         <Avatar className="h-9 w-9 border border-border">
                           <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary uppercase">
-                            {member.user.name.charAt(0)}
+                            {member.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold">{member.user.name}</p>
+                            <p className="truncate text-sm font-semibold">{member.name}</p>
                             {member.user_id === user?.id && (
                               <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">You</span>
                             )}
                           </div>
-                          <p className="truncate text-[11px] text-muted-foreground">{member.user.email}</p>
+                          <p className="truncate text-[11px] text-muted-foreground">{member.email}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -568,11 +548,18 @@ export default function OrganizationDetailPage() {
                         {canChangeRoles && member.role !== "OWNER" && (
                           <Select
                             value={member.role}
-                            onValueChange={(value) =>
+                            onValueChange={(value: "ADMIN" | "MEMBER") =>
                               updateRoleMutation.mutate({
                                 orgId,
                                 userId: member.user_id,
-                                data: { role: value as "OWNER" | "ADMIN" | "MEMBER" },
+                                data: { role: value },
+                              }, {
+                                onSuccess: () => toast.success("Member role updated successfully"),
+                                onError: (error) =>
+                                  handleApiError(error, {
+                                    accessDenied: () => toast.error("Only the owner can change workspace roles"),
+                                    onOtherError: (message) => toast.error(message),
+                                  }),
                               })
                             }
                           >
@@ -590,7 +577,7 @@ export default function OrganizationDetailPage() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                            onClick={() => setMemberToRemove({ id: member.user_id, name: member.user.name })}
+                            onClick={() => setMemberToRemove({ id: member.user_id, name: member.name })}
                           >
                             <UserMinus className="h-4 w-4" />
                           </Button>
@@ -693,7 +680,7 @@ export default function OrganizationDetailPage() {
                             )}
                           </div>
                           <p className="text-[11px] text-muted-foreground">
-                            {channel.memberCount ?? 0} members · {channel.messageCount ?? 0} msgs
+                            {channel.stats?.memberCount ?? 0} members · {channel.stats?.messageCount ?? 0} msgs
                           </p>
                         </div>
                       </div>
@@ -775,6 +762,16 @@ export default function OrganizationDetailPage() {
                 removeMemberMutation.mutate({
                   orgId,
                   userId: memberToRemove.id,
+                }, {
+                  onSuccess: () => {
+                    toast.success("Member removed successfully");
+                    setMemberToRemove(null);
+                  },
+                  onError: (error) =>
+                    handleApiError(error, {
+                      accessDenied: () => toast.error("You do not have permission to remove this member"),
+                      onOtherError: (message) => toast.error(message),
+                    }),
                 })
               }
             >
@@ -796,7 +793,17 @@ export default function OrganizationDetailPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteOrgMutation.mutate(orgId)}
+              onClick={() => deleteOrgMutation.mutate(orgId, {
+                onSuccess: () => {
+                  toast.success("Workspace deleted successfully");
+                  router.push("/dashboard");
+                },
+                onError: (error) =>
+                  handleApiError(error, {
+                    accessDenied: () => toast.error("Only the workspace owner can delete it"),
+                    onOtherError: (message) => toast.error(message),
+                  }),
+              })}
             >
               {deleteOrgMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete workspace"}
             </AlertDialogAction>

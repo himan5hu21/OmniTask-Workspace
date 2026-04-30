@@ -148,6 +148,7 @@ model ChannelMember {
 
 enum ChannelRole {
   MANAGER
+  MEMBER
   CONTRIBUTOR
   VIEWER
 }

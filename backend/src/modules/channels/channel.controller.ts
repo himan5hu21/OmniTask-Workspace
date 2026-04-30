@@ -1,7 +1,7 @@
 // src/controllers/channel.controller.ts
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { ChannelService } from '@/services/channel.service';
+import { ChannelService } from '@/modules/channels/channel.service';
 import { sendSuccess } from '@/utils/response';
 
 const createChannelSchema = z.object({
@@ -20,7 +20,7 @@ const channelMembersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().trim().optional(),
-  role: z.enum(['MANAGER', 'MEMBER']).optional()
+  role: z.enum(['MANAGER', 'CONTRIBUTOR', 'VIEWER']).optional()
 });
 
 // 1. Navi Channel Banavvi
@@ -96,7 +96,7 @@ export const deleteChannel = async (request: FastifyRequest, reply: FastifyReply
 
 const addMemberSchema = z.object({
   user_id: z.cuid('Invalid User ID'),
-  role: z.enum(['MANAGER', 'MEMBER']).default('MEMBER')
+  role: z.enum(['MANAGER', 'CONTRIBUTOR', 'VIEWER']).default('CONTRIBUTOR')
 });
 
 // 6. Channel ma member add karvi
@@ -121,7 +121,7 @@ export const removeChannelMember = async (request: FastifyRequest, reply: Fastif
 };
 
 const updateMemberRoleSchema = z.object({
-  role: z.enum(['MANAGER', 'MEMBER'])
+  role: z.enum(['MANAGER', 'CONTRIBUTOR', 'VIEWER'])
 });
 
 // 8. Channel member ni role update karvi

@@ -1,7 +1,7 @@
 // src/controllers/message.controller.ts
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { MessageService } from '@/services/message.service';
+import { MessageService } from '@/modules/message/message.service';
 import { sendSuccess } from '@/utils/response';
 
 const createMessageSchema = z.object({

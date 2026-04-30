@@ -6,11 +6,10 @@ import { Loader2, MessageSquareText, Sparkles, MoreHorizontal, Settings } from "
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuthProfile } from "@/services/auth.service";
-import { useMessages, useCreateMessage } from "@/hooks/api/useMessages";
-import { useChannel } from "@/hooks/api/useChannels";
+import { useAuthProfile } from "@/api/auth";
+import { useMessages, useCreateMessage, messageService, type Message, type Attachment } from "@/api/messages";
+import { useChannel } from "@/api/channels";
 import { joinChannelRoom, leaveChannelRoom } from "@/lib/socket";
-import { uploadFiles, type Message } from "@/services/message.service";
 import ChatInputBox from "@/components/ChatInputBox";
 import { Button } from "@/components/ui/button";
 import { FileText, ImageIcon } from "lucide-react";
@@ -21,7 +20,9 @@ const LONG_MESSAGE_TEXT_LENGTH = 420;
 
 const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-function FileAttachment({ attachment, isOwnMessage }: { attachment: any, isOwnMessage: boolean }) {
+
+
+function FileAttachment({ attachment, isOwnMessage }: { attachment: Attachment, isOwnMessage: boolean }) {
   const isImage = attachment.type === "IMAGE";
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
   
@@ -62,7 +63,7 @@ function FileAttachment({ attachment, isOwnMessage }: { attachment: any, isOwnMe
   );
 }
 
-function MessageContent({ content, isOwnMessage, attachments }: { content: string; isOwnMessage: boolean; attachments?: any[] }) {
+function MessageContent({ content, isOwnMessage, attachments }: { content: string; isOwnMessage: boolean; attachments?: Attachment[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLongMessage, setIsLongMessage] = useState(false);
   const isCollapsed = isLongMessage && !isExpanded;
@@ -164,7 +165,6 @@ export default function ChannelDetailPage() {
   const { channel } = useChannel(channelId, { enabled: !!channelId });
   const {
     messages,
-    channelName,
     isLoading: isLoadingMessages,
     hasNextPage,
     fetchNextPage,
@@ -183,11 +183,7 @@ export default function ChannelDetailPage() {
   const shouldSmoothScrollRef = useRef(false);
   const stickToBottomRef = useRef(true);
 
-  const createMessage = useCreateMessage(channelId, {
-    onError: (error) => {
-      console.error("Failed to send message:", error);
-    },
-  });
+  const createMessage = useCreateMessage(channelId);
 
   useEffect(() => {
     if (!isLoadingUser && !user) {
@@ -220,8 +216,8 @@ export default function ChannelDetailPage() {
   const allMessages = useMemo(() => {
     const uniqueMessages = new Map<string, Message>();
 
-    messages?.forEach((msg) => uniqueMessages.set(msg.id, msg));
-    socketMessages?.forEach((msg) => uniqueMessages.set(msg.id, msg));
+    messages?.forEach((msg: Message) => uniqueMessages.set(msg.id, msg));
+    socketMessages?.forEach((msg: Message) => uniqueMessages.set(msg.id, msg));
 
     return Array.from(uniqueMessages.values()).sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -314,12 +310,12 @@ export default function ChannelDetailPage() {
     stickToBottomRef.current = true;
 
     try {
-      let uploadedAttachments = undefined;
+      let attachmentIds: string[] | undefined = undefined;
       if (attachments && attachments.length > 0) {
-        const uploadResult = await uploadFiles(attachments);
-        uploadedAttachments = uploadResult.files;
+        const uploadedAttachments = await messageService.uploadFiles(channelId, attachments);
+        attachmentIds = uploadedAttachments.map(a => a.id);
       }
-      createMessage.mutate({ content, attachments: uploadedAttachments });
+      createMessage.mutate({ content, attachmentIds });
     } catch (error) {
       console.error("Failed to send message with attachments:", error);
       // Fallback: send message without attachments if upload fails
@@ -411,7 +407,7 @@ export default function ChannelDetailPage() {
             <div className="border-t border-border bg-background/85 px-6 py-4 backdrop-blur-md lg:px-8">
               {/* Isolated Input Component used here */}
               <ChatInputBox 
-                channelName={channelName} 
+                channelName={channel?.name || "Channel"} 
                 onSendMessage={handleSendMessage} 
                 isPending={createMessage.isPending} 
               />

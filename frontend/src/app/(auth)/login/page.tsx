@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createZodResolver, Form, FormFieldError, handleApiFormError } from "@/lib/form";
-import { useLoginMutation } from "@/services/auth.service";
+import { useLoginMutation } from "@/api/auth";
 
 // Validation schema
 const loginSchema = z.object({
@@ -35,36 +35,37 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginFormValues>({ resolver });
 
-  const loginMutation = useLoginMutation({
-    onSuccess: () => {
-      router.push("/dashboard");
-    },
-    onError: (err: unknown) => {
-      handleApiFormError<LoginFormValues>({
-        error: err,
-        setError,
-        fieldModes: {
-          email: "inline",
-          password: "inline",
-        },
-        fieldMessages: {
-          email: {
-            INVALID: "Please enter a valid email address.",
-            UNIQUE: "This email is already in use.",
-          },
-          password: {
-            INVALID: "Please enter a valid password.",
-            MIN_LENGTH: "Password must be at least 3 characters.",
-          },
-        },
-        fallbackMessage: "Login failed. Please try again.",
-      });
-    },
-  });
-
+  const loginMutation = useLoginMutation();
+  
   const onSubmit = (data: LoginFormValues) => {
-    loginMutation.mutate(data);
+    loginMutation.mutate(data, {
+      onSuccess: () => {
+        router.push("/dashboard");
+      },
+      onError: (err: unknown) => {
+        handleApiFormError<LoginFormValues>({
+          error: err,
+          setError,
+          fieldModes: {
+            email: "inline",
+            password: "inline",
+          },
+          fieldMessages: {
+            email: {
+              INVALID: "Please enter a valid email address.",
+              UNIQUE: "This email is already in use.",
+            },
+            password: {
+              INVALID: "Please enter a valid password.",
+              MIN_LENGTH: "Password must be at least 3 characters.",
+            },
+          },
+          fallbackMessage: "Login failed. Please try again.",
+        });
+      },
+    });
   };
+
 
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-background font-sans text-foreground overflow-hidden">

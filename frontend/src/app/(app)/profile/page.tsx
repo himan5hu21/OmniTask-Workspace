@@ -5,21 +5,22 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { UserCircle, LogOut, Mail, Calendar } from "lucide-react";
-import { useLogoutMutation } from "@/services/auth.service";
-import { useProfile } from "@/hooks/api/useAuth";
+import { useLogoutMutation } from "@/api/auth";
+import { useAuthProfile } from "@/api/auth";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user } = useProfile();
-  const logoutMutation = useLogoutMutation({
-    onSettled: () => {
-      router.push("/login");
-    },
-  });
-
+  const { user } = useAuthProfile();
+  const logoutMutation = useLogoutMutation();
+  
   const handleLogout = async () => {
-    await logoutMutation.mutateAsync();
+    await logoutMutation.mutateAsync(undefined, {
+      onSettled: () => {
+        router.push("/login");
+      },
+    });
   };
+
 
   return (
     <div className="min-h-screen bg-background p-6 flex flex-col items-center">
@@ -68,3 +69,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

@@ -60,10 +60,10 @@ import {
   useRemoveChannelMember,
   useUpdateChannel,
   useUpdateChannelMemberRole,
-} from "@/hooks/api/useChannels";
-import { useOrganization, useOrganizationMembers } from "@/hooks/api/useOrganizations";
+} from "@/api/channels";
+import { useOrganization, useOrganizationMembers } from "@/api/organizations";
 import { handleApiError } from "@/lib/api-errors";
-import { useAuthProfile } from "@/services/auth.service";
+import { useAuthProfile } from "@/api/auth";
 
 function ChannelRoleBadge({ role }: { role: "MANAGER" | "MEMBER" }) {
   return (
@@ -132,62 +132,23 @@ export function ChannelManagementSheet({
     return orgMembers.find(m => m.role === 'OWNER')?.user_id;
   }, [orgMembers]);
 
-  const updateChannelMutation = useUpdateChannel({
-    onSuccess: () => toast.success("Channel updated successfully"),
-    onError: (error) =>
-      handleApiError(error, {
-        uniqueName: () => toast.error("That channel name already exists in this workspace"),
-        accessDenied: () => toast.error("You do not have permission to update this channel"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
+  const updateChannelMutation = useUpdateChannel();
 
-  const deleteChannelMutation = useDeleteChannel({
-    onSuccess: () => {
-      toast.success("Channel deleted successfully");
-      setConfirmDelete(false);
-      setOpen(false);
-      onDeleted?.();
-    },
-    onError: (error) =>
-      handleApiError(error, {
-        accessDenied: () => toast.error("You do not have permission to delete this channel"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
 
-  const addMemberMutation = useAddChannelMember({
-    onSuccess: () => toast.success("Member added to channel"),
-    onError: (error) =>
-      handleApiError(error, {
-        accessDenied: () => toast.error("You do not have permission to add members"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
+  const deleteChannelMutation = useDeleteChannel();
 
-  const updateRoleMutation = useUpdateChannelMemberRole({
-    onSuccess: () => toast.success("Channel role updated"),
-    onError: (error) =>
-      handleApiError(error, {
-        accessDenied: () => toast.error("You do not have permission to change roles"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
 
-  const removeMemberMutation = useRemoveChannelMember({
-    onSuccess: () => {
-      toast.success("Member removed from channel");
-      setMemberToRemove(null);
-    },
-    onError: (error) =>
-      handleApiError(error, {
-        accessDenied: () => toast.error("You do not have permission to remove this member"),
-        onOtherError: (message) => toast.error(message),
-      }),
-  });
+  const addMemberMutation = useAddChannelMember();
 
-  const canEdit = channel?.permissions?.canEditChannel;
-  const canDelete = channel?.permissions?.canDeleteChannel;
+
+  const updateRoleMutation = useUpdateChannelMemberRole();
+
+
+  const removeMemberMutation = useRemoveChannelMember();
+
+
+  const canEdit = permissions?.canEditChannel;
+  const canDelete = permissions?.canDeleteChannel;
   const canAddMembers = permissions?.canAddMembers;
   const canChangeRoles = permissions?.canChangeMemberRoles;
   const canRemoveMembers = permissions?.canRemoveMembers;
@@ -201,6 +162,14 @@ export function ChannelManagementSheet({
     updateChannelMutation.mutate({
       channelId,
       data: { name: nextName },
+    }, {
+      onSuccess: () => toast.success("Channel updated successfully"),
+      onError: (error) =>
+        handleApiError(error, {
+          uniqueName: () => toast.error("That channel name already exists in this workspace"),
+          accessDenied: () => toast.error("You do not have permission to update this channel"),
+          onOtherError: (message) => toast.error(message),
+        }),
     });
   };
 
@@ -240,7 +209,7 @@ export function ChannelManagementSheet({
                     <span className="text-primary/60 font-mono">#</span>
                     {channel.name}
                   </h1>
-                  <p className="text-sm text-muted-foreground mt-1">Manage this channel's settings and members.</p>
+                  <p className="text-sm text-muted-foreground mt-1">Manage this channel&apos;s settings and members.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {canEdit && (
@@ -349,8 +318,8 @@ export function ChannelManagementSheet({
                               className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-3 py-2"
                             >
                               <div className="min-w-0">
-                                <p className="truncate text-xs font-bold">{member.user.name}</p>
-                                <p className="truncate text-[10px] text-muted-foreground">{member.user.email}</p>
+                                <p className="truncate text-xs font-bold">{member.name}</p>
+                                <p className="truncate text-[10px] text-muted-foreground">{member.email}</p>
                               </div>
                               <Button
                                 size="sm"
@@ -361,6 +330,13 @@ export function ChannelManagementSheet({
                                   addMemberMutation.mutate({
                                     channelId,
                                     data: { user_id: member.user_id, role: selectedAddRole },
+                                  }, {
+                                    onSuccess: () => toast.success("Member added to channel"),
+                                    onError: (error) =>
+                                      handleApiError(error, {
+                                        accessDenied: () => toast.error("You do not have permission to add members"),
+                                        onOtherError: (message) => toast.error(message),
+                                      }),
                                   })
                                 }
                               >
@@ -384,15 +360,15 @@ export function ChannelManagementSheet({
                   <div className="grid grid-cols-3 gap-3">
                     <div className="rounded-xl border border-border bg-muted/20 p-3">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Members</p>
-                      <p className="mt-1 text-lg font-bold">{channel.stats.memberCount}</p>
+                      <p className="mt-1 text-lg font-bold">{channel.stats?.memberCount ?? 0}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-muted/20 p-3">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Messages</p>
-                      <p className="mt-1 text-lg font-bold">{channel.stats.messageCount}</p>
+                      <p className="mt-1 text-lg font-bold">{channel.stats?.messageCount ?? 0}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-muted/20 p-3">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Tasks</p>
-                      <p className="mt-1 text-lg font-bold">{channel.stats.taskCount}</p>
+                      <p className="mt-1 text-lg font-bold">{channel.stats?.taskCount ?? 0}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -438,12 +414,12 @@ export function ChannelManagementSheet({
                           <div className="flex min-w-0 items-center gap-3">
                             <Avatar className="h-8 w-8 border border-border">
                               <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary uppercase">
-                                {member.user.name.charAt(0)}
+                                {member.name.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <p className="truncate text-[13px] font-semibold">{member.user.name}</p>
-                              <p className="truncate text-[10px] text-muted-foreground">{member.user.email}</p>
+                              <p className="truncate text-[13px] font-semibold">{member.name}</p>
+                              <p className="truncate text-[10px] text-muted-foreground">{member.email}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -456,6 +432,13 @@ export function ChannelManagementSheet({
                                     channelId,
                                     userId: member.user_id,
                                     data: { role: value as "MANAGER" | "MEMBER" },
+                                  }, {
+                                    onSuccess: () => toast.success("Channel role updated"),
+                                    onError: (error) =>
+                                      handleApiError(error, {
+                                        accessDenied: () => toast.error("You do not have permission to change roles"),
+                                        onOtherError: (message) => toast.error(message),
+                                      }),
                                   })
                                 }
                               >
@@ -476,7 +459,7 @@ export function ChannelManagementSheet({
                                 onClick={() =>
                                   setMemberToRemove({
                                     id: member.user_id,
-                                    name: member.user.name,
+                                    name: member.name,
                                   })
                                 }
                               >
@@ -542,6 +525,16 @@ export function ChannelManagementSheet({
                 removeMemberMutation.mutate({
                   channelId,
                   userId: memberToRemove.id,
+                }, {
+                  onSuccess: () => {
+                    toast.success("Member removed from channel");
+                    setMemberToRemove(null);
+                  },
+                  onError: (error) =>
+                    handleApiError(error, {
+                      accessDenied: () => toast.error("You do not have permission to remove this member"),
+                      onOtherError: (message) => toast.error(message),
+                    }),
                 })
               }
             >
@@ -563,7 +556,19 @@ export function ChannelManagementSheet({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteChannelMutation.mutate(channelId)}
+              onClick={() => deleteChannelMutation.mutate(channelId, {
+                onSuccess: () => {
+                  toast.success("Channel deleted successfully");
+                  setConfirmDelete(false);
+                  setOpen(false);
+                  onDeleted?.();
+                },
+                onError: (error) =>
+                  handleApiError(error, {
+                    accessDenied: () => toast.error("You do not have permission to delete this channel"),
+                    onOtherError: (message) => toast.error(message),
+                  }),
+              })}
             >
               {deleteChannelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
             </AlertDialogAction>
@@ -573,3 +578,4 @@ export function ChannelManagementSheet({
     </>
   );
 }
+

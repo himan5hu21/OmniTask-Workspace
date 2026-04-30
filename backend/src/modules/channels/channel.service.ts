@@ -12,7 +12,7 @@ const orgMemberRepo = new BaseRepository('organizationMember', false);
 export class ChannelService {
   private static buildChannelPermissions(args: {
     orgRole?: 'OWNER' | 'ADMIN' | 'MEMBER';
-    channelRole?: 'MANAGER' | 'MEMBER';
+    channelRole?: 'MANAGER' | 'CONTRIBUTOR' | 'VIEWER' | undefined;
     isDefault?: boolean;
     creatorId?: string | null;
     ownerId?: string;
@@ -104,7 +104,7 @@ export class ChannelService {
   static async getOrganizationChannels(
     orgId: string,
     userId: string,
-    options: { page?: number; limit?: number; search?: string; membership?: 'ALL' | 'JOINED' | 'MANAGED' } = {}
+    options: { page?: number; limit?: number; search?: string | undefined; membership?: 'ALL' | 'JOINED' | 'MANAGED' | undefined } = {}
   ) {
     // Check if user is member of the organization
     const membership = await orgMemberRepo.findOne({
@@ -246,7 +246,7 @@ export class ChannelService {
   static async getChannelMembers(
     channelId: string,
     userId: string,
-    options: { page?: number; limit?: number; search?: string; role?: 'MANAGER' | 'MEMBER' } = {}
+    options: { page?: number; limit?: number; search?: string | undefined; role?: 'MANAGER' | 'CONTRIBUTOR' | 'VIEWER' | undefined } = {}
   ) {
     const channel = await channelRepo.getById(channelId, {
       include: {
@@ -314,7 +314,7 @@ export class ChannelService {
   }
 
   // Add member to channel
-  static async addMember(channelId: string, userId: string, role: 'MANAGER' | 'MEMBER', currentUserId: string, io?: Server) {
+  static async addMember(channelId: string, userId: string, role: 'MANAGER' | 'CONTRIBUTOR' | 'VIEWER', currentUserId: string, io?: Server) {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
@@ -342,7 +342,7 @@ export class ChannelService {
     }
       
     if (channelMembership?.role === 'MANAGER' && role === 'MANAGER') {
-      throw new AppError('Channel managers can only add users as regular MEMBERs', HttpStatus.FORBIDDEN);
+      throw new AppError('Channel managers can only add users as regular contributors', HttpStatus.FORBIDDEN);
     }
 
     // Additional check: prevent managers from adding owners/admins
@@ -472,7 +472,7 @@ export class ChannelService {
   }
 
   // Update member role
-  static async updateMemberRole(channelId: string, userId: string, newRole: 'MANAGER' | 'MEMBER', currentUserId: string, io?: Server) {
+  static async updateMemberRole(channelId: string, userId: string, newRole: 'MANAGER' | 'CONTRIBUTOR' | 'VIEWER', currentUserId: string, io?: Server) {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {
@@ -525,7 +525,7 @@ export class ChannelService {
   }
 
   // Update channel
-  static async updateChannel(channelId: string, updateData: { name?: string }, currentUserId: string, io?: Server) {
+  static async updateChannel(channelId: string, updateData: { name?: string | undefined }, currentUserId: string, io?: Server) {
     // Get channel to check organization
     const channel = await channelRepo.getById(channelId);
     if (!channel) {

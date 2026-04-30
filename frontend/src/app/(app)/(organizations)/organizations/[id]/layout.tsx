@@ -2,8 +2,8 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { useAuthProfile } from "@/services/auth.service";
-import { useOrganizations } from "@/hooks/api/useOrganizations";
+import { useAuthProfile } from "@/api/auth";
+import { useOrganizations } from "@/api/organizations";
 import { OrganizationHeader } from "@/components/layout/app-shell-headers";
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {

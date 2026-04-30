@@ -211,3 +211,4 @@ function getChannelInitials(channelName?: string) {
   const normalized = words[0] ?? channelName;
   return normalized.slice(0, 2).toUpperCase();
 }
+

@@ -3,7 +3,7 @@ import { BaseRepository } from '@/repositories/base.repository';
 import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
 import type { Server } from 'socket.io';
-import { AttachmentService, AttachmentData } from './attachment.service';
+import { AttachmentService, AttachmentData } from '@/modules/attachment/attachment.service';
 
 const messageRepo = new BaseRepository('channelMessage');
 const channelRepo = new BaseRepository('channel');
@@ -14,7 +14,7 @@ export class MessageService {
   static async getChannelMessages(
     channelId: string,
     userId: string,
-    options: { page?: number; limit?: number } = {}
+    options: { page?: number; limit?: number } | undefined = {}
   ) {
     const { page = 1, limit = 20 } = options;
 
@@ -68,7 +68,7 @@ export class MessageService {
 
   // Create message in a channel
   static async createMessage(
-    messageInput: { content?: string; attachments?: AttachmentData[] | undefined }, 
+    messageInput: { content?: string | undefined; attachments?: AttachmentData[] | undefined }, 
     channelId: string, 
     userId: string, 
     io?: Server

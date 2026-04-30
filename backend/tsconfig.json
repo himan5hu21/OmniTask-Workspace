@@ -8,19 +8,18 @@
     /* Paths */
     "rootDir": "./",
     "outDir": "./dist",
-    "baseUrl": "./src",
     "paths": {
-      "@/*": ["./*"],
-      "@/controllers/*": ["./controllers/*"],
-      "@/middlewares/*": ["./middlewares/*"],
-      "@/plugins/*": ["./plugins/*"],
-      "@/repositories/*": ["./repositories/*"],
-      "@/routes/*": ["./routes/*"],
-      "@/services/*": ["./services/*"],
-      "@/types/*": ["./types/*"],
-      "@/utils/*": ["./utils/*"],
-      "@/config/*": ["./config/*"],
-      "@/lib/*": ["./lib/*"]
+      "@/*": ["./src/*"],
+      "@/controllers/*": ["./src/modules/*"],
+      "@/middlewares/*": ["./src/middlewares/*"],
+      "@/plugins/*": ["./src/plugins/*"],
+      "@/repositories/*": ["./src/repositories/*"],
+      "@/routes/*": ["./src/routes/*", "./src/modules/*"],
+      "@/services/*": ["./src/modules/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/utils/*": ["./src/utils/*"],
+      "@/config/*": ["./src/config/*"],
+      "@/lib/*": ["./src/lib/*"]
     },
 
     /* Strictness */

@@ -2,10 +2,12 @@ import "dotenv/config";
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import socketPlugin from '@/plugins/socket';
-import authRoutes from '@/routes/auth';
-import taskRoutes from '@/routes/tasks';
-import orgRoutes from '@/routes/organizations';
-import healthRoutes from '@/routes/health';
+import authRoutes from '@/modules/auth/auth.routes';
+import taskRoutes from '@/modules/task/tasks';
+import orgRoutes from '@/modules/organizations/organizations.routes';
+import channelRoutes from '@/modules/channels/channels.routes';
+import messageRoutes from '@/modules/message/message.routes';
+import healthRoutes from '@/routes/health.routes';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import cookie from '@fastify/cookie';
@@ -14,8 +16,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setupErrorHandler } from '@/middlewares/errorHandlers';
 import { verifyToken } from '@/middlewares/auth.middleware';
-import uploadRoutes from '@/routes/upload';
-import { prisma } from "./lib/database";
+import attachmentRoutes from '@/modules/attachment/attachment.routes';
+import { prisma } from "@/lib/database";
 
 // dotenv/config ensures env vars are loaded before any other imports
 
@@ -126,7 +128,9 @@ const buildServer = async () => {
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(taskRoutes, { prefix: '/api/v1' });
   await app.register(orgRoutes, { prefix: '/api/v1' });
-  await app.register(uploadRoutes, { prefix: '/api/v1' });
+  await app.register(channelRoutes, { prefix: '/api/v1' });
+  await app.register(messageRoutes, { prefix: '/api/v1' });
+  await app.register(attachmentRoutes, { prefix: '/api/v1' });
 
   // 3. Prisma logs ko Fastify logger ke through pass karo
   if (!isProd) {

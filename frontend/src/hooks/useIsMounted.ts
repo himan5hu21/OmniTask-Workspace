@@ -15,3 +15,4 @@ export function useServerValue<T>(getValue: () => T, serverValue: T) {
     () => serverValue
   );
 }
+

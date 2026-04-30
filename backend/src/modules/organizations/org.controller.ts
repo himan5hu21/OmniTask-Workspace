@@ -1,7 +1,7 @@
 // src/controllers/org.controller.ts
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { OrganizationService } from '@/services/organization.service';
+import { OrganizationService } from '@/modules/organizations/organization.service';
 import { AppError } from '@/utils/AppError';
 import { sendSuccess } from '@/utils/response';
 

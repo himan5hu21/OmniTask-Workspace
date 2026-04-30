@@ -17,10 +17,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import { createZodResolver, Form, FormFieldError } from "@/lib/form";
 import { handleApiError } from "@/lib/api-errors";
-import { useAuthProfile } from "@/services/auth.service";
-import { useOrganizations, useCreateOrganization, useDeleteOrganization } from "@/hooks/api/useOrganizations";
+import { useAuthProfile } from "@/api/auth";
+import { useOrganizations, useCreateOrganization, useDeleteOrganization } from "@/api/organizations";
 import { useIsMounted } from "@/hooks/useIsMounted";
-import type { Organization } from "@/services/organization.service";
+import type { Organization } from "@/api/organizations";
 
 const orgSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -39,25 +39,34 @@ export default function DashboardPage() {
   const { organizations, isLoading: isLoadingOrgs } = useOrganizations();
 
   // Mutations
-  const createMutation = useCreateOrganization({ 
-    onSuccess: () => setIsCreateOpen(false),
-    onError: (error) => {
-      handleApiError(
-        error,
-        {
-          uniqueName: () => setCreateError("name", { type: "manual", message: "A workspace with this name already exists" }),
-          onOtherError: (message) => toast.error(message)
-        },
-        "Failed to create workspace. Please try again."
-      );
-    }
-  });
-  const deleteMutation = useDeleteOrganization({ onSuccess: () => setOrgToDelete(null) });
+  const createMutation = useCreateOrganization();
+  const deleteMutation = useDeleteOrganization();
 
   // Forms
   const { register: regCreate, handleSubmit: handleCreateSubmit, formState: { errors: errCreate }, setError: setCreateError, reset: resetCreate } = useForm<OrgFormValues>({ resolver: createZodResolver(orgSchema) });
 
-  const onCreate = (data: OrgFormValues) => createMutation.mutate(data);
+  const onCreate = (data: OrgFormValues) => {
+    createMutation.mutate(data, {
+      onSuccess: () => setIsCreateOpen(false),
+      onError: (error) => {
+        handleApiError(
+          error,
+          {
+            uniqueName: () => setCreateError("name", { type: "manual", message: "A workspace with this name already exists" }),
+            onOtherError: (message) => toast.error(message)
+          },
+          "Failed to create workspace. Please try again."
+        );
+      }
+    });
+  };
+
+  const onDelete = (orgId: string) => {
+    deleteMutation.mutate(orgId, {
+      onSuccess: () => setOrgToDelete(null)
+    });
+  };
+
 
   return (
     <motion.div
@@ -227,7 +236,7 @@ export default function DashboardPage() {
               Cancel
             </Button>
             <Button
-              onClick={() => orgToDelete && deleteMutation.mutate(orgToDelete.id)}
+              onClick={() => orgToDelete && onDelete(orgToDelete.id)}
               disabled={deleteMutation.isPending}
               className="h-11 rounded-xl shadow-md transition-all font-semibold text-base bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
@@ -241,3 +250,4 @@ export default function DashboardPage() {
     </motion.div>
   );
 }
+

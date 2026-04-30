@@ -98,7 +98,7 @@ export class OrganizationService {
   // 2. Get user's organizations (FIXED FOR SOFT DELETE) 
   static async getUserOrganizations(
     userId: string,
-    options: { page?: number; limit?: number; search?: string; role?: 'OWNER' | 'ADMIN' | 'MEMBER' } = {}
+    options: { page?: number; limit?: number; search?: string | undefined; role?: 'OWNER' | 'ADMIN' | 'MEMBER' | undefined } = {}
   ) {
     const { page = 1, limit = 12, search, role } = options;
     const { data: userOrgs, meta } = await orgMemberRepo.getPaginated({
@@ -182,8 +182,8 @@ export class OrganizationService {
     options: {
       page?: number;
       limit?: number;
-      search?: string;
-      role?: 'OWNER' | 'ADMIN' | 'MEMBER';
+      search?: string | undefined;
+      role?: 'OWNER' | 'ADMIN' | 'MEMBER' | undefined;
     } = {}
   ) {
     const membership = await orgMemberRepo.findOne({
@@ -415,7 +415,7 @@ export class OrganizationService {
   }
 
   // 7. Update organization
-  static async updateOrganization(orgId: string, updateData: { name?: string }, currentUserId: string, io?: Server) {
+  static async updateOrganization(orgId: string, updateData: { name?: string | undefined }, currentUserId: string, io?: Server) {
     const membership = await orgMemberRepo.findOne({
       organization_id: orgId,
       user_id: currentUserId

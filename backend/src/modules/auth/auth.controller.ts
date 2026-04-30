@@ -1,8 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { AuthService } from '@/services/auth.service';
 import { AppError } from '@/utils/AppError';
 import { sendSuccess } from '@/utils/response';
+import { AuthService } from '@/modules/auth/auth.service';
 
 // Validation schemas
 const registerSchema = z.object({

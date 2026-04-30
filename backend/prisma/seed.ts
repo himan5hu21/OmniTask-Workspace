@@ -6,24 +6,24 @@ async function main() {
   console.log('🌱 Starting database seeding...');
 
   // 1. Create Demo Users
-  const hashedPassword = await bcrypt.hash('password123', 10);
+  const hashedPassword = await bcrypt.hash('123', 10);
 
   const owner = await prisma.user.upsert({
-    where: { email: 'owner@omnitask.com' },
+    where: { email: 'alice@test.com' },
     update: {},
     create: {
       name: 'Alice Owner',
-      email: 'owner@omnitask.com',
+      email: 'alice@test.com',
       password: hashedPassword,
     },
   });
 
   const member = await prisma.user.upsert({
-    where: { email: 'member@omnitask.com' },
+    where: { email: 'bob@test.com' },
     update: {},
     create: {
       name: 'Bob Member',
-      email: 'member@omnitask.com',
+      email: 'bob@test.com',
       password: hashedPassword,
     },
   });

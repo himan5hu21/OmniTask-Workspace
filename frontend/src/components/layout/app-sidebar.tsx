@@ -7,7 +7,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
-import { useAuthProfile, useLogoutMutation } from "@/services/auth.service"
+import { useAuthProfile, useLogoutMutation } from "@/api/auth"
 import {
   Sidebar,
   SidebarContent,
@@ -274,3 +274,4 @@ export function AppSidebar({
     </Sidebar>
   )
 }
+

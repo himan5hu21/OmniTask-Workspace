@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 
 import { ChannelHeader } from "@/components/layout/app-shell-headers";
-import { useOrgChannels } from "@/hooks/api/useChannels";
+import { useOrgChannels } from "@/api/channels";
 
 export default function ChannelLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();

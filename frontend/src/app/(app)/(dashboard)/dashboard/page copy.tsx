@@ -23,8 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { createZodResolver, Form, FormFieldError } from "@/lib/form";
-import { useOrganizations, useCreateOrganization } from "@/hooks/api/useOrganizations";
-import { useLogoutMutation, useAuthProfile } from "@/services/auth.service"; // 👈 Tamara user data mate
+import { useOrganizations, useCreateOrganization } from "@/api/organizations";
+import { useLogoutMutation, useAuthProfile } from "@/api/auth"; // 👈 Tamara user data mate
 
 const createOrgSchema = z.object({
   name: z.string().min(3, { message: "Organization name must be at least 3 characters" }),
@@ -49,25 +49,25 @@ export default function DashboardPage() {
 
   const { organizations, isLoading: isLoadingOrgs } = useOrganizations();
 
-  const createOrgMutation = useCreateOrganization({
-    onSuccess: () => {
-      setIsCreateDialogOpen(false);
-    },
-  });
-
-  const logoutMutation = useLogoutMutation({
-    onSuccess: () => {
-      router.push("/login");
-    },
-  });
+  const createOrgMutation = useCreateOrganization();
+  const logoutMutation = useLogoutMutation();
 
   const onSubmit = (data: CreateOrgFormValues) => {
-    createOrgMutation.mutate(data);
+    createOrgMutation.mutate(data, {
+      onSuccess: () => {
+        setIsCreateDialogOpen(false);
+      },
+    });
   };
 
   const handleLogout = () => {
-    logoutMutation.mutate();
+    logoutMutation.mutate(undefined, {
+      onSuccess: () => {
+        router.push("/login");
+      },
+    });
   };
+
 
   // User na nam no pehlo akshar Avatar mate
   const userInitials = user?.name ? user.name.charAt(0).toUpperCase() : "U";

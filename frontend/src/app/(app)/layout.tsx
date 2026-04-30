@@ -3,9 +3,9 @@
 import { usePathname, useParams, useRouter } from "next/navigation";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
-import { useAuthProfile } from "@/services/auth.service";
-import { useOrganizations, useOrganization } from "@/hooks/api/useOrganizations";
-import { useOrgChannels } from "@/hooks/api/useChannels";
+import { useAuthProfile } from "@/api/auth";
+import { useOrganizations, useOrganization } from "@/api/organizations";
+import { useOrgChannels } from "@/api/channels";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -53,3 +53,4 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
+

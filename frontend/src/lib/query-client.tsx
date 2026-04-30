@@ -33,3 +33,4 @@ export function AppQueryProvider({ children }: { children: React.ReactNode }) {
 }
 
 export { createQueryClient };
+

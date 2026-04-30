@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { createZodResolver, Form, FormFieldError } from "@/lib/form";
 import { handleApiError } from "@/lib/api-errors";
-import { useOrganization, useUpdateOrganization } from "@/hooks/api/useOrganizations";
+import { useOrganization, useUpdateOrganization } from "@/api/organizations";
 
 const orgSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -46,27 +46,28 @@ export function EditWorkspaceDialog({
     resolver: createZodResolver(orgSchema),
   });
 
-  const updateMutation = useUpdateOrganization({
-    onSuccess: () => {
-      toast.success("Workspace name updated successfully");
-      onClose();
-    },
-    onError: (error) => {
-      handleApiError(
-        error,
-        {
-          uniqueName: () => setError("name", { type: "manual", message: "A workspace with this name already exists" }),
-          accessDenied: () => toast.error("You don't have permission to update this workspace"),
-          onOtherError: (message: string) => toast.error(message),
-        },
-        "Failed to update workspace name. Please try again."
-      );
-    },
-  });
+  const updateMutation = useUpdateOrganization();
 
   const onSubmit = (data: OrgFormValues) => {
-    updateMutation.mutate({ orgId, data });
+    updateMutation.mutate({ orgId, data }, {
+      onSuccess: () => {
+        toast.success("Workspace name updated successfully");
+        onClose();
+      },
+      onError: (error) => {
+        handleApiError(
+          error,
+          {
+            uniqueName: () => setError("name", { type: "manual", message: "A workspace with this name already exists" }),
+            accessDenied: () => toast.error("You don't have permission to update this workspace"),
+            onOtherError: (message: string) => toast.error(message),
+          },
+          "Failed to update workspace name. Please try again."
+        );
+      },
+    });
   };
+
 
   return (
     <div className="relative">
@@ -123,3 +124,4 @@ export function EditWorkspaceDialog({
     </div>
   );
 }
+

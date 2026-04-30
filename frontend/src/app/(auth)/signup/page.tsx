@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createZodResolver, Form, FormFieldError, handleApiFormError } from "@/lib/form";
-import { useRegisterMutation } from "@/services/auth.service";
+import { useRegisterMutation } from "@/api/auth";
 
 // Register Schema (Password match check sathe)
 const registerSchema = z.object({
@@ -41,38 +41,39 @@ export default function RegisterPage() {
     formState: { errors },
   } = useForm<RegisterFormValues>({ resolver });
 
-  const registerMutation = useRegisterMutation({
-    onSuccess: () => {
-      router.push("/dashboard");
-    },
-    onError: (err: unknown) => {
-      handleApiFormError<RegisterFormValues>({
-        error: err,
-        setError,
-        fieldModes: {
-          name: "inline",
-          email: "inline",
-          password: "inline",
-          confirmPassword: "inline",
-        },
-        fieldMessages: {
-          email: {
-            INVALID: "Please enter a valid email address.",
-            UNIQUE: "This email is already in use.",
-          },
-          password: {
-            INVALID: "Please enter a valid password.",
-            MIN_LENGTH: "Password must be at least 3 characters.",
-          },
-        },
-        fallbackMessage: "Registration failed. Please try again.",
-      });
-    },
-  });
-
+  const registerMutation = useRegisterMutation();
+  
   const onSubmit = (data: RegisterFormValues) => {
-    registerMutation.mutate(data);
+    registerMutation.mutate(data, {
+      onSuccess: () => {
+        router.push("/dashboard");
+      },
+      onError: (err: unknown) => {
+        handleApiFormError<RegisterFormValues>({
+          error: err,
+          setError,
+          fieldModes: {
+            name: "inline",
+            email: "inline",
+            password: "inline",
+            confirmPassword: "inline",
+          },
+          fieldMessages: {
+            email: {
+              INVALID: "Please enter a valid email address.",
+              UNIQUE: "This email is already in use.",
+            },
+            password: {
+              INVALID: "Please enter a valid password.",
+              MIN_LENGTH: "Password must be at least 3 characters.",
+            },
+          },
+          fallbackMessage: "Registration failed. Please try again.",
+        });
+      },
+    });
   };
+
 
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-background font-sans text-foreground overflow-hidden py-10 px-4">

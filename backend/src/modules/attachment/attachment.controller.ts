@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { StorageService } from '@/services/storage.service';
-import { AttachmentService } from '@/services/attachment.service';
+import { StorageService } from '@/lib/storage';
+import { AttachmentService } from '@/modules/attachment/attachment.service';
 import { sendSuccess } from '@/utils/response';
 import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';

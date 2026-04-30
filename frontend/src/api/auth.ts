@@ -1,76 +1,85 @@
-// src/services/auth.service.ts
-"use client";
-
 import { useEffect } from "react";
 import {
   useMutation,
   useQuery,
   useQueryClient,
-  type UseMutationOptions,
 } from "@tanstack/react-query";
-
-import { api, deleteToken, setToken } from "@/lib/api";
+import { deleteToken, setToken, apiRequest } from "@/lib/api";
+import { useAuthStore } from "@/store/auth.store";
 import type { ApiSuccess } from "@/types/api";
-import { useAuthStore, type AuthUser } from "@/store/auth.store";
 
-export type LoginInput = {
+// --- TYPES ---
+
+export type AuthUser = {
+  id: string;
   email: string;
-  password: string;
-};
-
-export type RegisterInput = {
   name: string;
-  email: string;
-  password: string;
-  confirmPassword?: string;
+  avatar_url?: string;
+  role: string;
+  created_at?: string;
 };
 
 export type AuthPayload = {
-  token: string;
-  user?: AuthUser;
+  accessToken: string;
+  user: AuthUser;
+};
+
+export type LoginInput = {
+  email: string;
+  password?: string;
+};
+
+export type RegisterInput = {
+  email: string;
+  name: string;
+  password?: string;
 };
 
 export type ProfileResponse = ApiSuccess<AuthUser>;
 export type AuthResponse = ApiSuccess<AuthPayload>;
+
+// --- KEYS ---
 
 export const authKeys = {
   all: ["auth"] as const,
   profile: () => [...authKeys.all, "profile"] as const,
 };
 
-export async function loginUser(data: LoginInput): Promise<AuthResponse> {
-  const response = await api.post<AuthResponse>("/auth/login", data);
-  return response.data;
-}
+// --- SERVICE ---
 
-export async function registerUser(data: RegisterInput): Promise<AuthResponse> {
-  const payload = {
-    name: data.name,
-    email: data.email,
-    password: data.password,
-  };
-  const response = await api.post<AuthResponse>("/auth/register", payload);
-  return response.data;
-}
+export const authService = {
+  login: async (data: LoginInput): Promise<AuthResponse> => {
+    return apiRequest.post<AuthResponse>("/auth/login", data);
+  },
 
-export async function logoutUser(): Promise<void> {
-  await api.post("/auth/logout");
-}
+  register: async (data: RegisterInput): Promise<AuthResponse> => {
+    return apiRequest.post<AuthResponse>("/auth/register", data);
+  },
 
-export async function getUserProfile(): Promise<ProfileResponse> {
-  const response = await api.get<ProfileResponse>("/auth/profile");
-  return response.data;
-}
+  logout: async (): Promise<void> => {
+    return apiRequest.post("/auth/logout");
+  },
 
-export function useProfileQuery(options?: { enabled?: boolean }) {
+  getProfile: async (): Promise<ProfileResponse> => {
+    return apiRequest.get<ProfileResponse>("/auth/profile");
+  },
+
+  refreshToken: async (): Promise<AuthResponse> => {
+    return apiRequest.post<AuthResponse>("/auth/refresh");
+  },
+};
+
+// --- HOOKS ---
+
+export const useAuthProfile = (options?: { enabled?: boolean }) => {
   const setSession = useAuthStore((state) => state.setSession);
   const clearSession = useAuthStore((state) => state.clearSession);
 
   const query = useQuery({
     queryKey: authKeys.profile(),
-    queryFn: getUserProfile,
+    queryFn: authService.getProfile,
     enabled: options?.enabled,
-    staleTime: 1000 * 60 * 5, // 5 min cache
+    staleTime: 1000 * 60 * 5,
   });
 
   useEffect(() => {
@@ -83,37 +92,26 @@ export function useProfileQuery(options?: { enabled?: boolean }) {
     if (query.error && typeof query.error === 'object' && 'response' in query.error) {
       const errorWithResponse = query.error as { response?: { status?: number } };
       if (errorWithResponse.response?.status === 404) {
-        // Clear auth store when profile is not found
         clearSession();
       }
     }
   }, [query.error, clearSession]);
 
-  return query;
-}
-
-export function useAuthProfile(options?: { enabled?: boolean }) {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const query = useProfileQuery({ enabled: (options?.enabled ?? true) && isAuthenticated });
-
   return {
     ...query,
     user: query.data?.data ?? null,
   };
-}
+};
 
-export function useLoginMutation(
-  options?: UseMutationOptions<AuthResponse, unknown, LoginInput>
-) {
+export const useLoginMutation = () => {
   const queryClient = useQueryClient();
   const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
   const setUser = useAuthStore((state) => state.setUser);
 
   return useMutation({
-    mutationFn: loginUser,
-    ...options,
-    onSuccess: async (data, variables, onMutateResult, context) => {
-      setToken(data.data.token);
+    mutationFn: authService.login,
+    onSuccess: async (data) => {
+      setToken(data.data.accessToken);
       setAuthenticated(true);
 
       if (data.data.user) {
@@ -126,24 +124,19 @@ export function useLoginMutation(
       } else {
         await queryClient.invalidateQueries({ queryKey: authKeys.profile() });
       }
-
-      await options?.onSuccess?.(data, variables, onMutateResult, context);
     },
   });
-}
+};
 
-export function useRegisterMutation(
-  options?: UseMutationOptions<AuthResponse, unknown, RegisterInput>
-) {
+export const useRegisterMutation = () => {
   const queryClient = useQueryClient();
   const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
   const setUser = useAuthStore((state) => state.setUser);
 
   return useMutation({
-    mutationFn: registerUser,
-    ...options,
-    onSuccess: async (data, variables, onMutateResult, context) => {
-      setToken(data.data.token);
+    mutationFn: authService.register,
+    onSuccess: async (data) => {
+      setToken(data.data.accessToken);
       setAuthenticated(true);
 
       if (data.data.user) {
@@ -156,26 +149,21 @@ export function useRegisterMutation(
       } else {
         await queryClient.invalidateQueries({ queryKey: authKeys.profile() });
       }
-
-      await options?.onSuccess?.(data, variables, onMutateResult, context);
     },
   });
-}
+};
 
-export function useLogoutMutation(
-  options?: UseMutationOptions<void, unknown, void>
-) {
+export const useLogoutMutation = () => {
   const queryClient = useQueryClient();
   const clearSession = useAuthStore((state) => state.clearSession);
 
   return useMutation({
-    mutationFn: logoutUser,
-    ...options,
-    onSettled: async (data, error, variables, onMutateResult, context) => {
+    mutationFn: authService.logout,
+    onSettled: async () => {
       deleteToken();
       clearSession();
       queryClient.removeQueries({ queryKey: authKeys.all });
-      await options?.onSettled?.(data, error, variables, onMutateResult, context);
     },
   });
-}
+};
+
