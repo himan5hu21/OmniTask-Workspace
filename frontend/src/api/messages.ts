@@ -4,7 +4,7 @@ import {
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api";
+import { apiRequest } from "@/api/api";
 import type { ApiSuccess } from "@/types/api";
 
 // --- TYPES ---

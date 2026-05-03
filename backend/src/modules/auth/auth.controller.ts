@@ -3,41 +3,46 @@ import { z } from 'zod';
 import { AppError } from '@/utils/AppError';
 import { sendSuccess } from '@/utils/response';
 import { AuthService } from '@/modules/auth/auth.service';
+import { StorageService } from '@/lib/storage';
 
 // Validation schemas
-const registerSchema = z.object({
+export const registerSchema = z.object({
   name: z.string().min(2),
   email: z.email(),
-  password: z.string()
-    .min(3, 'Password must be at least 3 characters long')
-    .regex(/^(?=.*[A-Za-z])(?=.*\d)/, "Password must contain both letters and numbers"),
+  password: z.string().min(3, 'Password must be at least 3 characters long'),
 });
 
-const loginSchema = z.object({
+
+
+export const loginSchema = z.object({
   email: z.email(),
   password: z.string(),
 });
 
-const refreshSchema = z.object({
+
+export const refreshSchema = z.object({
   refreshToken: z.string(),
 });
 
-const updateProfileSchema = z.object({
+
+export const updateProfileSchema = z.object({
   name: z.string().min(2).optional(),
-  email: z.email().optional()
+  email: z.email().optional(),
+  avatar_url: z.url('Invalid avatar URL').optional().or(z.literal(''))
 });
 
-const changePasswordSchema = z.object({
+
+export const changePasswordSchema = z.object({
   currentPassword: z.string().min(3, 'Current password is required'),
-  newPassword: z.string()
-    .min(3, 'New password must be at least 3 characters long')
-    .regex(/^(?=.*[A-Za-z])(?=.*\d)/, "Password must contain both letters and numbers")
+  newPassword: z.string().min(3, 'New password must be at least 3 characters long'),
 });
+
+
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'none' as const, // Allowing 'none' for cross-origin development
+  sameSite: 'lax' as const, // Allowing 'none' for cross-origin development
   path: '/', // Root path to allow /refresh and /logout access
   maxAge: 7 * 24 * 60 * 60 // 7 days
 };
@@ -92,7 +97,12 @@ export const login = async (request: FastifyRequest, reply: FastifyReply) => {
 
 // Refresh token
 export const refreshToken = async (request: FastifyRequest, reply: FastifyReply) => {
-  const { refreshToken: oldToken } = refreshSchema.parse(request.cookies);
+  const oldToken = request.cookies?.refreshToken;
+
+  // Throw 401 instead of a Zod 400 error so the frontend interceptor handles it correctly
+  if (!oldToken) {
+    throw new AppError('Refresh token missing or expired. Please log in again.', 401);
+  }
 
   const { accessToken, refreshToken: newToken } = await AuthService.refreshAccessToken(oldToken, request.server.jwt);
 
@@ -124,7 +134,7 @@ export const logout = async (request: FastifyRequest, reply: FastifyReply) => {
       await AuthService.revokeRefreshToken(refreshToken);
     }
 
-    reply.clearCookie('refreshToken', { path: '/' });
+    reply.clearCookie('refreshToken', COOKIE_OPTIONS);
     
     // Emit socket event for user logout (targeted room)
     request.server.io?.to(`user:${user.userId}`).emit('user:logout', {
@@ -141,11 +151,36 @@ export const logout = async (request: FastifyRequest, reply: FastifyReply) => {
 // 👈 NAVI METHODS UMERI: Update Profile
 export const updateProfile = async (request: FastifyRequest, reply: FastifyReply) => {
   const user = (request as any).user;
-  const updateData = updateProfileSchema.parse(request.body);
+  let updateData: any = {};
+  let avatarUrl: string | undefined;
+
+  if (request.isMultipart()) {
+    const parts = request.parts();
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        if (part.fieldname === 'avatar_url' || part.fieldname === 'file') {
+          const buffer = await part.toBuffer();
+          const saved = await StorageService.saveFile({
+            filename: part.filename,
+            buffer,
+            mimetype: part.mimetype
+          }, 'user');
+          avatarUrl = saved.file_url;
+        }
+      } else {
+        // Handle non-file fields
+        updateData[part.fieldname] = part.value;
+      }
+    }
+  } else {
+    updateData = updateProfileSchema.parse(request.body);
+    avatarUrl = updateData.avatar_url;
+  }
   
-  const filteredData = Object.fromEntries(
-    Object.entries(updateData).filter(([_, v]) => v !== undefined)
-  ) as { name?: string; email?: string };
+  const filteredData: { name?: string; email?: string; avatar_url?: string } = {};
+  if (updateData.name) filteredData.name = String(updateData.name);
+  if (updateData.email) filteredData.email = String(updateData.email);
+  if (avatarUrl) filteredData.avatar_url = avatarUrl;
   
   const updatedUser = await AuthService.updateProfile(user.userId, filteredData);
   

@@ -1,12 +1,6 @@
-import { ContentSpinner } from "@/components/loaders/content-spinner";
+import Loader from "@/app/_components/Loader";
 
 export default function AuthLoading() {
-  return (
-    <ContentSpinner
-      title="Preparing authentication"
-      description="Loading the sign in and registration flow."
-      className="min-h-screen bg-slate-50"
-    />
-  );
+  return <Loader />;
 }
 

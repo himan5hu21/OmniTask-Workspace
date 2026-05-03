@@ -76,7 +76,7 @@ import {
   useCreateChannel,
   useOrgChannels,
 } from "@/api/channels";
-import { handleApiError } from "@/lib/api-errors";
+import { handleApiError } from "@/api/api-errors";
 
 function OrganizationRoleBadge({ role }: { role: "OWNER" | "ADMIN" | "MEMBER" }) {
   if (role === "OWNER") {

@@ -18,6 +18,9 @@ import { setupErrorHandler } from '@/middlewares/errorHandlers';
 import { verifyToken } from '@/middlewares/auth.middleware';
 import attachmentRoutes from '@/modules/attachment/attachment.routes';
 import { prisma } from "@/lib/database";
+import swaggerPlugin from '@/plugins/swagger';
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+
 
 // dotenv/config ensures env vars are loaded before any other imports
 
@@ -46,17 +49,10 @@ const buildServer = async () => {
 
   setupErrorHandler(app);
 
-  // 👈 AHIYA GLOBAL ZOD VALIDATOR UMERVO
-  app.setValidatorCompiler(({ schema }: { schema: any }) => {
-    return (data) => {
-      try {
-        return { value: schema.parse(data) };
-      } catch (error) {
-        // ZodError throw thase je sidho tamara errorHandlers ma jase
-        throw error;
-      }
-    };
-  });
+  // Set up Zod type provider for Swagger and validation
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
+
 
   // 1. Core Plugins Register Karo
   await app.register(cors, {
@@ -66,6 +62,10 @@ const buildServer = async () => {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
   await app.register(socketPlugin);
+
+  // 2. Swagger Plugin Register Karo (Must be before routes)
+  await app.register(swaggerPlugin);
+
 
   // Register Multipart for file uploads
   await app.register(multipart, {
@@ -83,11 +83,14 @@ const buildServer = async () => {
   await app.register(fastifyStatic, {
     root: path.join(__dirname, '../uploads'),
     prefix: '/uploads',
-    setHeaders: (res) => {
+    setHeaders: (res, path) => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      // For higher security, we can force attachment. 
-      // Note: This might need adjustment if you want images to display directly.
-      res.setHeader('Content-Disposition', 'attachment');
+      
+      // Allow images to be viewed inline, force download for others
+      const isViewable = /\.(jpg|jpeg|png|gif|webp|pdf)$/i.test(path);
+      if (!isViewable) {
+        res.setHeader('Content-Disposition', 'attachment');
+      }
     }
   });
 
@@ -104,7 +107,8 @@ const buildServer = async () => {
     if (
       request.method === 'OPTIONS' || 
       request.routeOptions.config?.isPublic ||
-      request.url.startsWith('/uploads')
+      request.url.startsWith('/uploads') ||
+      request.url.startsWith('/docs')
     ) {
       return;
     }

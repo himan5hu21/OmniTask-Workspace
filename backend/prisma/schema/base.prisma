@@ -96,6 +96,7 @@ enum OrgRole {
   OWNER
   ADMIN
   MEMBER
+  GUEST
 }
 
 // Ane tamara User table ma aa umeravu pade:
@@ -148,7 +149,6 @@ model ChannelMember {
 
 enum ChannelRole {
   MANAGER
-  MEMBER
   CONTRIBUTOR
   VIEWER
 }

@@ -1,6 +1,10 @@
-import { MainSpinner } from "@/components/loaders/main-spinner";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 export default function Loading() {
-  return <MainSpinner />;
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <OrbitalLoader size="xl" />
+    </div>
+  );
 }
 

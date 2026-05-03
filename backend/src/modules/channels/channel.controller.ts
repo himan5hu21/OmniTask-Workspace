@@ -4,24 +4,28 @@ import { z } from 'zod';
 import { ChannelService } from '@/modules/channels/channel.service';
 import { sendSuccess } from '@/utils/response';
 
-const createChannelSchema = z.object({
+export const createChannelSchema = z.object({
   name: z.string().min(2, 'Channel name must be at least 2 characters'),
   org_id: z.cuid('Invalid Organization ID')
 });
 
-const channelListQuerySchema = z.object({
+
+
+export const channelListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(12),
   search: z.string().trim().optional(),
   membership: z.enum(['ALL', 'JOINED', 'MANAGED']).default('ALL')
 });
 
-const channelMembersQuerySchema = z.object({
+
+export const channelMembersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().trim().optional(),
   role: z.enum(['MANAGER', 'CONTRIBUTOR', 'VIEWER']).optional()
 });
+
 
 // 1. Navi Channel Banavvi
 export const createChannel = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -64,9 +68,10 @@ export const getChannelMembers = async (request: FastifyRequest, reply: FastifyR
   return sendSuccess(reply, members, 'FETCH', 'Channel members retrieved successfully');
 };
 
-const updateChannelSchema = z.object({
+export const updateChannelSchema = z.object({
   name: z.string().min(2, 'Channel name must be at least 2 characters').optional()
 });
+
 
 // 4. Channel update karvi
 export const updateChannel = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -94,10 +99,12 @@ export const deleteChannel = async (request: FastifyRequest, reply: FastifyReply
   return sendSuccess(reply, result, 'DELETE', 'Channel deleted successfully');
 };
 
-const addMemberSchema = z.object({
+export const addMemberSchema = z.object({
   user_id: z.cuid('Invalid User ID'),
   role: z.enum(['MANAGER', 'CONTRIBUTOR', 'VIEWER']).default('CONTRIBUTOR')
 });
+
+
 
 // 6. Channel ma member add karvi
 export const addChannelMember = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -120,9 +127,10 @@ export const removeChannelMember = async (request: FastifyRequest, reply: Fastif
   return sendSuccess(reply, result, 'DELETE', 'Member removed from channel successfully');
 };
 
-const updateMemberRoleSchema = z.object({
+export const updateMemberRoleSchema = z.object({
   role: z.enum(['MANAGER', 'CONTRIBUTOR', 'VIEWER'])
 });
+
 
 // 8. Channel member ni role update karvi
 export const updateChannelMemberRole = async (request: FastifyRequest, reply: FastifyReply) => {

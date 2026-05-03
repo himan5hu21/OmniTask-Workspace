@@ -5,6 +5,7 @@ import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
 import { prisma } from '@/lib/database';
 import crypto from 'node:crypto';
+import { StorageService } from '@/lib/storage';
 
 const userRepo = new BaseRepository('user');
 
@@ -146,18 +147,21 @@ export class AuthService {
   // Get user by ID
   static async getUserById(userId: string) {
     const user = await userRepo.getById(userId, {
-      select: { id: true, name: true, email: true, created_at: true, updated_at: true }
+      select: { id: true, name: true, email: true, avatar_url: true, created_at: true, updated_at: true }
     });
 
     if (!user) {
       throw new AppError('User not found', HttpStatus.NOT_FOUND);
     }
 
-    return user;
+    return {
+      ...user,
+      avatar_url: user.avatar_url ? StorageService.getFileUrl(user.avatar_url) : null
+    };
   }
 
   // Update user profile
-  static async updateProfile(userId: string, updateData: { name?: string; email?: string }) {
+  static async updateProfile(userId: string, updateData: { name?: string; email?: string; avatar_url?: string }) {
     // Check if email is being updated and if it's already taken
     if (updateData.email) {
       const existingUser = await userRepo.findOne({ email: updateData.email });
@@ -166,12 +170,26 @@ export class AuthService {
       }
     }
 
+    // If new avatar is provided, delete the old one
+    if (updateData.avatar_url) {
+      const currentUser = await userRepo.getById(userId, { select: { avatar_url: true } });
+      if (currentUser?.avatar_url && currentUser.avatar_url !== updateData.avatar_url) {
+        // Only delete if it's a local file (contains a slash and doesn't start with http)
+        if (currentUser.avatar_url.includes('/') && !currentUser.avatar_url.startsWith('http')) {
+          await StorageService.deleteFile(currentUser.avatar_url);
+        }
+      }
+    }
+
     const updatedUser = await userRepo.update(userId, {
       ...updateData,
       updated_at: new Date()
     });
 
-    return updatedUser;
+    return {
+      ...updatedUser,
+      avatar_url: updatedUser.avatar_url ? StorageService.getFileUrl(updatedUser.avatar_url) : null
+    };
   }
 
   // Change password

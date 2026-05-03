@@ -1,10 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { useAuthProfile } from "@/api/auth";
 import { useOrganizations } from "@/api/organizations";
 import { OrganizationHeader } from "@/components/layout/app-shell-headers";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const { isLoading: isLoadingUser } = useAuthProfile();
@@ -18,7 +19,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   if (isLoadingUser) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <OrbitalLoader size="xl" />
       </div>
     );
   }
@@ -34,7 +35,13 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
         onSettingsClick={() => router.push(`/organizations/${orgId}`)}
       />
       <div className="h-full min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 lg:p-6">
-        {children}
+        <Suspense fallback={
+          <div className="flex h-full items-center justify-center min-h-[400px]">
+            <OrbitalLoader size="lg" />
+          </div>
+        }>
+          {children}
+        </Suspense>
       </div>
     </>
   );

@@ -62,7 +62,7 @@ import {
   useUpdateChannelMemberRole,
 } from "@/api/channels";
 import { useOrganization, useOrganizationMembers } from "@/api/organizations";
-import { handleApiError } from "@/lib/api-errors";
+import { handleApiError } from "@/api/api-errors";
 import { useAuthProfile } from "@/api/auth";
 
 function ChannelRoleBadge({ role }: { role: "MANAGER" | "MEMBER" }) {

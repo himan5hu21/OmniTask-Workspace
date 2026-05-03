@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// 1. Arrays Define Karo (Ahiya tame easily nava routes umeri shako cho)
 const protectedRoutes = [
   '/dashboard',
   '/profile',
@@ -17,29 +16,32 @@ const authRoutes = [
 ];
 
 export function proxy(request: NextRequest) {
+  // Check for BOTH tokens (Access token in 'token' and Refresh token in 'refreshToken')
   const token = request.cookies.get('token')?.value;
+  const refreshToken = request.cookies.get('refreshToken')?.value; 
+  
   const { pathname } = request.nextUrl;
 
-  // 2. Array mathi dynamically check karo
-  // .some() method check karse ke current pathname aa array mathi koi pan route thi start thay chhe ke nahi
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
-  
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
-  // Logic 1: Vagar login e protected page par aave toh login par feko
-  if (isProtectedRoute && !token) {
+  // The user has an active session if they have EITHER token
+  // If access token is expired, the Axios interceptor will use the refresh token to get a new one.
+  const hasActiveSession = !!token || !!refreshToken;
+
+  // Logic 1: Unauthenticated user trying to access protected page
+  if (isProtectedRoute && !hasActiveSession) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Logic 2: Logged-in user jo pacho login/register par aave toh dashboard par feko
-  if (isAuthRoute && token) {
+  // Logic 2: Logged-in user trying to access login/register
+  if (isAuthRoute && hasActiveSession) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();
 }
 
-// Config unchanged
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };

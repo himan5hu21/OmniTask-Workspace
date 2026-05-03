@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthProfile } from "@/api/auth";
 import { useMessages, useCreateMessage, messageService, type Message, type Attachment } from "@/api/messages";
 import { useChannel } from "@/api/channels";
-import { joinChannelRoom, leaveChannelRoom } from "@/lib/socket";
+import { joinChannelRoom, leaveChannelRoom } from "@/socket/socket";
 import ChatInputBox from "@/components/ChatInputBox";
 import { Button } from "@/components/ui/button";
 import { FileText, ImageIcon } from "lucide-react";

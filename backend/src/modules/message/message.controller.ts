@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { MessageService } from '@/modules/message/message.service';
 import { sendSuccess } from '@/utils/response';
 
-const createMessageSchema = z.object({
+export const createMessageSchema = z.object({
   content: z.string().optional().or(z.literal('')),
   attachments: z.array(z.any()).optional()
 }).refine(data => (data.content && data.content.trim().length > 0) || (data.attachments && data.attachments.length > 0), {
@@ -12,10 +12,12 @@ const createMessageSchema = z.object({
   path: ["content"]
 });
 
-const getChannelMessagesQuerySchema = z.object({
+
+export const getChannelMessagesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20)
 });
+
 
 // Get messages in a channel
 export const getChannelMessages = async (request: FastifyRequest, reply: FastifyReply) => {

@@ -1,18 +1,21 @@
-// src/app/(auth)/login/page.tsx
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import * as z from "zod/v4";
-import { Eye, EyeOff, LayoutGrid, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createZodResolver, Form, FormFieldError, handleApiFormError } from "@/lib/form";
 import { useLoginMutation } from "@/api/auth";
+import { Logo } from "@/components/logo";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Validation schema
 const loginSchema = z.object({
@@ -66,110 +69,106 @@ export default function LoginPage() {
     });
   };
 
-
   return (
-    <div className="relative flex items-center justify-center min-h-screen bg-background font-sans text-foreground overflow-hidden">
-      
-      {/* Background Decorative Gradients */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-        <div className="absolute -top-[10%] -left-[5%] w-[400px] h-[400px] bg-primary/10 rounded-full blur-[120px]" />
-        <div className="absolute top-[60%] -right-[5%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
-      </div>
-
-      {/* Main Login Card */}
-      <Card className="w-full max-w-[420px] mx-4 shadow-2xl shadow-primary/5 border-border/50 bg-background/95 backdrop-blur-xl rounded-2xl overflow-hidden">
-        
-        {/* Subtle top color bar */}
-        <div className="h-1.5 w-full bg-linear-to-r from-primary to-primary/50"></div>
-
-        <CardHeader className="space-y-4 pt-8 pb-6 text-center">
-          {/* Logo */}
-          <div className="flex justify-center mb-2">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-md shadow-primary/20">
-              <LayoutGrid className="h-6 w-6 text-primary-foreground" />
-            </div>
+    <div className="h-screen w-full bg-background overflow-hidden">
+      <ScrollArea className="h-full w-full">
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 py-8 font-sans antialiased relative">
+          {/* Background Decorative Gradients */}
+          <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+            <div className="absolute -top-[10%] -left-[5%] w-[400px] h-[400px] bg-primary/10 rounded-full blur-[120px]" />
+            <div className="absolute top-[60%] -right-[5%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
           </div>
-          
-          <div className="space-y-1.5">
-            <CardTitle className="text-2xl font-extrabold tracking-tight text-foreground">
-              Welcome back
-            </CardTitle>
-            <CardDescription className="text-muted-foreground text-base font-medium">
-              Sign in to your OmniTask workspace.
-            </CardDescription>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="px-8 pb-8">
-          <Form onSubmit={handleSubmit(onSubmit)} errors={errors} className="space-y-5">
-            {/* Email Field */}
-            <div className="space-y-2 transition-all duration-300">
-              <Label htmlFor="email" className="text-foreground font-semibold text-sm">Email address</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="name@company.com" 
-                className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
-                {...register("email")} 
-              />
-              <FormFieldError errors={errors} name="email"/>
-            </div>
 
-            {/* Password Field */}
-            <div className="space-y-2 transition-all duration-300">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-foreground font-semibold text-sm">Password</Label>
-                <a href="#" className="text-sm font-semibold text-primary hover:text-primary/80 hover:underline transition-all">
-                  Forgot password?
-                </a>
-              </div>
-              
-              {/* Password Input with Eye Icon */}
-              <div className="relative">
-                <Input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"} 
-                  placeholder="••••••••"
-                  className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all pr-12" 
-                  {...register("password")} 
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md flex items-center justify-center"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              <FormFieldError errors={errors} name="password" />
-            </div>
+          <main className="w-full max-w-md">
+            {/* Surface Card */}
+            <Card className="border-border shadow-2xl relative overflow-hidden bg-white dark:bg-card ring-0 p-6 gap-0">
+              {/* Header Section */}
+              <CardHeader className="p-0 flex flex-col items-center mb-6 gap-0">
+                <div className="h-12 w-12 rounded-lg bg-muted border border-border flex items-center justify-center mb-4">
+                  <Logo showText={false} iconClassName="h-6 w-6" href={null} />
+                </div>
+                <h1 className="text-2xl font-bold text-foreground m-0 text-center tracking-tight">Welcome back</h1>
+              </CardHeader>
 
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              className="w-full h-11 mt-4 rounded-xl shadow-md transition-all font-semibold text-base"
-              disabled={loginMutation.isPending}
-            >
-              {loginMutation.isPending ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Signing in...
-                </span>
-              ) : (
-                "Sign in"
-              )}
-            </Button>
-            
-          </Form>
-          
-          <div className="mt-8 text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{' '}
-            <a href="/signup" className="font-semibold text-primary hover:text-primary/80 hover:underline transition-all">
-              Sign up
-            </a>
-          </div>
-        </CardContent>
-      </Card>
+              {/* Form */}
+              <CardContent className="p-0">
+                <Form onSubmit={handleSubmit(onSubmit)} errors={errors} className="flex flex-col gap-4">
+                  {/* Email Input */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest" htmlFor="email">Email address</Label>
+                    <div className="relative flex items-center">
+                      <Mail className="absolute left-3 h-5 w-5 text-muted-foreground pointer-events-none" />
+                      <Input 
+                        id="email" 
+                        type="email" 
+                        autoComplete="email"
+                        placeholder="name@company.com" 
+                        className="w-full h-11 bg-background border border-border rounded-lg pl-10 pr-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20 transition-all"
+                        {...register("email")}
+                      />
+                    </div>
+                    <FormFieldError errors={errors} name="email" />
+                  </div>
+
+                  {/* Password Input */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest" htmlFor="password">Password</Label>
+                      <a className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors" href="#">Forgot password?</a>
+                    </div>
+                    <div className="relative flex items-center">
+                      <Lock className="absolute left-3 h-5 w-5 text-muted-foreground pointer-events-none" />
+                      <Input 
+                        id="password" 
+                        type={showPassword ? "text" : "password"} 
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        className="w-full h-11 bg-background border border-border rounded-lg pl-10 pr-10 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20 transition-all"
+                        {...register("password")}
+                      />
+                      <button 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center" 
+                        type="button"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    <FormFieldError errors={errors} name="password" />
+                  </div>
+
+                  {/* Submit Button */}
+                  <Button 
+                    className="w-full h-11 mt-2 bg-primary text-primary-foreground font-semibold rounded-lg flex items-center justify-center hover:bg-primary/90 transition-all shadow-md" 
+                    type="submit"
+                    disabled={loginMutation.isPending}
+                  >
+                    {loginMutation.isPending ? (
+                      <span className="flex items-center gap-2">
+                        <OrbitalLoader size="sm" className="mr-2" />
+                        Signing in...
+                      </span>
+                    ) : "Sign in"}
+                  </Button>
+                </Form>
+
+                {/* Divider */}
+                <div className="flex items-center gap-4 my-6">
+                  <div className="h-px bg-border flex-1"></div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">OR</span>
+                  <div className="h-px bg-border flex-1"></div>
+                </div>
+
+                {/* Footer Action */}
+                <p className="text-center text-sm text-muted-foreground m-0">
+                  Don&apos;t have an account? <Link className="text-primary hover:text-primary/80 transition-colors ml-1 font-semibold" href="/signup">Create an account</Link>
+                </p>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      </ScrollArea>
     </div>
   );
 }
+

@@ -3,7 +3,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api";
+import { apiRequest } from "@/api/api";
 import type { ApiSuccess } from "@/types/api";
 
 // --- TYPES ---
@@ -62,6 +62,7 @@ export type Organization = {
     channelCount: number;
     taskCount: number;
   };
+  currentUserRole?: "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
 };
 
 export type OrganizationMember = {

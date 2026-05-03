@@ -3,10 +3,23 @@ import { AppError } from '@/utils/AppError';
 import { sendSuccess } from '@/utils/response';
 import { HttpStatus } from '@/types/api';
 import { prisma } from '@/lib/database';
+import { createSchema } from '@/utils/swagger';
+import { ZodTypeProvider } from 'fastify-type-provider-zod';
+
 
 const healthRoutes: FastifyPluginAsync = async (fastify) => {
+  const app = fastify.withTypeProvider<ZodTypeProvider>();
+
   // Basic health check
-  fastify.get('/health', { config: { isPublic: true } }, async (request, reply) => {
+
+  app.get('/health', { 
+    ...createSchema({
+      description: 'Check API health status',
+      tags: ['Health'],
+    }),
+    config: { isPublic: true } 
+  }, async (request, reply) => {
+
     return sendSuccess(reply, {
       uptime: process.uptime(),
       service: 'omnitask-backend',
@@ -15,7 +28,14 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // Detailed health check with database
-  fastify.get('/health/detailed', { config: { isPublic: true } }, async (request, reply) => {
+  app.get('/health/detailed', { 
+    ...createSchema({
+      description: 'Check detailed API and DB health status',
+      tags: ['Health'],
+    }),
+    config: { isPublic: true } 
+  }, async (request, reply) => {
+
     try {
       // Database health check
       const dbStartTime = Date.now();
@@ -45,7 +65,14 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // Socket.io health check
-  fastify.get('/health/socket', { config: { isPublic: true } }, async (request, reply) => {
+  app.get('/health/socket', { 
+    ...createSchema({
+      description: 'Check Socket.io health status',
+      tags: ['Health'],
+    }),
+    config: { isPublic: true } 
+  }, async (request, reply) => {
+
     try {
       // Get socket.io server instance directly from fastify
       const io = request.server.io;

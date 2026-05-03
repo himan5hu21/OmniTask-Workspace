@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { AppQueryProvider } from "@/lib/query-client";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +34,13 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col overflow-hidden" suppressHydrationWarning>
         <AppQueryProvider>
-          {children}
+          <Suspense fallback={
+            <div className="flex h-screen w-full items-center justify-center bg-background">
+              <OrbitalLoader size="xl" />
+            </div>
+          }>
+            {children}
+          </Suspense>
           <Toaster position="top-center" />
         </AppQueryProvider>
       </body>

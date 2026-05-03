@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { deleteToken, setToken, apiRequest } from "@/lib/api";
+import { deleteToken, setToken, apiRequest } from "@/api/api";
 import { useAuthStore } from "@/store/auth.store";
 import type { ApiSuccess } from "@/types/api";
 
@@ -153,7 +153,7 @@ export const useRegisterMutation = () => {
   });
 };
 
-export const useLogoutMutation = () => {
+export const useLogoutMutation = (options?: { onSuccess?: () => void }) => {
   const queryClient = useQueryClient();
   const clearSession = useAuthStore((state) => state.clearSession);
 
@@ -164,6 +164,7 @@ export const useLogoutMutation = () => {
       clearSession();
       queryClient.removeQueries({ queryKey: authKeys.all });
     },
+    onSuccess: options?.onSuccess,
   });
 };
 

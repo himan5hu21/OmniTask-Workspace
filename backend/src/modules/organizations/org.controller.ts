@@ -6,45 +6,56 @@ import { AppError } from '@/utils/AppError';
 import { sendSuccess } from '@/utils/response';
 
 // Validation Schema
-const createOrgSchema = z.object({
+export const createOrgSchema = z.object({
   name: z.string().min(3, 'Organization name must be at least 3 characters')
 });
 
-const updateOrgSchema = z.object({
+
+export const updateOrgSchema = z.object({
   name: z.string().min(3, 'Organization name must be at least 3 characters').optional()
 });
 
-const addOrgMemberSchema = z.object({
+
+export const addOrgMemberSchema = z.object({
   email: z.email('Valid email is required'),
-  role: z.enum(['ADMIN', 'MEMBER']).default('MEMBER')
+  role: z.enum(['ADMIN', 'MEMBER', 'GUEST']).default('MEMBER')
 });
 
-const updateMemberRoleSchema = z.object({
-  role: z.enum(['OWNER', 'ADMIN', 'MEMBER'])
+
+
+export const updateMemberRoleSchema = z.object({
+  role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'GUEST'])
 });
 
-const orgIdParamSchema = z.object({
+
+export const orgIdParamSchema = z.object({
   orgId: z.cuid('Invalid Organization ID')
 });
 
-const orgMemberParamSchema = z.object({
+
+
+export const orgMemberParamSchema = z.object({
   orgId: z.cuid('Invalid Organization ID'),
   userId: z.cuid('Invalid User ID')
 });
 
-const organizationListQuerySchema = z.object({
+
+
+export const organizationListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(12),
   search: z.string().trim().optional(),
-  role: z.enum(['OWNER', 'ADMIN', 'MEMBER']).optional()
+  role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'GUEST']).optional()
 });
 
-const organizationMembersQuerySchema = z.object({
+
+export const organizationMembersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().trim().optional(),
-  role: z.enum(['OWNER', 'ADMIN', 'MEMBER']).optional()
+  role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'GUEST']).optional()
 });
+
 
 // 1. Create Organization
 export const createOrganization = async (request: FastifyRequest, reply: FastifyReply) => {

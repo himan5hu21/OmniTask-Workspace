@@ -1,12 +1,21 @@
+import { Suspense } from "react";
 import { DashboardHeader } from "@/components/layout/app-shell-headers";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <DashboardHeader />
-      <div className="h-full min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 lg:p-10">
-        {children}
-      </div>
+      <ScrollArea className="h-full min-h-0 flex-1 px-4 lg:px-8">
+        <Suspense fallback={
+          <div className="flex h-full min-h-[400px] items-center justify-center">
+            <OrbitalLoader size="lg" />
+          </div>
+        }>
+          {children}
+        </Suspense>
+      </ScrollArea>
     </>
   );
 }

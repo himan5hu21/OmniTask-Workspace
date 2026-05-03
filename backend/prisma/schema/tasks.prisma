@@ -166,18 +166,19 @@ model TaskAssignment {
   task_id String
   user_id String
 
+  // Granular Permission Flags (Defaults to false per security spec, except view)
+  can_view   Boolean @default(true)
+  can_edit   Boolean @default(false)
+  can_delete Boolean @default(false)
+  can_assign Boolean @default(false)
+
   // Relations
   task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@unique([task_id, user_id])
   @@map("task_assignments")
-}
-
-enum TaskPermission {
-  VIEW_ONLY
-  CHECK_ONLY
-  EDIT_ALLOWED
 }

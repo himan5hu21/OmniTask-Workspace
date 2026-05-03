@@ -6,6 +6,9 @@ import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
 
 export const uploadFiles = async (request: FastifyRequest, reply: FastifyReply) => {
+  const query = request.query as { folder?: string };
+  const folder = (['user', 'message', 'task'].includes(query.folder || '') ? query.folder : 'message') as 'user' | 'message' | 'task';
+  
   const parts = request.files();
   const results = [];
 
@@ -18,10 +21,11 @@ export const uploadFiles = async (request: FastifyRequest, reply: FastifyReply) 
         filename: part.filename,
         buffer,
         mimetype: part.mimetype
-      });
+      }, folder);
 
       results.push({
         ...saved,
+        file_url: StorageService.getFileUrl(saved.file_url),
         mime_type: part.mimetype,
         type: AttachmentService.getAttachmentType(part.mimetype)
       });

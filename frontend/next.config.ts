@@ -25,12 +25,27 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
+      {
         protocol: 'http',
         hostname: 'localhost',
         port: '8000',
         pathname: '/uploads/**',
       },
     ],
+  },
+
+  // ✅ Proxy API requests to backend
+  async rewrites() {
+    return [
+      {
+        source: '/omni-api/:path*',
+        destination: 'http://localhost:8000/api/v1/:path*',
+      },
+    ];
   },
 };
 

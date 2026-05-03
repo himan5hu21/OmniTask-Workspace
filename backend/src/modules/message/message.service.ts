@@ -4,10 +4,13 @@ import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
 import type { Server } from 'socket.io';
 import { AttachmentService, AttachmentData } from '@/modules/attachment/attachment.service';
+import { PermissionGuard } from '@/utils/permissions';
+import { StorageService } from '@/lib/storage';
 
 const messageRepo = new BaseRepository('channelMessage');
 const channelRepo = new BaseRepository('channel');
 const channelMemberRepo = new BaseRepository('channelMember', false);
+const orgMemberRepo = new BaseRepository('organizationMember', false);
 
 export class MessageService {
   // Get messages in a channel
@@ -18,35 +21,27 @@ export class MessageService {
   ) {
     const { page = 1, limit = 20 } = options;
 
-    // Check if user is member of the channel
-    const membership = await channelMemberRepo.findOne({
-      channel_id: channelId,
-      user_id: userId
-    });
-
-    if (!membership) {
-      throw new AppError('Access denied to this channel', HttpStatus.FORBIDDEN);
-    }
-
-    // Get channel name
     const channel = await channelRepo.getById(channelId);
-    if (!channel) {
-      throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
+    if (!channel) throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
+
+    const orgMembership = await orgMemberRepo.findOne({ organization_id: channel.org_id, user_id: userId });
+    const channelMembership = await channelMemberRepo.findOne({ channel_id: channelId, user_id: userId });
+
+    // Capability Check: message.read
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'message.read')) {
+      throw new AppError('You lack message.read capability for this channel', HttpStatus.FORBIDDEN);
     }
 
-    // Load latest messages first, then reverse the page so UI can render oldest -> newest.
     const { data: paginatedMessages, meta } = await messageRepo.getPaginated({
-      page,
-      limit,
+      page, limit,
       where: { channel_id: channelId },
       include: {
-        sender: {
-          select: { id: true, name: true, email: true }
-        },
+        sender: { select: { id: true, name: true, email: true } },
         attachments: true
       },
       orderBy: { created_at: 'desc' }
     });
+    
     const messages = [...paginatedMessages].reverse();
 
     return {
@@ -56,13 +51,13 @@ export class MessageService {
         user_id: msg.sender_id,
         user_name: msg.sender.name,
         created_at: msg.created_at,
-        attachments: msg.attachments
+        attachments: msg.attachments.map((att: any) => ({
+          ...att,
+          file_url: StorageService.getFileUrl(att.file_url)
+        }))
       })),
       channelName: channel.name,
-      pagination: {
-        ...meta,
-        hasMore: meta.page < meta.totalPages
-      }
+      pagination: { ...meta, hasMore: meta.page < meta.totalPages }
     };
   }
 
@@ -75,38 +70,26 @@ export class MessageService {
   ) {
     const { content } = messageInput;
 
-    // Check if user is member of the channel
-    const membership = await channelMemberRepo.findOne({
-      channel_id: channelId,
-      user_id: userId
-    });
+    const channel = await channelRepo.getById(channelId);
+    if (!channel) throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
 
-    if (!membership) {
-      throw new AppError('Access denied to this channel', HttpStatus.FORBIDDEN);
+    const orgMembership = await orgMemberRepo.findOne({ organization_id: channel.org_id, user_id: userId });
+    const channelMembership = await channelMemberRepo.findOne({ channel_id: channelId, user_id: userId });
+
+    // Capability Check: message.send
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'message.send')) {
+      throw new AppError('You lack message.send capability for this channel', HttpStatus.FORBIDDEN);
     }
 
-    // Create message
     const message = await messageRepo.create(
-      {
-        text: content,
-        channel_id: channelId,
-        sender_id: userId
-      },
-      {
-        include: {
-          sender: {
-            select: { id: true, name: true, email: true }
-          }
-        }
-      }
+      { text: content, channel_id: channelId, sender_id: userId },
+      { include: { sender: { select: { id: true, name: true, email: true } } } }
     );
 
-    // Create attachments if any
     if (messageInput.attachments?.length) {
       await AttachmentService.createMessageAttachments(message.id, 'CHANNEL', messageInput.attachments);
     }
 
-    // Re-fetch message with attachments
     const fullMessage = await messageRepo.findOne(
       { id: message.id },
       {
@@ -123,14 +106,13 @@ export class MessageService {
       user_id: fullMessage.sender_id,
       user_name: fullMessage.sender.name,
       created_at: fullMessage.created_at,
-      attachments: fullMessage.attachments
+      attachments: fullMessage.attachments.map((att: any) => ({
+        ...att,
+        file_url: StorageService.getFileUrl(att.file_url)
+      }))
     };
 
-    // Emit socket event
-    if (io) {
-      io.to(`channel:${channelId}`).emit('channel:message_created', messageData);
-    }
-
+    if (io) io.to(`channel:${channelId}`).emit('channel:message_created', messageData);
     return messageData;
   }
 }

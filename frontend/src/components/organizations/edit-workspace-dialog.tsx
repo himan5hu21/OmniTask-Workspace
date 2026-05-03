@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createZodResolver, Form, FormFieldError } from "@/lib/form";
-import { handleApiError } from "@/lib/api-errors";
+import { handleApiError } from "@/api/api-errors";
 import { useOrganization, useUpdateOrganization } from "@/api/organizations";
 
 const orgSchema = z.object({

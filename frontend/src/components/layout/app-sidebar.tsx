@@ -1,12 +1,13 @@
 "use client"
 
 import { 
-  Building2, MessageSquare, CheckCircle2, LayoutGrid, 
-  LifeBuoy, Send, ChevronsUpDown, LogOut, Loader2,
-  Hash, Plus, Users
+  Building2, MessageSquare, LayoutGrid, 
+  ChevronsUpDown, LogOut,
+  Hash, Plus, Bell, ClipboardList, Settings
 } from "lucide-react"
+import { OrbitalLoader } from "@/components/ui/orbital-loader"
 import Link from "next/link"
-import { useRouter, usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useAuthProfile, useLogoutMutation } from "@/api/auth"
 import {
   Sidebar,
@@ -19,9 +20,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuAction,
 } from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Logo } from "@/components/logo"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +33,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useState } from "react"
 
 export interface AppSidebarProps {
   mode?: 'dashboard' | 'organization'
@@ -43,191 +45,182 @@ export interface AppSidebarProps {
   className?: string
 }
 
+// Dummy Data for Direct Messages
+const dummyDMs = [
+  { id: '1', name: 'Sarah Jenkins', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah', online: true },
+  { id: '2', name: 'Mike Thompson', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mike', online: false },
+  { id: '3', name: 'Alex Rivera', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex', online: true },
+];
+
 export function AppSidebar({
   mode = 'dashboard',
   organizationId,
   organizationName,
   channels = [],
-  isLoadingChannels = false,
-  canAddChannels = false,
+  isLoadingChannels,
+  canAddChannels,
   onAddChannel,
   className
 }: AppSidebarProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const { user } = useAuthProfile()
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useAuthProfile();
   
   const logoutMutation = useLogoutMutation({
-    onSuccess: () => router.push("/login"),
-  })
+    onSuccess: () => {
+      router.push('/login');
+    }
+  });
 
-  const userInitials = user?.name ? user.name.charAt(0).toUpperCase() : "U"
-
-  // Collapsible states for organization mode
-  const [isChannelsOpen, setIsChannelsOpen] = useState(true)
-  const [isDmsOpen, setIsDmsOpen] = useState(true)
+  const userInitials = user?.name ? user.name.substring(0, 2).toUpperCase() : "U";
 
   return (
-    <Sidebar collapsible="offcanvas" variant="sidebar" className={className}>
-      {/* 🟢 App Logo Header */}
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm shadow-primary/20">
-                <LayoutGrid className="size-4" />
-              </div>
-              <div className="flex flex-col gap-0.5 leading-none">
-                <span className="font-semibold text-foreground">OmniTask</span>
-                <span className="text-xs text-muted-foreground">{mode === 'organization' ? organizationName || 'Workspace' : 'Workspace'}</span>
-              </div>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+    <Sidebar className={className}>
+      {/* HEADER: Brand Logo & Workspace Name */}
+      <SidebarHeader className="py-6 px-4">
+        <Logo href="/dashboard" className="px-2" />
       </SidebarHeader>
 
-      {/* 🟢 Main Navigation */}
-      <SidebarContent>
-        {mode === 'dashboard' ? (
-          <SidebarGroup>
-            <SidebarGroupLabel>Main Menu</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={pathname === '/dashboard'} asChild>
-                    <Link href="/dashboard">
-                    <Building2 />
-                    <span>Workspaces</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={pathname === '/messages'} asChild>
-                    <Link href="/messages">
-                    <MessageSquare />
-                    <span>Direct Messages</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={pathname === '/tasks'} asChild>
-                    <Link href="/tasks">
-                    <CheckCircle2 />
-                    <span>My Tasks</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : (
-          <>
-            {/* CHANNELS Section */}
-            <SidebarGroup>
-              <div className="flex items-center justify-between px-2 mb-2">
-                <button 
-                  onClick={() => setIsChannelsOpen(!isChannelsOpen)} 
-                  className="flex items-center hover:opacity-80 transition-opacity"
+      <SidebarContent className="px-2">
+        {/* MAIN NAVIGATION (Always Visible) */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-1">
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  isActive={pathname === '/dashboard'} 
+                  className="h-10 data-[active=true]:border-l-[3px] data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:text-primary transition-all"
                 >
-                  <SidebarGroupLabel className="cursor-pointer">Channels</SidebarGroupLabel>
-                </button>
-                {canAddChannels && (
-                  <Button size="icon" variant="ghost" className="h-5 w-5 text-foreground hover:bg-muted rounded-md" onClick={onAddChannel}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-              {isChannelsOpen && (
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {isLoadingChannels ? (
-                      <div className="px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Loading...
-                      </div>
-                    ) : channels.map((channel) => {
-                      const isActive = pathname === `/organizations/${organizationId}/channels/${channel.id}`;
-                      return (
-                        <SidebarMenuItem key={channel.id}>
-                          <SidebarMenuButton
-                            asChild
-                            className={isActive ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted text-foreground'}
-                          >
-                            <Link href={`/organizations/${organizationId}/channels/${channel.id}`}>
-                              <Hash className={`h-4 w-4 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-                              <span>{channel.name}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              )}
-            </SidebarGroup>
+                  <Link href="/dashboard" className="flex items-center gap-3">
+                    <LayoutGrid className="h-5 w-5" />
+                    <span className="font-medium">Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  isActive={pathname === '/tasks'} 
+                  className="h-10 data-[active=true]:border-l-[3px] data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:text-primary transition-all"
+                >
+                  <Link href="/tasks" className="flex items-center gap-3">
+                    <ClipboardList className="h-5 w-5" />
+                    <span className="font-medium">My Tasks</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  isActive={pathname === '/notifications'} 
+                  className="h-10 justify-between data-[active=true]:border-l-[3px] data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:text-primary transition-all"
+                >
+                  <Link href="/notifications" className="flex items-center gap-3 w-full">
+                    <div className="flex items-center gap-3">
+                      <Bell className="h-5 w-5" />
+                      <span className="font-medium">Notifications</span>
+                    </div>
+                    <Badge className="text-[10px] font-bold px-1.5 pt-1 h-4 min-w-[16px] rounded-full border-none">
+                      3
+                    </Badge>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-            {/* DIRECT MESSAGES Section */}
-            <SidebarGroup>
-              <div className="flex items-center justify-between px-2 mb-2">
+        {/* ORGANIZATION CONTEXT: Channels (Only visible when inside an org) */}
+        {mode === 'organization' && (
+          <SidebarGroup className="mt-4">
+            <div className="flex items-center justify-between px-3 mb-2">
+              <SidebarGroupLabel className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                Channels
+              </SidebarGroupLabel>
+              {canAddChannels && (
                 <button 
-                  onClick={() => setIsDmsOpen(!isDmsOpen)} 
-                  className="flex items-center hover:opacity-80 transition-opacity"
+                  onClick={onAddChannel}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-accent"
                 >
-                  <SidebarGroupLabel className="cursor-pointer">Direct Messages</SidebarGroupLabel>
+                  <Plus className="h-4 w-4" />
                 </button>
-              </div>
-              {isDmsOpen && (
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton className="hover:bg-muted text-foreground">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span>New Message</span>
+              )}
+            </div>
+            <SidebarGroupContent>
+              {isLoadingChannels ? (
+                <div className="flex items-center justify-center py-4">
+                  <OrbitalLoader size="sm" />
+                </div>
+              ) : channels.length > 0 ? (
+                <SidebarMenu className="space-y-0.5">
+                  {channels.map((channel) => (
+                    <SidebarMenuItem key={channel.id}>
+                      <SidebarMenuButton 
+                        asChild 
+                        isActive={pathname === `/organizations/${organizationId}/channels/${channel.id}`}
+                        className="h-9 data-[active=true]:border-l-[3px] data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:text-primary transition-all"
+                      >
+                        <Link href={`/organizations/${organizationId}/channels/${channel.id}`}>
+                          <Hash className="h-4 w-4 text-muted-foreground" />
+                          <span>{channel.name}</span>
+                        </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
+                  ))}
+                </SidebarMenu>
+              ) : (
+                <div className="px-3 py-2 text-xs text-muted-foreground">
+                  No channels found
+                </div>
               )}
-            </SidebarGroup>
-          </>
-        )}
-        
-        {/* Secondary Navigation pushed to bottom - only for dashboard mode */}
-        {mode === 'dashboard' && (
-          <SidebarGroup className="mt-auto">
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton>
-                    <LifeBuoy />
-                    <span>Support</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton>
-                    <Send />
-                    <span>Feedback</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
+        {/* DIRECT MESSAGES (Dummy Data) */}
+        <SidebarGroup className="mt-2">
+          <SidebarGroupLabel className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground px-3 mb-2">
+            Direct Messages
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-0.5">
+              {dummyDMs.map((dm) => (
+                <SidebarMenuItem key={dm.id}>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={pathname === `/messages/${dm.id}`}
+                    className="h-10 data-[active=true]:border-l-[3px] data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:text-primary transition-all"
+                  >
+                    <Link href={`/messages/${dm.id}`} className="flex items-center gap-3">
+                      <div className="relative">
+                        <Avatar className="h-6 w-6 border border-border">
+                          <AvatarImage src={dm.avatar} />
+                          <AvatarFallback className="text-[10px]">{dm.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        {dm.online && (
+                          <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-background"></div>
+                        )}
+                      </div>
+                      <span className="truncate">{dm.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
-      {/* 🟢 User Profile Footer */}
-      <SidebarFooter>
+      {/* FOOTER: User Profile & Actions */}
+      <SidebarFooter className="p-4 mt-auto border-t border-border">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                >
-                  <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold">
+                <SidebarMenuButton size="lg" className="w-full data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground border border-transparent hover:border-border transition-all rounded-md">
+                  <Avatar className="h-8 w-8 rounded-md">
+                    <AvatarFallback className="rounded-md bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
                       {userInitials}
                     </AvatarFallback>
                   </Avatar>
@@ -235,19 +228,19 @@ export function AppSidebar({
                     <span className="truncate font-semibold">{user?.name || "User"}</span>
                     <span className="truncate text-xs text-muted-foreground">{user?.email || "user@example.com"}</span>
                   </div>
-                  <ChevronsUpDown className="ml-auto size-4" />
+                  <ChevronsUpDown className="ml-auto h-4 w-4 text-muted-foreground" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                side="right"
-                align="end"
-                sideOffset={4}
+              <DropdownMenuContent 
+                side="top" 
+                align="start" 
+                sideOffset={12}
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-md border-border shadow-lg bg-card"
               >
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                    <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold">
+                    <Avatar className="h-8 w-8 rounded-md">
+                      <AvatarFallback className="rounded-md bg-primary/10 text-primary font-semibold text-xs">
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
@@ -258,12 +251,17 @@ export function AppSidebar({
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Account Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => logoutMutation.mutate()}
                   disabled={logoutMutation.isPending}
                   className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
                 >
-                  {logoutMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />}
+                  {logoutMutation.isPending ? <OrbitalLoader size="sm" className="mr-2" /> : <LogOut className="mr-2 h-4 w-4" />}
                   <span>Log out securely</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -274,4 +272,3 @@ export function AppSidebar({
     </Sidebar>
   )
 }
-
