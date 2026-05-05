@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { apiRequest } from "@/api/api";
 import type { ApiSuccess } from "@/types/api";
+import { type ChannelRole } from "@/types/roles";
 
 // --- TYPES ---
 
@@ -36,7 +37,7 @@ export type ChannelMembersQuery = {
   page?: number;
   limit?: number;
   search?: string;
-  role?: "MANAGER" | "MEMBER" | "ALL";
+  role?: ChannelRole | "ALL";
 };
 
 export type CreateChannelInput = {
@@ -55,6 +56,9 @@ export type Channel = {
   created_at: string;
   updated_at: string;
   isDefault?: boolean;
+  currentUserChannelRole?: ChannelRole | null;
+  currentUserOrgRole?: string | null;
+  permissions?: ChannelPermissionSet;
   stats?: {
     memberCount: number;
     messageCount: number;
@@ -67,7 +71,7 @@ export type ChannelMember = {
   email: string;
   name: string;
   avatar_url?: string;
-  role: "MANAGER" | "MEMBER";
+  role: ChannelRole;
   user_id: string;
   joined_at: string;
 };
@@ -90,11 +94,11 @@ export type ChannelMembersResponse = ApiSuccess<{
 export type AddChannelMemberInput = {
   user_id?: string;
   email?: string;
-  role?: "MANAGER" | "MEMBER";
+  role?: ChannelRole;
 };
 
 export type UpdateChannelMemberRoleInput = {
-  role: "MANAGER" | "MEMBER";
+  role: ChannelRole;
 };
 
 export type SuccessResponse = ApiSuccess<{ success: boolean }>;
@@ -209,6 +213,7 @@ export const useCreateChannel = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["createChannel"],
     mutationFn: channelService.create,
     onSuccess: async (data, variables) => {
       await queryClient.invalidateQueries({ queryKey: [...channelKeys.all, "org", variables.org_id] });
@@ -220,6 +225,7 @@ export const useUpdateChannel = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["updateChannel"],
     mutationFn: ({ channelId, data }: { channelId: string; data: UpdateChannelInput }) =>
       channelService.update(channelId, data),
     onSuccess: async (data, variables) => {
@@ -233,6 +239,7 @@ export const useDeleteChannel = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["deleteChannel"],
     mutationFn: channelService.delete,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: channelKeys.all });
@@ -244,6 +251,7 @@ export const useAddChannelMember = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["addChannelMember"],
     mutationFn: ({ channelId, data }: { channelId: string; data: AddChannelMemberInput }) =>
       channelService.addMember(channelId, data),
     onSuccess: async (data, variables) => {
@@ -257,6 +265,7 @@ export const useUpdateChannelMemberRole = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["updateChannelMemberRole"],
     mutationFn: ({ channelId, userId, data }: { channelId: string; userId: string; data: UpdateChannelMemberRoleInput }) =>
       channelService.updateMemberRole(channelId, userId, data),
     onSuccess: async (data, variables) => {
@@ -270,6 +279,7 @@ export const useRemoveChannelMember = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["removeChannelMember"],
     mutationFn: ({ channelId, userId }: { channelId: string; userId: string }) =>
       channelService.removeMember(channelId, userId),
     onSuccess: async (data, variables) => {

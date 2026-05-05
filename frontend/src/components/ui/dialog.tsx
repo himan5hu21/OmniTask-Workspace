@@ -3,56 +3,76 @@
 import * as React from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { Dialog as DialogPrimitive } from "radix-ui"
+import { XIcon } from "lucide-react"
+import { useIsMounted } from "@/hooks/useIsMounted"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { XIcon } from "lucide-react"
 
-function Dialog({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+// Create a Context to track the open state for Framer Motion "Snapshot Shielding"
+const DialogContext = React.createContext<{ open: boolean }>({ open: false })
+
+function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  const isMounted = useIsMounted()
+  const [internalOpen, setInternalOpen] = React.useState(props.open ?? props.defaultOpen ?? false)
+  
+  // Sync state during render if controlled (React 18+ best practice)
+  // This avoids the "cascading render" warning from useEffect
+  if (props.open !== undefined && props.open !== internalOpen) {
+    setInternalOpen(props.open)
+  }
+
+  const handleOpenChange = (val: boolean) => {
+    if (props.open === undefined) {
+      setInternalOpen(val)
+    }
+    props.onOpenChange?.(val)
+  }
+
+  // Hydration-safe open state
+  const isOpen = isMounted ? (props.open !== undefined ? props.open : internalOpen) : false
+
+  return (
+    <DialogContext.Provider value={{ open: isOpen }}>
+      <DialogPrimitive.Root 
+        data-slot="dialog" 
+        {...props} 
+        open={isOpen}
+        onOpenChange={handleOpenChange}
+      />
+    </DialogContext.Provider>
+  )
 }
 
-function DialogTrigger({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
-}
-
-function DialogPortal({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
-}
-
-function DialogClose({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Close>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
-}
+const DialogTrigger = DialogPrimitive.Trigger
+const DialogPortal = DialogPrimitive.Portal
+const DialogClose = DialogPrimitive.Close
 
 function DialogOverlay({
   className,
+  ref,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+  const { open } = React.useContext(DialogContext)
+  
   return (
-    <DialogPrimitive.Overlay
-      asChild
-      data-slot="dialog-overlay"
-      {...props}
-    >
-      <motion.div
-        className={cn(
-          "fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs",
-          className
-        )}
-        initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
-        animate={{ opacity: 1, backdropFilter: "blur(4px)" }}
-        exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
-        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      />
-    </DialogPrimitive.Overlay>
+    <AnimatePresence>
+      {open && (
+        <DialogPrimitive.Overlay asChild forceMount {...props}>
+          <motion.div
+            ref={ref}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            data-slot="dialog-overlay"
+            className={cn(
+              "fixed inset-0 z-50 bg-black/60 backdrop-blur-sm",
+              className
+            )}
+          />
+        </DialogPrimitive.Overlay>
+      )}
+    </AnimatePresence>
   )
 }
 
@@ -60,47 +80,42 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
-  open,
+  ref,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   open?: boolean
 }) {
+  const { open } = React.useContext(DialogContext)
+
   return (
-    <DialogPortal>
+    <DialogPortal forceMount>
+      <DialogOverlay />
       <AnimatePresence>
-        {open ? (
-          <>
-            <DialogOverlay />
-            <DialogPrimitive.Content asChild forceMount {...props}>
-              <motion.div
-                data-slot="dialog-content"
-                className={cn(
-                  "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none sm:max-w-sm",
-                  className
-                )}
-                initial={{ opacity: 0, y: 18, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.97 }}
-                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              >
-                {children}
-                {showCloseButton && (
-                  <DialogPrimitive.Close data-slot="dialog-close" asChild>
-                    <Button
-                      variant="ghost"
-                      className="absolute top-2 right-2"
-                      size="icon-sm"
-                    >
-                      <XIcon />
-                      <span className="sr-only">Close</span>
-                    </Button>
-                  </DialogPrimitive.Close>
-                )}
-              </motion.div>
-            </DialogPrimitive.Content>
-          </>
-        ) : null}
+        {open && (
+          <DialogPrimitive.Content asChild forceMount {...props}>
+            <motion.div
+              ref={ref}
+              initial={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}
+              animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
+              exit={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              data-slot="dialog-content"
+              className={cn(
+                "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm",
+                className
+              )}
+            >
+              {children}
+              {showCloseButton && (
+                <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+                  <XIcon />
+                  <span className="sr-only">Close</span>
+                </DialogPrimitive.Close>
+              )}
+            </motion.div>
+          </DialogPrimitive.Content>
+        )}
       </AnimatePresence>
     </DialogPortal>
   )
@@ -110,66 +125,39 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)}
       {...props}
     />
   )
 }
 
-function DialogFooter({
-  className,
-  showCloseButton = false,
-  children,
-  ...props
-}: React.ComponentProps<"div"> & {
-  showCloseButton?: boolean
-}) {
+function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-footer"
-      className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
-        className
-      )}
-      {...props}
-    >
-      {children}
-      {showCloseButton && (
-        <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
-        </DialogPrimitive.Close>
-      )}
-    </div>
-  )
-}
-
-function DialogTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Title>) {
-  return (
-    <DialogPrimitive.Title
-      data-slot="dialog-title"
-      className={cn(
-        "font-heading text-base leading-none font-medium",
-        className
-      )}
+      className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
       {...props}
     />
   )
 }
 
-function DialogDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+function DialogTitle({ className, ref, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
+  return (
+    <DialogPrimitive.Title
+      ref={ref}
+      data-slot="dialog-title"
+      className={cn("text-lg font-semibold leading-none tracking-tight", className)}
+      {...props}
+    />
+  )
+}
+
+function DialogDescription({ className, ref, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
+      ref={ref}
       data-slot="dialog-description"
-      className={cn(
-        "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
-        className
-      )}
+      className={cn("text-sm text-muted-foreground", className)}
       {...props}
     />
   )
@@ -187,4 +175,3 @@ export {
   DialogTitle,
   DialogTrigger,
 }
-

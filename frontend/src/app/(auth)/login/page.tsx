@@ -98,14 +98,14 @@ export default function LoginPage() {
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest" htmlFor="email">Email address</Label>
                     <div className="relative flex items-center">
                       <Mail className="absolute left-3 h-5 w-5 text-muted-foreground pointer-events-none" />
-                      <Input 
-                        id="email" 
-                        type="email" 
-                        autoComplete="email"
-                        placeholder="name@company.com" 
-                        className="w-full h-11 bg-background border border-border rounded-lg pl-10 pr-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20 transition-all"
-                        {...register("email")}
-                      />
+                        <Input 
+                          id="email" 
+                          type="email" 
+                          autoComplete="email"
+                          placeholder="name@company.com" 
+                          className="pl-10"
+                          {...register("email")}
+                        />
                     </div>
                     <FormFieldError errors={errors} name="email" />
                   </div>
@@ -118,14 +118,14 @@ export default function LoginPage() {
                     </div>
                     <div className="relative flex items-center">
                       <Lock className="absolute left-3 h-5 w-5 text-muted-foreground pointer-events-none" />
-                      <Input 
-                        id="password" 
-                        type={showPassword ? "text" : "password"} 
-                        autoComplete="current-password"
-                        placeholder="••••••••"
-                        className="w-full h-11 bg-background border border-border rounded-lg pl-10 pr-10 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20 transition-all"
-                        {...register("password")}
-                      />
+                        <Input 
+                          id="password" 
+                          type={showPassword ? "text" : "password"} 
+                          autoComplete="current-password"
+                          placeholder="••••••••"
+                          className="pl-10 pr-10"
+                          {...register("password")}
+                        />
                       <button 
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center" 

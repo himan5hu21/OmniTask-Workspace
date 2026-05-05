@@ -16,9 +16,18 @@ export function Logo({
   href = "/"
 }: LogoProps) {
   const content = (
-    <div className={cn("text-xl font-black tracking-tighter text-primary flex items-center gap-2", className)}>
-      <Zap className={cn("h-6 w-6 fill-current", iconClassName)} />
-      {showText && <span>OmniTask</span>}
+    <div className={cn("flex items-center gap-2.5 group transition-all", className)}>
+      <div className={cn(
+        "flex h-11 w-11 items-center justify-center rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_4px_16px_rgba(var(--primary),0.2)] transition-transform group-hover:scale-105",
+        iconClassName
+      )}>
+        <Zap className="h-6 w-6 fill-current" />
+      </div>
+      {showText && (
+        <span className="text-xl font-bold tracking-tight text-foreground transition-colors group-hover:text-primary">
+          OmniTask
+        </span>
+      )}
     </div>
   );
 

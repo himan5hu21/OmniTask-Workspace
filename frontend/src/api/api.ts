@@ -69,8 +69,13 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle 401 errors (Unauthorized)
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // 1. Identify if the failing request is a login or register attempt
+    const isAuthRoute = 
+      originalRequest.url?.includes('/auth/login') || 
+      originalRequest.url?.includes('/auth/register');
+
+    // 2. ONLY trigger refresh if it's a 401, hasn't been retried, AND is NOT an auth route
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       // Immediately lock this request from ever triggering the 401 logic again
       originalRequest._retry = true;
 
@@ -113,16 +118,39 @@ api.interceptors.response.use(
         api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
 
+        // Notify socket of the new token if we are on the client
+        if (typeof window !== 'undefined') {
+          import('@/socket/socket').then(({ getSocket }) => {
+            getSocket(); // This will trigger the internal "Token updated, reconnected" logic
+          });
+        }
+
         // Release the queued requests
         processQueue(null, newToken);
 
         // Retry the original failed request
         return api(originalRequest);
-      } catch (refreshError) {
-        // If refresh fails, clear everything and kick user to login
+      } catch (refreshError: unknown) {
+        // Always release the queued requests so they don't hang
         processQueue(refreshError, null);
-        deleteToken();
-        if (typeof window !== 'undefined') window.location.href = '/login';
+
+        // STRICT CHECK: ONLY log the user out if the refresh token is genuinely invalid (401/403).
+        // If it's a 500 Server Error or network timeout, we leave their session intact 
+        // so they aren't forced to re-login just because of a temporary backend glitch!
+        let status: number | undefined;
+        if (refreshError && typeof refreshError === 'object' && 'response' in refreshError) {
+          status = (refreshError as { response?: { status?: number } }).response?.status;
+        }
+
+        if (status === 401 || status === 403) {
+          // Total Wipeout: Clear frontend tokens and redirect
+          deleteToken();
+          
+          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+        }
+        
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

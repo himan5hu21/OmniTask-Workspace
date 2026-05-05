@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { apiRequest } from "@/api/api";
 import type { ApiSuccess } from "@/types/api";
+import { type OrgRole } from "@/types/roles";
 
 // --- TYPES ---
 
@@ -30,14 +31,14 @@ export type OrganizationListQuery = {
   page?: number;
   limit?: number;
   search?: string;
-  role?: "OWNER" | "ADMIN" | "MEMBER" | "ALL";
+  role?: OrgRole | "ALL";
 };
 
 export type OrganizationMembersQuery = {
   page?: number;
   limit?: number;
   search?: string;
-  role?: "OWNER" | "ADMIN" | "MEMBER" | "ALL";
+  role?: OrgRole | "ALL";
 };
 
 export type CreateOrganizationInput = {
@@ -62,7 +63,7 @@ export type Organization = {
     channelCount: number;
     taskCount: number;
   };
-  currentUserRole?: "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
+  currentUserRole?: OrgRole;
 };
 
 export type OrganizationMember = {
@@ -70,7 +71,7 @@ export type OrganizationMember = {
   email: string;
   name: string;
   avatar_url?: string;
-  role: "OWNER" | "ADMIN" | "MEMBER";
+  role: OrgRole;
   user_id: string;
   joined_at: string;
 };
@@ -84,17 +85,17 @@ export type OrganizationsResponse = ApiSuccess<{
 export type OrganizationMembersResponse = ApiSuccess<{
   members: OrganizationMember[];
   pagination: PaginationMeta;
-  currentUserRole: "OWNER" | "ADMIN" | "MEMBER";
+  currentUserRole: OrgRole;
   permissions: OrganizationPermissionSet;
 }>;
 
 export type AddMemberInput = {
   email: string;
-  role?: "ADMIN" | "MEMBER";
+  role?: OrgRole;
 };
 
 export type UpdateMemberRoleInput = {
-  role: "ADMIN" | "MEMBER";
+  role: OrgRole;
 };
 
 export type SuccessResponse = ApiSuccess<{ success: boolean }>;
@@ -207,6 +208,7 @@ export const useCreateOrganization = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["createOrganization"],
     mutationFn: (data: CreateOrganizationInput) => organizationService.create(data),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: organizationKeys.all });
@@ -218,6 +220,7 @@ export const useUpdateOrganization = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["updateOrganization"],
     mutationFn: ({ orgId, data }: { orgId: string; data: UpdateOrganizationInput }) =>
       organizationService.update(orgId, data),
     onSuccess: async (data, variables) => {
@@ -231,6 +234,7 @@ export const useDeleteOrganization = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["deleteOrganization"],
     mutationFn: organizationService.delete,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: organizationKeys.all });
@@ -242,6 +246,7 @@ export const useAddOrganizationMember = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["addOrganizationMember"],
     mutationFn: ({ orgId, data }: { orgId: string; data: AddMemberInput }) =>
       organizationService.addMember(orgId, data),
     onSuccess: async (data, variables) => {
@@ -255,6 +260,7 @@ export const useUpdateOrganizationMemberRole = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["updateOrganizationMemberRole"],
     mutationFn: ({ orgId, userId, data }: { orgId: string; userId: string; data: UpdateMemberRoleInput }) =>
       organizationService.updateMemberRole(orgId, userId, data),
     onSuccess: async (data, variables) => {
@@ -268,6 +274,7 @@ export const useRemoveOrganizationMember = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["removeOrganizationMember"],
     mutationFn: ({ orgId, userId }: { orgId: string; userId: string }) =>
       organizationService.removeMember(orgId, userId),
     onSuccess: async (data, variables) => {

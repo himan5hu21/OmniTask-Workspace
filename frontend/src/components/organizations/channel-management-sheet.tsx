@@ -6,7 +6,6 @@ import {
   Loader2,
   Trash2,
   UserMinus,
-  UserPlus,
   Users,
   MessageSquareText,
   Plus,
@@ -64,15 +63,22 @@ import {
 import { useOrganization, useOrganizationMembers } from "@/api/organizations";
 import { handleApiError } from "@/api/api-errors";
 import { useAuthProfile } from "@/api/auth";
+import { CHANNEL_ROLES, type ChannelRole } from "@/types/roles";
+import { cn } from "@/lib/utils";
 
-function ChannelRoleBadge({ role }: { role: "MANAGER" | "MEMBER" }) {
+function ChannelRoleBadge({ role }: { role: ChannelRole }) {
+  const styles = {
+    [CHANNEL_ROLES.MANAGER]: "bg-primary/10 text-primary border border-primary/20",
+    [CHANNEL_ROLES.CONTRIBUTOR]: "bg-blue-500/10 text-blue-500 border border-blue-500/20",
+    [CHANNEL_ROLES.VIEWER]: "bg-muted text-muted-foreground border border-border/50",
+  };
+
   return (
     <span
-      className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-        role === "MANAGER"
-          ? "bg-primary/10 text-primary border border-primary/20"
-          : "bg-muted text-muted-foreground border border-border/50"
-      }`}
+      className={cn(
+        "inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+        styles[role]
+      )}
     >
       {role}
     </span>
@@ -92,9 +98,9 @@ export function ChannelManagementSheet({
 }) {
   const [open, setOpen] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
-  const [memberRoleFilter, setMemberRoleFilter] = useState<"ALL" | "MANAGER" | "MEMBER">("ALL");
+  const [memberRoleFilter, setMemberRoleFilter] = useState<"ALL" | ChannelRole>("ALL");
   const [candidateSearch, setCandidateSearch] = useState("");
-  const [selectedAddRole, setSelectedAddRole] = useState<"MANAGER" | "MEMBER">("MEMBER");
+  const [selectedAddRole, setSelectedAddRole] = useState<ChannelRole>(CHANNEL_ROLES.CONTRIBUTOR);
   const [nameDraft, setNameDraft] = useState("");
   const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -256,7 +262,6 @@ export function ChannelManagementSheet({
                           value={nameDraft}
                           onChange={(event) => setNameDraft(event.target.value)}
                           placeholder="e.g. general"
-                          className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
                           autoFocus
                         />
                       </div>
@@ -288,13 +293,14 @@ export function ChannelManagementSheet({
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <Label className="text-foreground font-semibold text-sm">Select Role</Label>
-                          <Select value={selectedAddRole} onValueChange={(value) => setSelectedAddRole(value as "MANAGER" | "MEMBER")}>
+                          <Select value={selectedAddRole} onValueChange={(value) => setSelectedAddRole(value as ChannelRole)}>
                             <SelectTrigger className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="MEMBER">Member</SelectItem>
-                              <SelectItem value="MANAGER">Manager</SelectItem>
+                              <SelectItem value={CHANNEL_ROLES.CONTRIBUTOR}>Contributor</SelectItem>
+                              <SelectItem value={CHANNEL_ROLES.MANAGER}>Manager</SelectItem>
+                              <SelectItem value={CHANNEL_ROLES.VIEWER}>Viewer</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -305,7 +311,6 @@ export function ChannelManagementSheet({
                             value={candidateSearch}
                             onChange={(event) => setCandidateSearch(event.target.value)}
                             placeholder="Type name or email..."
-                            className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
                             autoFocus
                           />
                         </div>
@@ -318,7 +323,7 @@ export function ChannelManagementSheet({
                               className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-3 py-2"
                             >
                               <div className="min-w-0">
-                                <p className="truncate text-xs font-bold">{member.name}</p>
+                                <p className="truncate text-xs font-bold">{member.name || "Unnamed Member"}</p>
                                 <p className="truncate text-[10px] text-muted-foreground">{member.email}</p>
                               </div>
                               <Button
@@ -383,16 +388,17 @@ export function ChannelManagementSheet({
                         value={memberSearch}
                         onChange={(event) => setMemberSearch(event.target.value)}
                         placeholder="Search members..."
-                        className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all w-48"
+                        className="w-48"
                       />
-                      <Select value={memberRoleFilter} onValueChange={(value) => setMemberRoleFilter(value as "ALL" | "MANAGER" | "MEMBER")}>
+                      <Select value={memberRoleFilter} onValueChange={(value) => setMemberRoleFilter(value as "ALL" | ChannelRole)}>
                         <SelectTrigger className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all w-32">
                           <SelectValue placeholder="Role" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="ALL">All</SelectItem>
-                          <SelectItem value="MANAGER">Managers</SelectItem>
-                          <SelectItem value="MEMBER">Members</SelectItem>
+                          <SelectItem value={CHANNEL_ROLES.MANAGER}>Managers</SelectItem>
+                          <SelectItem value={CHANNEL_ROLES.CONTRIBUTOR}>Contributors</SelectItem>
+                          <SelectItem value={CHANNEL_ROLES.VIEWER}>Viewers</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -414,11 +420,11 @@ export function ChannelManagementSheet({
                           <div className="flex min-w-0 items-center gap-3">
                             <Avatar className="h-8 w-8 border border-border">
                               <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary uppercase">
-                                {member.name.charAt(0)}
+                                {member.name?.charAt(0) || "U"}
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
-                              <p className="truncate text-[13px] font-semibold">{member.name}</p>
+                              <p className="truncate text-[13px] font-semibold">{member.name || "Unnamed Member"}</p>
                               <p className="truncate text-[10px] text-muted-foreground">{member.email}</p>
                             </div>
                           </div>
@@ -431,7 +437,7 @@ export function ChannelManagementSheet({
                                   updateRoleMutation.mutate({
                                     channelId,
                                     userId: member.user_id,
-                                    data: { role: value as "MANAGER" | "MEMBER" },
+                                    data: { role: value as ChannelRole },
                                   }, {
                                     onSuccess: () => toast.success("Channel role updated"),
                                     onError: (error) =>
@@ -446,8 +452,9 @@ export function ChannelManagementSheet({
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="MEMBER">Member</SelectItem>
-                                  <SelectItem value="MANAGER">Manager</SelectItem>
+                                  <SelectItem value={CHANNEL_ROLES.CONTRIBUTOR}>Contributor</SelectItem>
+                                  <SelectItem value={CHANNEL_ROLES.MANAGER}>Manager</SelectItem>
+                                  <SelectItem value={CHANNEL_ROLES.VIEWER}>Viewer</SelectItem>
                                 </SelectContent>
                               </Select>
                             )}
@@ -459,7 +466,7 @@ export function ChannelManagementSheet({
                                 onClick={() =>
                                   setMemberToRemove({
                                     id: member.user_id,
-                                    name: member.name,
+                                    name: member.name || "Unnamed Member",
                                   })
                                 }
                               >

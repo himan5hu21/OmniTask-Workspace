@@ -1,6 +1,6 @@
 // src/store/auth.store.ts
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, devtools } from "zustand/middleware";
 
 export interface AuthUser {
   id: string;
@@ -19,18 +19,21 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      isAuthenticated: false,
-      setAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
-      setUser: (user) => set((state) => ({ user, isAuthenticated: state.isAuthenticated || Boolean(user) })),
-      setSession: (user) => set({ user, isAuthenticated: true }),
-      clearSession: () => set({ user: null, isAuthenticated: false }),
-    }),
-    {
-      name: "omnitask-auth",
-    }
+  devtools(
+    persist(
+      (set) => ({
+        user: null,
+        isAuthenticated: false,
+        setAuthenticated: (isAuthenticated) => set({ isAuthenticated }, false, "auth/setAuthenticated"),
+        setUser: (user) => set((state) => ({ user, isAuthenticated: state.isAuthenticated || Boolean(user) }), false, "auth/setUser"),
+        setSession: (user) => set({ user, isAuthenticated: true }, false, "auth/setSession"),
+        clearSession: () => set({ user: null, isAuthenticated: false }, false, "auth/clearSession"),
+      }),
+      {
+        name: "omnitask-auth",
+      }
+    ),
+    { name: "AuthStore" }
   )
 );
 

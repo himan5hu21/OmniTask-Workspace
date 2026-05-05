@@ -106,6 +106,7 @@ export const useCreateMessage = (channelId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: ["createMessage"],
     mutationFn: (data: CreateMessageInput) => messageService.createChannelMessage(channelId, data),
     onSuccess: async (data) => {
       await queryClient.setQueryData<InfiniteData<MessagesResponse>>(

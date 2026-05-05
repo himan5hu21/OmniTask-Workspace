@@ -99,16 +99,23 @@ export const login = async (request: FastifyRequest, reply: FastifyReply) => {
 export const refreshToken = async (request: FastifyRequest, reply: FastifyReply) => {
   const oldToken = request.cookies?.refreshToken;
 
-  // Throw 401 instead of a Zod 400 error so the frontend interceptor handles it correctly
-  if (!oldToken) {
-    throw new AppError('Refresh token missing or expired. Please log in again.', 401);
+  try {
+    // Throw 401 instead of a Zod 400 error so the frontend interceptor handles it correctly
+    if (!oldToken) {
+      throw new AppError('Refresh token missing or expired. Please log in again.', 401);
+    }
+
+    const { accessToken, refreshToken: newToken } = await AuthService.refreshAccessToken(oldToken, request.server.jwt);
+
+    reply.setCookie('refreshToken', newToken, COOKIE_OPTIONS);
+
+    return sendSuccess(reply, { accessToken }, 'FETCH', 'Token refreshed successfully');
+  } catch (error) {
+    // ALWAYS clear the cookie if the refresh fails with 401/403
+    // This stops the infinite loop on the frontend
+    reply.clearCookie('refreshToken', COOKIE_OPTIONS);
+    throw error;
   }
-
-  const { accessToken, refreshToken: newToken } = await AuthService.refreshAccessToken(oldToken, request.server.jwt);
-
-  reply.setCookie('refreshToken', newToken, COOKIE_OPTIONS);
-
-  return sendSuccess(reply, { accessToken }, 'FETCH', 'Token refreshed successfully');
 }
 
 // Get current user profile

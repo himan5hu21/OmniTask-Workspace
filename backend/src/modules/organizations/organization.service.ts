@@ -61,9 +61,12 @@ export class OrganizationService {
 
     return {
       organizations: userOrgs.map((member: any) => ({
-        id: member.organization.id, name: member.organization.name, role: member.role,
+        id: member.organization.id,
+        name: member.organization.name,
+        currentUserRole: member.role,
         is_owner: member.organization.owner_id === userId,
-        created_at: member.organization.created_at, joined_at: member.joined_at
+        created_at: member.organization.created_at,
+        joined_at: member.joined_at
       })),
       pagination: meta
     };
@@ -97,7 +100,19 @@ export class OrganizationService {
       orderBy: [{ role: 'asc' }, { joined_at: 'asc' }]
     });
 
-    return { members: data, pagination: meta, currentUserRole: membership.role, permissions: this.buildOrgPermissions(membership.role as any) };
+    return { 
+      members: data.map((m: any) => ({
+        id: m.id,
+        user_id: m.user_id,
+        role: m.role,
+        joined_at: m.joined_at,
+        name: m.user.name,
+        email: m.user.email
+      })), 
+      pagination: meta, 
+      currentUserRole: membership.role, 
+      permissions: this.buildOrgPermissions(membership.role as any) 
+    };
   }
 
   // 4. Add member to organization
@@ -120,7 +135,13 @@ export class OrganizationService {
       const member = await orgMemberRepo.create({ organization_id: org_id, user_id: userToAdd.id, role: role }, {}, tx);
       const defaultChannel = await channelRepo.findOne({ org_id, isDefault: true }, {}, tx);
       if (defaultChannel) {
-        await channelMemberRepo.create({ channel_id: defaultChannel.id, user_id: userToAdd.id, role: 'MEMBER' }, {}, tx);
+        // Map OrgRole to ChannelRole
+        const channelRole = role === 'ADMIN' ? 'MANAGER' : (role === 'GUEST' ? 'VIEWER' : 'CONTRIBUTOR');
+        await channelMemberRepo.create({ 
+          channel_id: defaultChannel.id, 
+          user_id: userToAdd.id, 
+          role: channelRole 
+        }, {}, tx);
       }
       return member;
     });

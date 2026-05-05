@@ -14,6 +14,8 @@ import ChatInputBox from "@/components/ChatInputBox";
 import { Button } from "@/components/ui/button";
 import { FileText, ImageIcon } from "lucide-react";
 import Image from "next/image";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { AbilityProvider } from "@/components/providers/AbilityProvider";
 
 const COLLAPSED_MAX_HEIGHT = 320;
 const LONG_MESSAGE_TEXT_LENGTH = 420;
@@ -196,6 +198,8 @@ export default function ChannelDetailPage() {
     if (!user?.id || !channelId) return;
 
     const socket = joinChannelRoom(channelId, user.id);
+    if (!socket) return;
+
     const handleMessageCreated = (message: Message) => {
       setSocketMessages((prev) => {
         if (prev.some((item) => item.id === message.id)) {
@@ -332,77 +336,82 @@ export default function ChannelDetailPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
-      {activeTab === "chat" ? (
+    <AbilityProvider orgRole={channel?.currentUserOrgRole} channelRole={channel?.currentUserChannelRole}>
+      <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
+        {activeTab === "chat" ? (
         <>
-          <section className="flex min-h-0 flex-1 flex-col">
-            <div
-              ref={scrollContainerRef}
+          <section className="flex h-full min-h-0 flex-1 flex-col">
+            <ScrollArea 
+              viewportRef={scrollContainerRef}
               onScroll={handleScroll}
-              onLoadCapture={handleMessageMediaLoad}
-              className="flex-1 overflow-y-auto px-6 py-5 lg:px-8"
+              className="h-full flex-1"
             >
-              {allMessages.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 p-10 text-center">
-                  <MessageSquareText className="mb-4 h-12 w-12 text-primary/60" />
-                  <h2 className="text-lg font-semibold text-foreground">No conversation yet</h2>
-                  <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                    Start the channel with a quick update, a blocker, or the next action item.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {isFetchingNextPage ? (
-                    <div className="flex items-center justify-center py-2 text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    </div>
-                  ) : null}
-
-                  {allMessages.map((message) => {
-                    const isOwnMessage = message.user_id === user?.id;
-
-                    return (
-                      <div
-                        key={message.id}
-                        className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : ""}`}
-                      >
-                        <Avatar className="h-9 w-9 shrink-0 border border-border/60">
-                          <AvatarFallback className={isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}>
-                            {(message.user_name || "User").charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div
-                          className={`min-w-0 max-w-[85%] rounded-2xl px-5 py-3.5 shadow-sm transition-all ${
-                            isOwnMessage
-                              ? "bg-primary text-primary-foreground shadow-primary/20"
-                              : "border border-border bg-muted/30 text-foreground"
-                          }`}
-                        >
-                          <div className={`mb-1.5 flex items-center gap-2 ${isOwnMessage ? "justify-end" : ""}`}>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                              {isOwnMessage ? "You" : message.user_name || "Unknown"}
-                            </span>
-                            <span className={`text-[10px] ${isOwnMessage ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
-                              {new Date(message.created_at).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                          
-                          <MessageContent 
-                            content={message.content} 
-                            isOwnMessage={isOwnMessage} 
-                            attachments={message.attachments}
-                          />
-                        </div>
+              <div 
+                onLoadCapture={handleMessageMediaLoad}
+                className="flex min-h-full flex-col justify-end px-6 py-5 lg:px-8"
+              >
+                {allMessages.length === 0 ? (
+                  <div className="my-auto flex flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 p-10 text-center">
+                    <MessageSquareText className="mb-4 h-12 w-12 text-primary/60" />
+                    <h2 className="text-lg font-semibold text-foreground">No conversation yet</h2>
+                    <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                      Start the channel with a quick update, a blocker, or the next action item.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {isFetchingNextPage ? (
+                      <div className="flex items-center justify-center py-2 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       </div>
-                    );
-                  })}
-                  <div ref={messagesEndRef} />
-                </div>
-              )}
-            </div>
+                    ) : null}
+
+                    {allMessages.map((message) => {
+                      const isOwnMessage = message.user_id === user?.id;
+
+                      return (
+                        <div
+                          key={message.id}
+                          className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : ""}`}
+                        >
+                          <Avatar className="h-9 w-9 shrink-0 border border-border/60">
+                            <AvatarFallback className={isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}>
+                              {(message.user_name || "User").charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div
+                            className={`min-w-0 max-w-[85%] rounded-2xl px-5 py-3.5 shadow-sm transition-all ${
+                              isOwnMessage
+                                ? "bg-primary text-primary-foreground shadow-primary/20"
+                                : "border border-border bg-muted/30 text-foreground"
+                            }`}
+                          >
+                            <div className={`mb-1.5 flex items-center gap-2 ${isOwnMessage ? "justify-end" : ""}`}>
+                              <span className={`text-[10px] font-bold uppercase tracking-wider ${isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                                {isOwnMessage ? "You" : message.user_name || "Unknown"}
+                              </span>
+                              <span className={`text-[10px] ${isOwnMessage ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+                                {new Date(message.created_at).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            
+                            <MessageContent 
+                              content={message.content} 
+                              isOwnMessage={isOwnMessage} 
+                              attachments={message.attachments}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
 
             <div className="border-t border-border bg-background/85 px-6 py-4 backdrop-blur-md lg:px-8">
               {/* Isolated Input Component used here */}
@@ -440,6 +449,7 @@ export default function ChannelDetailPage() {
           </div>
         </section>
       )}
-    </div>
+      </div>
+    </AbilityProvider>
   );
 }

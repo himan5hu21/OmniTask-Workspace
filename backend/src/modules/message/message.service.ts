@@ -103,9 +103,11 @@ export class MessageService {
     const messageData = {
       id: fullMessage.id,
       content: fullMessage.text,
+      channel_id: fullMessage.channel_id,
       user_id: fullMessage.sender_id,
       user_name: fullMessage.sender.name,
       created_at: fullMessage.created_at,
+      updated_at: fullMessage.updated_at,
       attachments: fullMessage.attachments.map((att: any) => ({
         ...att,
         file_url: StorageService.getFileUrl(att.file_url)

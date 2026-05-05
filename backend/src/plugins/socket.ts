@@ -85,9 +85,10 @@ const socketPlugin: FastifyPluginAsync = async (fastify, options) => {
       // Store user info in socket
       socket.data.user = payload;
       next();
-    } catch (err) {
+    } catch (err: any) {
       fastify.log.error(err, '[Socket Auth Error]');
-      next(new Error('Authentication error'));
+      // Pass the specific error message to the client for debugging
+      next(new Error(err.message || 'Authentication error'));
     }
   });
 

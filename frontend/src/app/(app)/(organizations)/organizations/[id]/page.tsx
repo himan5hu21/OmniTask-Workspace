@@ -77,9 +77,10 @@ import {
   useOrgChannels,
 } from "@/api/channels";
 import { handleApiError } from "@/api/api-errors";
+import { ORG_ROLES, type OrgRole } from "@/types/roles";
 
-function OrganizationRoleBadge({ role }: { role: "OWNER" | "ADMIN" | "MEMBER" }) {
-  if (role === "OWNER") {
+function OrganizationRoleBadge({ role }: { role: OrgRole }) {
+  if (role === ORG_ROLES.OWNER) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 border border-amber-500/20">
         <Crown className="h-3 w-3" />
@@ -88,11 +89,20 @@ function OrganizationRoleBadge({ role }: { role: "OWNER" | "ADMIN" | "MEMBER" })
     );
   }
 
-  if (role === "ADMIN") {
+  if (role === ORG_ROLES.ADMIN) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary border border-primary/20">
         <ShieldCheck className="h-3 w-3" />
         Admin
+      </span>
+    );
+  }
+
+  if (role === ORG_ROLES.GUEST) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 border border-blue-500/20">
+        <UserCircle className="h-3 w-3 opacity-70" />
+        Guest
       </span>
     );
   }
@@ -118,7 +128,7 @@ export default function OrganizationDetailPage() {
   const [memberToRemove, setMemberToRemove] = useState<{ id: string; name: string } | null>(null);
 
   const [memberSearch, setMemberSearch] = useState("");
-  const [memberRoleFilter, setMemberRoleFilter] = useState<"ALL" | "OWNER" | "ADMIN" | "MEMBER">("ALL");
+  const [memberRoleFilter, setMemberRoleFilter] = useState<"ALL" | OrgRole>("ALL");
   const [memberPage, setMemberPage] = useState(1);
 
   const [channelSearch, setChannelSearch] = useState("");
@@ -126,7 +136,7 @@ export default function OrganizationDetailPage() {
   const [channelPage, setChannelPage] = useState(1);
 
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
+  const [inviteRole, setInviteRole] = useState<OrgRole>(ORG_ROLES.MEMBER);
   const [inviteEmailError, setInviteEmailError] = useState("");
 
   const [channelName, setChannelName] = useState("");
@@ -215,7 +225,7 @@ export default function OrganizationDetailPage() {
     }, {
       onSuccess: () => {
         setInviteEmail("");
-        setInviteRole("MEMBER");
+        setInviteRole(ORG_ROLES.MEMBER);
         setInviteEmailError("");
         setIsInviteDialogOpen(false);
         toast.success("Member invited successfully");
@@ -286,7 +296,7 @@ export default function OrganizationDetailPage() {
             {organization.name}
           </h1>
           <div className="flex items-center gap-3">
-            <OrganizationRoleBadge role={currentUserRole ?? "MEMBER"} />
+            <OrganizationRoleBadge role={(currentUserRole as OrgRole) ?? ORG_ROLES.MEMBER} />
             <span className="text-xs font-medium text-muted-foreground">
               {organization.stats?.memberCount ?? 0} members · {organization.stats?.channelCount ?? 0} channels
             </span>
@@ -364,7 +374,6 @@ export default function OrganizationDetailPage() {
                               setChannelNameError("");
                             }}
                             placeholder="e.g. general"
-                            className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
                             autoFocus
                           />
                           {channelNameError ? <p className="text-xs text-destructive">{channelNameError}</p> : null}
@@ -428,12 +437,12 @@ export default function OrganizationDetailPage() {
                       setMemberPage(1);
                     }}
                     placeholder="Search..."
-                    className="h-11 px-4 text-base rounded-xl sm:w-48 bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
+                    className="sm:w-48"
                   />
                   <Select
                     value={memberRoleFilter}
                     onValueChange={(value) => {
-                      setMemberRoleFilter(value as "ALL" | "OWNER" | "ADMIN" | "MEMBER");
+                      setMemberRoleFilter(value as "ALL" | OrgRole);
                       setMemberPage(1);
                     }}
                   >
@@ -442,9 +451,10 @@ export default function OrganizationDetailPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All Roles</SelectItem>
-                      <SelectItem value="OWNER">Owners</SelectItem>
-                      <SelectItem value="ADMIN">Admins</SelectItem>
-                      <SelectItem value="MEMBER">Members</SelectItem>
+                      <SelectItem value={ORG_ROLES.OWNER}>Owners</SelectItem>
+                      <SelectItem value={ORG_ROLES.ADMIN}>Admins</SelectItem>
+                      <SelectItem value={ORG_ROLES.MEMBER}>Members</SelectItem>
+                      <SelectItem value={ORG_ROLES.GUEST}>Guests</SelectItem>
                     </SelectContent>
                   </Select>
                   {canInviteMembers && (
@@ -482,20 +492,20 @@ export default function OrganizationDetailPage() {
                               setInviteEmailError("");
                             }}
                             placeholder="name@company.com"
-                            className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
                             autoFocus
                           />
                           {inviteEmailError ? <p className="text-xs text-destructive">{inviteEmailError}</p> : null}
                         </div>
                         <div className="space-y-2">
                           <Label className="text-foreground font-semibold text-sm">Role</Label>
-                          <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as "ADMIN" | "MEMBER")}>
+                          <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as OrgRole)}>
                             <SelectTrigger className="h-11 px-4 text-base rounded-xl bg-background border-input shadow-sm hover:border-ring/50 focus:ring-4 focus:ring-ring/15 transition-all">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="MEMBER">Member</SelectItem>
-                              <SelectItem value="ADMIN">Admin</SelectItem>
+                              <SelectItem value={ORG_ROLES.MEMBER}>Member</SelectItem>
+                              <SelectItem value={ORG_ROLES.ADMIN}>Admin</SelectItem>
+                              <SelectItem value={ORG_ROLES.GUEST}>Guest</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -530,12 +540,12 @@ export default function OrganizationDetailPage() {
                       <div className="flex min-w-0 items-center gap-3">
                         <Avatar className="h-9 w-9 border border-border">
                           <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary uppercase">
-                            {member.name.charAt(0)}
+                            {member.name?.charAt(0) || "U"}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold">{member.name}</p>
+                            <p className="truncate text-sm font-semibold">{member.name || "Unnamed Member"}</p>
                             {member.user_id === user?.id && (
                               <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">You</span>
                             )}
@@ -545,10 +555,10 @@ export default function OrganizationDetailPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <OrganizationRoleBadge role={member.role} />
-                        {canChangeRoles && member.role !== "OWNER" && (
+                        {canChangeRoles && member.role !== ORG_ROLES.OWNER && (
                           <Select
                             value={member.role}
-                            onValueChange={(value: "ADMIN" | "MEMBER") =>
+                            onValueChange={(value: OrgRole) =>
                               updateRoleMutation.mutate({
                                 orgId,
                                 userId: member.user_id,
@@ -567,8 +577,9 @@ export default function OrganizationDetailPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="ADMIN">Admin</SelectItem>
-                              <SelectItem value="MEMBER">Member</SelectItem>
+                              <SelectItem value={ORG_ROLES.ADMIN}>Admin</SelectItem>
+                              <SelectItem value={ORG_ROLES.MEMBER}>Member</SelectItem>
+                              <SelectItem value={ORG_ROLES.GUEST}>Guest</SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -577,7 +588,7 @@ export default function OrganizationDetailPage() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                            onClick={() => setMemberToRemove({ id: member.user_id, name: member.name })}
+                            onClick={() => setMemberToRemove({ id: member.user_id, name: member.name || "Unnamed Member" })}
                           >
                             <UserMinus className="h-4 w-4" />
                           </Button>
@@ -635,7 +646,7 @@ export default function OrganizationDetailPage() {
                       setChannelPage(1);
                     }}
                     placeholder="Search..."
-                    className="h-11 px-4 text-base rounded-xl sm:w-48 bg-background border-input shadow-sm hover:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/15 transition-all"
+                    className="sm:w-48"
                   />
                   <Select
                     value={channelMembershipFilter}
@@ -745,7 +756,10 @@ export default function OrganizationDetailPage() {
 
       {isEditDialogOpen ? <EditWorkspaceDialog orgId={orgId} onClose={() => setIsEditDialogOpen(false)} /> : null}
 
-      <AlertDialog open={!!memberToRemove} onOpenChange={() => setMemberToRemove(null)}>
+      <AlertDialog 
+        open={!!memberToRemove} 
+        onOpenChange={(open) => !open && setMemberToRemove(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove member?</AlertDialogTitle>

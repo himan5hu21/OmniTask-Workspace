@@ -139,8 +139,22 @@ export class ChannelService {
     });
 
     return {
-      members: data, pagination: meta, currentUserOrgRole: orgMembership?.role ?? null, currentUserChannelRole: channelMembership?.role ?? null,
-      permissions: this.buildChannelPermissions({ orgRole: orgMembership?.role, channelRole: channelMembership?.role, isDefault: channel.isDefault })
+      members: data.map((m: any) => ({
+        id: m.id,
+        user_id: m.user_id,
+        role: m.role,
+        joined_at: m.joined_at,
+        name: m.user.name,
+        email: m.user.email
+      })),
+      pagination: meta,
+      currentUserOrgRole: orgMembership?.role ?? null,
+      currentUserChannelRole: channelMembership?.role ?? null,
+      permissions: this.buildChannelPermissions({ 
+        orgRole: orgMembership?.role, 
+        channelRole: channelMembership?.role, 
+        isDefault: channel.isDefault 
+      })
     };
   }
 

@@ -72,6 +72,7 @@ export const authService = {
 // --- HOOKS ---
 
 export const useAuthProfile = (options?: { enabled?: boolean }) => {
+  const currentUser = useAuthStore((state) => state.user);
   const setSession = useAuthStore((state) => state.setSession);
   const clearSession = useAuthStore((state) => state.clearSession);
 
@@ -84,9 +85,14 @@ export const useAuthProfile = (options?: { enabled?: boolean }) => {
 
   useEffect(() => {
     if (query.data?.success) {
-      setSession(query.data.data);
+      // Only sync with the store if the data has actually changed
+      // This prevents redundant updates when multiple components use this hook
+      const isDifferent = JSON.stringify(query.data.data) !== JSON.stringify(currentUser);
+      if (isDifferent) {
+        setSession(query.data.data);
+      }
     }
-  }, [query.data, setSession]);
+  }, [query.data, setSession, currentUser]);
 
   useEffect(() => {
     if (query.error && typeof query.error === 'object' && 'response' in query.error) {
@@ -109,6 +115,7 @@ export const useLoginMutation = () => {
   const setUser = useAuthStore((state) => state.setUser);
 
   return useMutation({
+    mutationKey: ["login"],
     mutationFn: authService.login,
     onSuccess: async (data) => {
       setToken(data.data.accessToken);
@@ -134,6 +141,7 @@ export const useRegisterMutation = () => {
   const setUser = useAuthStore((state) => state.setUser);
 
   return useMutation({
+    mutationKey: ["register"],
     mutationFn: authService.register,
     onSuccess: async (data) => {
       setToken(data.data.accessToken);
@@ -158,6 +166,7 @@ export const useLogoutMutation = (options?: { onSuccess?: () => void }) => {
   const clearSession = useAuthStore((state) => state.clearSession);
 
   return useMutation({
+    mutationKey: ["logout"],
     mutationFn: authService.logout,
     onSettled: async () => {
       deleteToken();

@@ -104,13 +104,13 @@ export default function RegisterPage() {
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest" htmlFor="name">Full Name</Label>
                     <div className="relative flex items-center">
                       <User className="absolute left-3 h-5 w-5 text-muted-foreground pointer-events-none" />
-                      <Input 
-                        id="name" 
-                        placeholder="John Doe" 
-                        autoComplete="name"
-                        className="w-full h-11 bg-background border border-border rounded-lg pl-10 pr-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20 transition-all"
-                        {...register("name")}
-                      />
+                        <Input 
+                          id="name" 
+                          placeholder="John Doe" 
+                          autoComplete="name"
+                          className="pl-10"
+                          {...register("name")}
+                        />
                     </div>
                     <FormFieldError errors={errors} name="name" />
                   </div>
@@ -120,14 +120,14 @@ export default function RegisterPage() {
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest" htmlFor="email">Email Address</Label>
                     <div className="relative flex items-center">
                       <Mail className="absolute left-3 h-5 w-5 text-muted-foreground pointer-events-none" />
-                      <Input 
-                        id="email" 
-                        type="email" 
-                        placeholder="john@example.com" 
-                        autoComplete="email"
-                        className="w-full h-11 bg-background border border-border rounded-lg pl-10 pr-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/20 transition-all"
-                        {...register("email")}
-                      />
+                        <Input 
+                          id="email" 
+                          type="email" 
+                          placeholder="john@example.com" 
+                          autoComplete="email"
+                          className="pl-10"
+                          {...register("email")}
+                        />
                     </div>
                     <FormFieldError errors={errors} name="email" />
                   </div>
@@ -137,14 +137,14 @@ export default function RegisterPage() {
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest" htmlFor="password">Password</Label>
                     <div className="relative flex items-center">
                       <Lock className="absolute left-3 h-5 w-5 text-muted-foreground pointer-events-none" />
-                      <Input 
-                        id="password" 
-                        type={showPassword ? "text" : "password"} 
-                        placeholder="••••••••" 
-                        autoComplete="new-password"
-                        className="w-full h-11 bg-background border border-border rounded-lg pl-10 pr-12 text-base text-foreground focus-visible:ring-primary/20 transition-all"
-                        {...register("password")}
-                      />
+                        <Input 
+                          id="password" 
+                          type={showPassword ? "text" : "password"} 
+                          placeholder="••••••••" 
+                          autoComplete="new-password"
+                          className="pl-10 pr-12"
+                          {...register("password")}
+                        />
                       <button 
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center" 
@@ -161,14 +161,14 @@ export default function RegisterPage() {
                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest" htmlFor="confirmPassword">Confirm Password</Label>
                     <div className="relative flex items-center">
                       <Lock className="absolute left-3 h-5 w-5 text-muted-foreground pointer-events-none" />
-                      <Input 
-                        id="confirmPassword" 
-                        type={showConfirmPassword ? "text" : "password"} 
-                        placeholder="••••••••" 
-                        autoComplete="new-password"
-                        className="w-full h-11 bg-background border border-border rounded-lg pl-10 pr-12 text-base text-foreground focus-visible:ring-primary/20 transition-all"
-                        {...register("confirmPassword")}
-                      />
+                        <Input 
+                          id="confirmPassword" 
+                          type={showConfirmPassword ? "text" : "password"} 
+                          placeholder="••••••••" 
+                          autoComplete="new-password"
+                          className="pl-10 pr-12"
+                          {...register("confirmPassword")}
+                        />
                       <button 
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                         className="absolute right-3 text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center" 

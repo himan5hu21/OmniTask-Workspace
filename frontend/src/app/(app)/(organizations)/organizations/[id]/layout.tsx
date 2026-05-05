@@ -6,8 +6,11 @@ import { useAuthProfile } from "@/api/auth";
 import { useOrganizations } from "@/api/organizations";
 import { OrganizationHeader } from "@/components/layout/app-shell-headers";
 import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { useIsMounted } from "@/hooks/useIsMounted";
+import { AbilityProvider } from "@/components/providers/AbilityProvider";
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
+  const isMounted = useIsMounted();
   const { isLoading: isLoadingUser } = useAuthProfile();
   const pathname = usePathname();
   const router = useRouter();
@@ -16,7 +19,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   const { organizations = [] } = useOrganizations({}, { enabled: !isChannelRoute });
   const organization = organizations.find((org) => org.id === orgId);
 
-  if (isLoadingUser) {
+  if (!isMounted || isLoadingUser) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <OrbitalLoader size="xl" />
@@ -29,7 +32,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <>
+    <AbilityProvider orgRole={organization?.currentUserRole}>
       <OrganizationHeader
         organizationName={organization?.name}
         onSettingsClick={() => router.push(`/organizations/${orgId}`)}
@@ -43,6 +46,6 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           {children}
         </Suspense>
       </div>
-    </>
+    </AbilityProvider>
   );
 }

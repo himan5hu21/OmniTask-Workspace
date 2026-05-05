@@ -26,7 +26,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   
   // Fetch organization data if in organization context
   const { channels, isLoading: isLoadingChannels } = useOrgChannels(orgId || "", { page: 1, limit: 50 });
-  const { organization } = useOrganization(orgId || '', {
+  const { organization, isLoading: isLoadingOrg } = useOrganization(orgId || '', {
+    enabled: isOrganizationContext,
+  });
+
+  const { isLoading: isLoadingOrgs } = useOrganizations({}, {
     enabled: isOrganizationContext,
   });
 
@@ -44,7 +48,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           organizationId={orgId}
           organizationName={sidebarOrganization?.name || organization?.name}
           channels={channels}
+          isLoadingOrg={isLoadingOrg || isLoadingOrgs}
           isLoadingChannels={isLoadingChannels}
+          isLoadingDMs={false} // Currently dummy data, set to false
           canAddChannels={canAddChannels}
           onAddChannel={() => orgId && router.push(`/organizations/${orgId}`)}
           className="border-r-0!"
