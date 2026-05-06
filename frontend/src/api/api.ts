@@ -76,20 +76,10 @@ api.interceptors.response.use(
 
     // 2. ONLY trigger refresh if it's a 401, hasn't been retried, AND is NOT an auth route
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
-      // Immediately lock this request from ever triggering the 401 logic again
-      originalRequest._retry = true;
-
-      // If the refresh token call itself fails with 401, it means the session is completely dead.
-      // Force logout to prevent an infinite loop.
-      if (originalRequest.url?.includes('/auth/refresh')) {
-        deleteToken();
-        if (typeof window !== 'undefined') window.location.href = '/login';
-        return Promise.reject(error);
-      }
-
-      // If another request is already refreshing the token, put this request in a queue
+      
+      // If a refresh is already happening, put this request in the waiting queue
       if (isRefreshing) {
-        return new Promise(function (resolve, reject) {
+        return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
           .then((token) => {
@@ -101,15 +91,14 @@ api.interceptors.response.use(
           });
       }
 
+      originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        // We use a clean axios instance (or base axios) here to avoid interceptor loops
-        const res = await axios.post(
-          `${FASTIFY_API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true } // Crucial: sends the HttpOnly refresh cookie!
-        );
+        // Call refresh API (bypassing interceptor to avoid loops)
+        const res = await axios.post(`${FASTIFY_API_URL}/auth/refresh`, {}, {
+          withCredentials: true 
+        });
 
         const newToken = res.data.data.accessToken;
         
@@ -118,39 +107,32 @@ api.interceptors.response.use(
         api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
 
-        // Notify socket of the new token if we are on the client
+        // IMPORTANT FOR SOCKETS: Dispatch an event telling the socket to reconnect
         if (typeof window !== 'undefined') {
-          import('@/socket/socket').then(({ getSocket }) => {
-            getSocket(); // This will trigger the internal "Token updated, reconnected" logic
-          });
+          window.dispatchEvent(new Event('token_refreshed'));
         }
 
         // Release the queued requests
         processQueue(null, newToken);
 
-        // Retry the original failed request
+        // Retry the original request that triggered the refresh
         return api(originalRequest);
+
       } catch (refreshError: unknown) {
-        // Always release the queued requests so they don't hang
+        // Reject all queued requests
         processQueue(refreshError, null);
 
-        // STRICT CHECK: ONLY log the user out if the refresh token is genuinely invalid (401/403).
-        // If it's a 500 Server Error or network timeout, we leave their session intact 
-        // so they aren't forced to re-login just because of a temporary backend glitch!
         let status: number | undefined;
-        if (refreshError && typeof refreshError === 'object' && 'response' in refreshError) {
-          status = (refreshError as { response?: { status?: number } }).response?.status;
+        if (axios.isAxiosError(refreshError)) {
+          status = refreshError.response?.status;
         }
 
         if (status === 401 || status === 403) {
-          // Total Wipeout: Clear frontend tokens and redirect
           deleteToken();
-          
           if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
             window.location.href = '/login';
           }
         }
-        
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -111,3 +111,20 @@ export const disconnectSocket = () => {
   }
 };
 
+// Global listener for token refresh events from Axios interceptor
+if (typeof window !== 'undefined') {
+  window.addEventListener('token_refreshed', () => {
+    console.log('[Socket] Token refreshed event received. Syncing socket...');
+    if (socket) {
+      const token = getToken();
+      if (token) {
+        socket.auth = { token: `Bearer ${token}` };
+        socket.disconnect().connect();
+      }
+    } else {
+      // If socket wasn't initialized yet, try to initialize it now
+      getSocket();
+    }
+  });
+}
+

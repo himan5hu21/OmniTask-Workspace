@@ -2,8 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Bell,
   CheckSquare,
+  CircleHelp,
   Hash,
   MessageSquareText,
   MoreHorizontal,
@@ -48,9 +48,6 @@ export function DashboardHeader() {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
-          <Bell className="h-5 w-5" />
-        </Button>
       </div>
     </header>
   );
@@ -64,35 +61,39 @@ export function OrganizationHeader({
   onSettingsClick?: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-md">
-      <div className="flex items-center gap-2 md:hidden">
-        <SidebarTrigger className="-ml-2 text-muted-foreground hover:text-foreground" />
-        <span className="text-lg font-bold">OmniTask</span>
-      </div>
-
-      <div className="hidden min-w-0 flex-1 items-center gap-4 md:flex">
-        <div>
-          <p className="text-sm font-semibold text-foreground">{organizationName || "Organization"}</p>
-          <p className="text-xs text-muted-foreground">Workspace settings, members, and channel management</p>
+    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-md">
+      <div className="flex items-center gap-4">
+        {/* Mobile Sidebar Trigger */}
+        <div className="flex items-center gap-2 md:hidden">
+          <SidebarTrigger className="-ml-2 text-muted-foreground hover:text-foreground" />
+          <span className="text-lg font-bold">OmniTask</span>
         </div>
-        <div className="relative ml-auto w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={`Search ${organizationName || "workspace"}...`}
-            className="h-11 rounded-full border-transparent bg-muted/50 pl-10 shadow-none transition-all hover:border-border focus-visible:ring-2 focus-visible:ring-primary/20"
-          />
+        
+        {/* Org Name on Desktop */}
+        <div className="hidden md:flex items-center gap-2">
+          <h2 className="text-xl font-bold tracking-tight text-foreground">
+            {organizationName || "OmniTask"}
+          </h2>
         </div>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        {onSettingsClick ? (
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground" onClick={onSettingsClick}>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-all">
+          <Search className="h-5 w-5" />
+        </Button>
+        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-all">
+          <CircleHelp className="h-5 w-5" />
+        </Button>
+        {onSettingsClick && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            onClick={onSettingsClick}
+          >
             <Settings className="h-5 w-5" />
           </Button>
-        ) : null}
-        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
-          <Bell className="h-5 w-5" />
-        </Button>
+        )}
       </div>
     </header>
   );
@@ -168,9 +169,6 @@ export function ChannelHeader({
         </Button>
         <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
           <Search className="h-5 w-5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
-          <Bell className="h-5 w-5" />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -8,12 +8,12 @@ export const ORG_PERMISSIONS = {
   OWNER: [
     'org.read', 'org.update', 'org.delete', 'org.transfer_ownership', 
     'member.invite', 'member.remove', 'member.role.change', 
-    'channel.create', 'channel.delete', 'channel.update', 'channel.view', 
+    'channel.create', 'channel.delete', 'channel.update', 'channel.view', 'channel.manage',
     'label.manage', 'settings.manage'
   ],
   ADMIN: [
     'org.read', 'org.update', 'member.invite', 'member.remove', 
-    'channel.create', 'channel.delete', 'channel.update', 'channel.view', 
+    'channel.create', 'channel.delete', 'channel.update', 'channel.view', 'channel.manage',
     'label.manage', 'settings.manage', 'org.leave'
   ],
   MEMBER: ['org.read', 'channel.view', 'org.leave'],

@@ -161,11 +161,11 @@ export const channelService = {
 
 // --- HOOKS ---
 
-export const useOrgChannels = (orgId: string, query: ChannelListQuery = {}) => {
+export const useOrgChannels = (orgId: string, query: ChannelListQuery = {}, options?: { enabled?: boolean }) => {
   const queryResult = useQuery({
     queryKey: channelKeys.byOrg(orgId, query),
     queryFn: () => channelService.getOrgChannels(orgId, query),
-    enabled: !!orgId,
+    enabled: (options?.enabled ?? true) && !!orgId,
     staleTime: 1000 * 60,
   });
 
@@ -215,8 +215,8 @@ export const useCreateChannel = () => {
   return useMutation({
     mutationKey: ["createChannel"],
     mutationFn: channelService.create,
-    onSuccess: async (data, variables) => {
-      await queryClient.invalidateQueries({ queryKey: [...channelKeys.all, "org", variables.org_id] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: channelKeys.all });
     },
   });
 };

@@ -83,16 +83,14 @@ export default function RegisterPage() {
         <div className="min-h-screen flex flex-col items-center justify-center p-4 py-8 font-sans antialiased relative">
           {/* Background Decorative Gradients */}
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-            <div className="absolute top-[10%] -left-[5%] w-[400px] h-[400px] bg-primary/10 rounded-full blur-[120px]" />
-            <div className="absolute bottom-[10%] -right-[5%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
+            <div className="absolute top-[10%] left-[-5%] w-[400px] h-[400px] bg-primary/10 rounded-full blur-[120px]" />
+            <div className="absolute bottom-[10%] right-[-5%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
           </div>
 
           <main className="w-full max-w-md">
             <Card className="border-border shadow-2xl relative overflow-hidden bg-white dark:bg-card ring-0 p-6 gap-0">
               <CardHeader className="p-0 flex flex-col items-center mb-6 gap-0">
-                <div className="h-12 w-12 rounded-lg bg-muted border border-border flex items-center justify-center mb-4">
-                  <Logo showText={false} iconClassName="h-6 w-6" href={null} />
-                </div>
+                <Logo showText={false} className="mb-4" href={null} />
                 <h1 className="text-2xl font-bold text-foreground mb-1 tracking-tight">Create your account</h1>
                 <p className="text-sm text-muted-foreground">OmniTask. Engineered for velocity.</p>
               </CardHeader>

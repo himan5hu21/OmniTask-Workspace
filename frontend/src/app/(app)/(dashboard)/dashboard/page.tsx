@@ -296,9 +296,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card> */}
 
-        {/* Widget C: Organization Quick Access */}
+        {/* Widget C: Organization */}
         <Card className="lg:col-span-3 bg-card border-border p-4 shadow-sm">
-          <h2 className="text-base font-bold text-foreground mb-4">Organization Quick Access</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-1">Organization</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
             {organizations.map((org) => (

@@ -18,7 +18,7 @@ export function Logo({
   const content = (
     <div className={cn("flex items-center gap-2.5 group transition-all", className)}>
       <div className={cn(
-        "flex h-11 w-11 items-center justify-center rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_4px_16px_rgba(var(--primary),0.2)] transition-transform group-hover:scale-105",
+        "flex h-11 w-11 items-center justify-center rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_4px_16px_rgba(var(--primary),0.2)]",
         iconClassName
       )}>
         <Zap className="h-6 w-6 fill-current" />

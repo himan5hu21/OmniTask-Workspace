@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell, Search, Settings } from "lucide-react"
+import { Search, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -16,7 +16,7 @@ export function AppHeader({
   mode = 'dashboard',
   organizationName,
   onSettingsClick,
-  showSettings = false 
+  showSettings = false
 }: AppHeaderProps) {
   return (
     <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-md">
@@ -43,9 +43,6 @@ export function AppHeader({
             <Settings className="h-5 w-5" />
           </Button>
         )}
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground rounded-full">
-          <Bell className="h-5 w-5" />
-        </Button>
       </div>
       
     </header>

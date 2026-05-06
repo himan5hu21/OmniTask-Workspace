@@ -187,11 +187,11 @@ export const useOrganization = (orgId: string, options?: { enabled?: boolean }) 
   };
 };
 
-export const useOrganizationMembers = (orgId: string, query: OrganizationMembersQuery = {}) => {
+export const useOrganizationMembers = (orgId: string, query: OrganizationMembersQuery = {}, options?: { enabled?: boolean }) => {
   const queryResult = useQuery({
     queryKey: organizationKeys.members(orgId, query),
     queryFn: () => organizationService.getMembers(orgId, query),
-    enabled: !!orgId,
+    enabled: (options?.enabled ?? true) && !!orgId,
     staleTime: 1000 * 30,
   });
 

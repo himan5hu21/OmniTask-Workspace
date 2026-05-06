@@ -9,6 +9,9 @@ import { useOrganizations, useOrganization } from "@/api/organizations";
 import { useOrgChannels } from "@/api/channels";
 import { OrbitalLoader } from "@/components/ui/orbital-loader";
 import { AbilityProvider } from "@/components/providers/AbilityProvider";
+import OrganizationSettingsModal from "@/components/organizations/organization-settings-modal";
+
+// Layout for the main app area
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -42,7 +45,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AbilityProvider orgRole={userRole}>
-      <SidebarProvider className="h-svh overflow-hidden bg-sidebar">
+      <SidebarProvider 
+        className="h-svh overflow-hidden bg-sidebar"
+        style={{ 
+          "--sidebar-width": isOrganizationContext ? "20rem" : "16rem",
+        } as React.CSSProperties}
+      >
         <AppSidebar 
           mode={isOrganizationContext ? 'organization' : 'dashboard'}
           organizationId={orgId}
@@ -56,7 +64,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           className="border-r-0!"
         />
         <SidebarInset className="m-2 ml-1 flex min-h-0 flex-col overflow-hidden rounded-lg border">
-          <main className="flex flex-col min-h-0 flex-1 overflow-hidden w-full">
+          <main className="flex flex-col min-h-0 flex-1 overflow-hidden">
             <Suspense fallback={
               <div className="flex-1 flex items-center justify-center">
                 <OrbitalLoader size="lg" />
@@ -67,6 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </main>
         </SidebarInset>
       </SidebarProvider>
+      <OrganizationSettingsModal />
     </AbilityProvider>
   );
 }

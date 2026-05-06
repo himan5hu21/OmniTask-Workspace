@@ -9,11 +9,10 @@ import {
   House,
   LayoutGrid,
   LogOut,
-  MessageSquare,
   Plus,
   Settings,
   UserPlus,
-  Zap,
+  Building2,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -45,6 +44,10 @@ import {
 } from "@/components/ui/sidebar"
 import { useIsMounted } from "@/hooks/useIsMounted"
 import { cn } from "@/lib/utils"
+import { useUIStore } from "@/store/ui.store"
+import { InviteMemberDialog } from "@/components/organizations/invite-member-dialog"
+import { CreateChannelDialog } from "@/components/organizations/create-channel-dialog"
+import { Can } from "@/lib/casl"
 
 export interface AppSidebarProps {
   mode?: "dashboard" | "organization"
@@ -73,8 +76,6 @@ export function AppSidebar({
   isLoadingOrg,
   isLoadingChannels,
   isLoadingDMs,
-  canAddChannels,
-  onAddChannel,
   className,
 }: AppSidebarProps) {
   const pathname = usePathname()
@@ -90,7 +91,7 @@ export function AppSidebar({
 
   const userInitials = user?.name ? user.name.substring(0, 2).toUpperCase() : "U"
   const organizationInitial = organizationName?.charAt(0).toUpperCase() || "O"
-  const orgHref = organizationId ? `/organizations/${organizationId}` : "/dashboard"
+
 
   const globalNavItems =
     mode === "organization" && organizationId
@@ -218,6 +219,15 @@ export function AppSidebar({
           <Settings className="mr-2 h-4 w-4" />
           <span>Account Settings</span>
         </DropdownMenuItem>
+        {mode === "organization" && (
+          <DropdownMenuItem 
+            className="cursor-pointer rounded-lg py-2"
+            onClick={() => useUIStore.getState().openOrgSettings()}
+          >
+            <Building2 className="mr-2 h-4 w-4" />
+            <span>Workspace Settings</span>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator className="my-1.5" />
         <DropdownMenuItem
           onClick={() => logoutMutation.mutate()}
@@ -238,15 +248,14 @@ export function AppSidebar({
   if (mode === "organization") {
     return (
       <Sidebar
-        collapsible="none"
-        className={cn("w-79 bg-sidebar", className)}
+        className={cn("bg-sidebar", className)}
       >
         <div className="flex h-full min-h-0 bg-sidebar">
           <div className="flex w-18 flex-col border-r border-sidebar-border/70 bg-sidebar/95">
             <div className="flex h-18 shrink-0 items-center justify-center border-b border-sidebar-border/70 mb-4">
               <Link
                 href="/dashboard"
-                className="transition-transform hover:scale-[1.02]"
+                className="transition-all"
                 aria-label="OmniTask Dashboard"
               >
                 <Logo showText={false} iconClassName="text-white" href={null} />
@@ -283,6 +292,24 @@ export function AppSidebar({
             <div className="flex flex-col items-center gap-1.5 px-2 py-3">
               {utilityNavItems.map((item) => {
                 const Icon = item.icon
+                const isSettings = item.label === "Settings"
+                const openOrgSettings = useUIStore.getState().openOrgSettings
+
+                if (isSettings && mode === "organization") {
+                  return (
+                    <button
+                      key={item.href}
+                      onClick={openOrgSettings}
+                      aria-label={item.label}
+                      className={cn(
+                        "flex h-11 w-11 items-center justify-center rounded-[1rem] border transition-all",
+                        "border-transparent text-muted-foreground hover:border-sidebar-border/50 hover:bg-sidebar-accent/50 hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </button>
+                  )
+                }
 
                 return (
                   <Link
@@ -316,7 +343,7 @@ export function AppSidebar({
               <div className="flex flex-1 flex-col min-h-0">
                 <SidebarHeader className="h-18 shrink-0 border-b border-sidebar-border/70 px-5 flex items-center">
                   <div className="flex items-center gap-3 w-full h-full">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary font-bold text-lg shadow-sm">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary font-bold text-lg">
                       {organizationInitial}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -331,7 +358,7 @@ export function AppSidebar({
                     {isMounted && (
                       <Link
                         href="/dashboard"
-                        className="flex h-8 items-center justify-center rounded-lg border border-sidebar-border/70 bg-sidebar-accent/50 px-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-foreground active:scale-95 shadow-xs"
+                        className="flex py-1 items-center justify-center rounded-lg border border-sidebar-border/70 bg-sidebar-accent/50 px-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-foreground active:scale-95 shadow-xs"
                       >
                         Exit
                       </Link>
@@ -340,15 +367,21 @@ export function AppSidebar({
                 </SidebarHeader>
 
                 <SidebarContent className="px-5 py-3">
-                  <div className="mb-5">
-                    <button
-                      onClick={onAddChannel}
-                      className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-sidebar-border/70 bg-transparent px-4 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      <span>Invite Members</span>
-                    </button>
-                  </div>
+                  <Can I="invite" a="Member">
+                    <div className="mb-5">
+                      <InviteMemberDialog
+                        orgId={organizationId || ""}
+                        trigger={
+                          <button
+                            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-sidebar-border/70 bg-transparent px-4 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                            <span>Invite Members</span>
+                          </button>
+                        }
+                      />
+                    </div>
+                  </Can>
 
                   <SidebarGroup className="p-0">
                     <div className="mb-2 px-2">
@@ -391,16 +424,20 @@ export function AppSidebar({
                               )
                             })}
                           </SidebarMenu>
-                          {canAddChannels && (
-                            <button
-                              type="button"
-                              onClick={onAddChannel}
-                              className="group mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-solid border-sidebar-border/80 bg-sidebar-accent/20 px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all hover:border-primary/50 hover:border-dashed hover:bg-sidebar-accent/40 hover:text-foreground active:scale-[0.97]"
-                            >
-                              <Plus className="h-4 w-4 transition-transform group-hover:rotate-90" />
-                              <span>Create New Channel</span>
-                            </button>
-                          )}
+                          <Can I="create" a="Channel">
+                            <CreateChannelDialog
+                              orgId={organizationId || ""}
+                              trigger={
+                                <button
+                                  type="button"
+                                  className="group mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-solid border-sidebar-border/80 bg-sidebar-accent/20 px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all hover:border-primary/50 hover:border-dashed hover:bg-sidebar-accent/40 hover:text-foreground active:scale-[0.97]"
+                                >
+                                  <Plus className="h-4 w-4 transition-transform group-hover:rotate-90" />
+                                  <span>Create New Channel</span>
+                                </button>
+                              }
+                            />
+                          </Can>
                         </>
                       ) : (
                         <div className="px-2 py-2 text-xs text-muted-foreground">No channels found</div>
