@@ -8,7 +8,6 @@ import {
   Crown,
   Filter,
   Hash,
-  Loader2,
   MessageSquareText,
   PencilLine,
   Plus,
@@ -21,6 +20,7 @@ import {
   UserMinus,
   Users,
 } from "lucide-react";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -267,7 +267,7 @@ export default function OrganizationDetailPage() {
   if (isLoadingOrganization) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <OrbitalLoader size="md" className="text-primary" />
       </div>
     );
   }
@@ -387,7 +387,7 @@ export default function OrganizationDetailPage() {
                             size="sm"
                             disabled={createChannelMutation.isPending || !channelName.trim()}
                           >
-                            {createChannelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+                            {createChannelMutation.isPending ? <OrbitalLoader size="sm" /> : "Create"}
                           </Button>
                         </DialogFooter>
                       </form>
@@ -514,7 +514,7 @@ export default function OrganizationDetailPage() {
                             Cancel
                           </Button>
                           <Button type="submit" size="sm" disabled={addMemberMutation.isPending || !inviteEmail.trim()}>
-                            {addMemberMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Invite"}
+                            {addMemberMutation.isPending ? <OrbitalLoader size="sm" /> : "Send Invite"}
                           </Button>
                         </DialogFooter>
                       </form>
@@ -528,7 +528,7 @@ export default function OrganizationDetailPage() {
             <CardContent className="p-0">
               {isLoadingMembers ? (
                 <div className="flex h-32 items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <OrbitalLoader size="md" className="text-muted-foreground" />
                 </div>
               ) : members.length > 0 ? (
                 <div className="divide-y divide-border/50">
@@ -670,7 +670,7 @@ export default function OrganizationDetailPage() {
             <CardContent className="p-0">
               {isLoadingChannels ? (
                 <div className="flex h-32 items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <OrbitalLoader size="md" className="text-muted-foreground" />
                 </div>
               ) : channels.length > 0 ? (
                 <div className="divide-y divide-border/50">
@@ -789,7 +789,7 @@ export default function OrganizationDetailPage() {
                 })
               }
             >
-              {removeMemberMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Remove"}
+              {removeMemberMutation.isPending ? <OrbitalLoader size="sm" /> : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -819,7 +819,7 @@ export default function OrganizationDetailPage() {
                   }),
               })}
             >
-              {deleteOrgMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete workspace"}
+              {deleteOrgMutation.isPending ? <OrbitalLoader size="sm" /> : "Delete workspace"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

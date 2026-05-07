@@ -5,7 +5,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { Building2, Plus, LogOut, Loader2, MoreVertical, Users, LayoutGrid } from "lucide-react";
+import { Building2, Plus, LogOut, MoreVertical, Users, LayoutGrid } from "lucide-react";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,7 +116,7 @@ export default function DashboardPage() {
                     className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
                   >
                     {logoutMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <OrbitalLoader size="sm" variant="minimal" className="mr-2" />
                     ) : (
                       <LogOut className="mr-2 h-4 w-4" />
                     )}
@@ -174,7 +175,7 @@ export default function DashboardPage() {
                   >
                     {createOrgMutation.isPending ? (
                       <span className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <OrbitalLoader size="sm" />
                         Creating...
                       </span>
                     ) : (

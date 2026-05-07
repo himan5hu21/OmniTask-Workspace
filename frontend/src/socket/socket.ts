@@ -6,6 +6,10 @@ const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000'
 
 let socket: Socket | null = null;
 
+// 🚨 FIX 1: Create a memory bank for active channel rooms
+// This tracks channelId -> userId
+const activeRooms = new Map<string, string>(); 
+
 export const getSocket = () => {
   const token = getToken();
 
@@ -23,47 +27,43 @@ export const getSocket = () => {
 
     socket.on('connect', () => {
       console.log('[Socket] Connected to server:', socket?.id);
+
+      // 🚨 FIX 2: Automatically re-join all active rooms upon connection/reconnection
+      if (activeRooms.size > 0) {
+        console.log(`[Socket] Re-joining ${activeRooms.size} active rooms...`);
+        activeRooms.forEach((userId, channelId) => {
+          socket?.emit('channel:join', { channelId, userId });
+        });
+      }
     });
 
     socket.on('connect_error', async (err) => {
       console.error('[Socket] Connection error:', err.message);
-      
       const errMsg = err.message.toLowerCase();
       
-      // 1. Better matching: catch "auth", "jwt", "token", or "expired"
-      if (
-        errMsg.includes('auth') || 
-        errMsg.includes('jwt') || 
-        errMsg.includes('token') || 
-        errMsg.includes('expired')
-      ) {
-        
-        // 2. STOP THE INFINITE LOOP: Forcefully disconnect the socket so it stops retrying
+      if (['auth', 'jwt', 'token', 'expired'].some(k => errMsg.includes(k))) {
         socket?.disconnect(); 
         
         try {
-          console.log('[Socket] Token expired. Triggering Axios refresh interceptor...');
-          
-          // 3. Make a silent API call to a protected route. 
-          // This will fail with a 401, which automatically triggers your existing 
-          // Axios global interceptor to call /auth/refresh and get a new token!
+          console.log('[Socket] Auth error. Triggering Axios check...');
           const { default: api } = await import('@/api/api');
+          
+          // This triggers the Axios 401 interceptor if the token is truly expired.
+          // The interceptor will fire 'token_refreshed' and handle reconnection automatically!
           await api.get('/auth/profile'); 
           
-          // 4. Once the Axios interceptor finishes successfully, grab the newly saved token
-          const newToken = getToken();
-          
-          if (newToken && socket) {
-            // Update the socket's internal auth object with the new valid token
-            socket.auth = { token: `Bearer ${newToken}` };
-            
-            // Turn the socket back on!
-            socket.connect();
-            console.log('[Socket] Successfully refreshed token and reconnected!');
+          // 🚨 FIX 2: Only reconnect manually if the socket is STILL disconnected.
+          // This happens if api.get('/auth/profile') succeeds WITHOUT needing a refresh 
+          // (meaning the access token was fine, but the socket had a separate hiccup).
+          if (socket && socket.disconnected) {
+            const newToken = getToken();
+            if (newToken) {
+              socket.auth = { token: `Bearer ${newToken}` };
+              socket.connect();
+              console.log('[Socket] Reconnected cleanly without refresh.');
+            }
           }
         } catch {
-          // If the Axios interceptor fails to refresh, it means the user's session is fully dead.
-          // Axios will automatically redirect them to /login, so we just log it here.
           console.error('[Socket] Session completely expired. Socket will remain disconnected.');
         }
       }
@@ -84,6 +84,9 @@ export const getSocket = () => {
 };
 
 export const joinChannelRoom = (channelId: string, userId: string) => {
+  // 🚨 FIX 3: Save the room to memory when joining
+  activeRooms.set(channelId, userId);
+
   const activeSocket = getSocket();
   if (!activeSocket) return null;
   
@@ -99,6 +102,9 @@ export const joinChannelRoom = (channelId: string, userId: string) => {
 };
 
 export const leaveChannelRoom = (channelId: string, userId: string) => {
+  // 🚨 FIX 4: Remove the room from memory when leaving (e.g., component unmounts)
+  activeRooms.delete(channelId);
+
   const activeSocket = getSocket();
   if (!activeSocket) return;
   activeSocket.emit('channel:leave', { channelId, userId });
@@ -108,6 +114,7 @@ export const disconnectSocket = () => {
   if (socket) {
     socket.disconnect();
     socket = null;
+    activeRooms.clear(); // Clear memory on full disconnect
   }
 };
 
@@ -119,10 +126,15 @@ if (typeof window !== 'undefined') {
       const token = getToken();
       if (token) {
         socket.auth = { token: `Bearer ${token}` };
-        socket.disconnect().connect();
+        
+        // 🚨 FIX 3: Safe reconnect based on current state to avoid overlapping connections
+        if (socket.disconnected) {
+          socket.connect();
+        } else {
+          socket.disconnect().connect();
+        }
       }
     } else {
-      // If socket wasn't initialized yet, try to initialize it now
       getSocket();
     }
   });

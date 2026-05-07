@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,7 +107,7 @@ export function CreateChannelDialog({
               size="sm"
               disabled={createChannelMutation.isPending || !channelName.trim()}
             >
-              {createChannelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+              {createChannelMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" color="currentColor" /> : "Create"}
             </Button>
           </DialogFooter>
         </form>

@@ -10,13 +10,14 @@ import {
   Trash2, 
   LayoutDashboard,
   ShieldAlert,
-  Loader2,
   Plus,
   ChevronDown,
   Hash,
   Pencil,
-  AlertTriangle
+  AlertTriangle,
+  User
 } from 'lucide-react';
+import { OrbitalLoader } from '@/components/ui/orbital-loader';
 import { useUIStore } from '@/store/ui.store';
 import { 
   useOrganization, 
@@ -66,6 +67,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   useOrgChannels,
   useDeleteChannel,
@@ -78,6 +80,7 @@ import { useIsMounted } from '@/hooks/useIsMounted';
 import { AbilityContext } from '@/lib/casl';
 import { InviteMemberDialog } from '@/components/organizations/invite-member-dialog';
 import { CreateChannelDialog } from '@/components/organizations/create-channel-dialog';
+import { DeleteOrganizationDialog } from '@/components/organizations/delete-organization-dialog';
 
 type Tab = 'overview' | 'members' | 'invites' | 'roles' | 'channels';
 
@@ -101,6 +104,7 @@ export default function OrganizationSettingsModal() {
   const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
   const [isUpdateChannelOpen, setIsUpdateChannelOpen] = useState(false);
   const [editChannelName, setEditChannelName] = useState("");
+  const [isDeleteOrgOpen, setIsDeleteOrgOpen] = useState(false);
 
   const { organization } = useOrganization(orgId, {
     enabled: isOrgSettingsOpen && !!orgId
@@ -138,7 +142,7 @@ export default function OrganizationSettingsModal() {
 
   const canInviteMembers = ability.can('invite', 'Member');
   const canDeleteOrganization = ability.can('delete', 'Organization');
-  const canChangeRoles = ability.can('manage', 'Member') || ability.can('update', 'Member');
+  const canManageRoles = ability.can('change', 'Member');
   const canManageChannels = ability.can('manage', 'Channel');
   const canCreateChannels = ability.can('create', 'Channel');
   const canUpdateChannels = ability.can('update', 'Channel');
@@ -192,16 +196,7 @@ export default function OrganizationSettingsModal() {
   };
 
   const handleDeleteWorkspace = () => {
-    if (confirm("THIS IS PERMANENT. Are you absolutely sure you want to delete this workspace and ALL its data?")) {
-      deleteOrgMutation.mutate(orgId, {
-        onSuccess: () => {
-          toast.success("Workspace deleted");
-          closeOrgSettings();
-          router.push("/dashboard");
-        },
-        onError: () => toast.error("Failed to delete workspace")
-      });
-    }
+    setIsDeleteOrgOpen(true);
   };
 
   if (!orgId) return null;
@@ -261,33 +256,37 @@ export default function OrganizationSettingsModal() {
                 Channels
               </button>
             )}
-            <button 
-              onClick={() => setActiveTab('invites')}
-              className={cn(
-                "px-4 py-2.5 mx-1 md:mx-2 rounded-lg text-sm font-medium transition-all flex items-center gap-3 whitespace-nowrap",
-                activeTab === 'invites' ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Mail className="h-4 w-4" />
-              Invites
-            </button>
-            <button 
-              onClick={() => setActiveTab('roles')}
-              className={cn(
-                "px-4 py-2.5 mx-1 md:mx-2 rounded-lg text-sm font-medium transition-all flex items-center gap-3 whitespace-nowrap",
-                activeTab === 'roles' ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Shield className="h-4 w-4" />
-              Roles
-            </button>
+            {canInviteMembers && (
+              <button 
+                onClick={() => setActiveTab('invites')}
+                className={cn(
+                  "px-4 py-2.5 mx-1 md:mx-2 rounded-lg text-sm font-medium transition-all flex items-center gap-3 whitespace-nowrap",
+                  activeTab === 'invites' ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Mail className="h-4 w-4" />
+                Invites
+              </button>
+            )}
+            {canManageRoles && (
+              <button 
+                onClick={() => setActiveTab('roles')}
+                className={cn(
+                  "px-4 py-2.5 mx-1 md:mx-2 rounded-lg text-sm font-medium transition-all flex items-center gap-3 whitespace-nowrap",
+                  activeTab === 'roles' ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Shield className="h-4 w-4" />
+                Roles
+              </button>
+            )}
           </nav>
         </div>
 
         {/* Right Content Area */}
         <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
           {/* Header */}
-          <div className="px-6 pr-12 h-[72px] border-b border-border flex items-center justify-between shrink-0">
+          <div className="px-6 pr-15 h-[72px] border-b border-border flex items-center justify-between shrink-0">
             <h1 className="text-lg font-bold tracking-tight text-foreground">
               {activeTab === 'members' && "Manage Members"}
               {activeTab === 'channels' && "Manage Channels"}
@@ -299,9 +298,9 @@ export default function OrganizationSettingsModal() {
               <InviteMemberDialog
                 orgId={orgId}
                 trigger={
-                  <Button className="h-11 gap-2 rounded-xl px-6 text-sm font-semibold shadow-md transition-all hover:-translate-y-px hover:shadow-lg active:translate-y-px shadow-primary/20">
-                    <UserPlus className="h-4 w-4" />
-                    Invite
+                  <Button className="h-10 gap-2 rounded-lg px-5 text-xs font-bold shadow-lg transition-all hover:opacity-90 hover:shadow-primary/25 active:scale-95 shadow-primary/20">
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Invite Member
                   </Button>
                 }
               />
@@ -310,8 +309,8 @@ export default function OrganizationSettingsModal() {
               <CreateChannelDialog
                 orgId={orgId}
                 trigger={
-                  <Button className="h-11 gap-2 rounded-xl px-6 text-sm font-semibold shadow-md transition-all hover:-translate-y-px hover:shadow-lg active:translate-y-px shadow-primary/20">
-                    <Plus className="h-4 w-4" />
+                  <Button className="h-10 gap-2 rounded-lg px-5 text-xs font-bold shadow-lg transition-all hover:opacity-90 hover:shadow-primary/25 active:scale-95 shadow-primary/20">
+                    <Plus className="h-3.5 w-3.5" />
                     New Channel
                   </Button>
                 }
@@ -320,7 +319,8 @@ export default function OrganizationSettingsModal() {
           </div>
 
           {/* Main Content Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          <ScrollArea className="flex-1">
+            <div className="px-6 py-2 space-y-6">
             {activeTab === 'members' && (
               <div className="space-y-6">
                 {/* Search Bar */}
@@ -352,7 +352,7 @@ export default function OrganizationSettingsModal() {
                         <TableRow>
                           <TableCell colSpan={4} className="h-32 text-center">
                             <div className="flex justify-center">
-                              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                              <OrbitalLoader size="md" className="text-muted-foreground" />
                             </div>
                           </TableCell>
                         </TableRow>
@@ -385,7 +385,8 @@ export default function OrganizationSettingsModal() {
                             </TableCell>
                             
                             <TableCell>
-                              {canChangeRoles && member.role !== 'OWNER' && member.user_id !== user?.id ? (
+                              {/* Only those with 'change' permission (OWNERS) can see the role dropdown. */}
+                              {canManageRoles && member.role !== 'OWNER' && member.user_id !== user?.id ? (
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <button className={cn(
@@ -548,7 +549,7 @@ export default function OrganizationSettingsModal() {
                           <TableRow>
                             <TableCell colSpan={3} className="h-32 text-center">
                               <div className="flex justify-center">
-                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                <OrbitalLoader size="md" className="text-muted-foreground" />
                               </div>
                             </TableCell>
                           </TableRow>
@@ -694,14 +695,14 @@ export default function OrganizationSettingsModal() {
                       onClick={handleDeleteWorkspace}
                       disabled={deleteOrgMutation.isPending}
                     >
-                      {deleteOrgMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : "Delete Workspace"}
+                      {deleteOrgMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" className="mr-2" /> : "Delete Workspace"}
                     </Button>
                   </div>
                 )}
               </div>
             )}
 
-            {activeTab === 'invites' && (
+            {activeTab === 'invites' && canInviteMembers && (
               <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
                 <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center">
                   <Mail className="h-8 w-8 text-muted-foreground" />
@@ -712,14 +713,19 @@ export default function OrganizationSettingsModal() {
                     Invite new team members or manage pending workspace requests.
                   </p>
                 </div>
-                <Button className="rounded-xl px-8 gap-2">
-                  <Plus className="h-4 w-4" />
-                  Invite via Email
-                </Button>
+                <InviteMemberDialog
+                  orgId={orgId}
+                  trigger={
+                    <button className="flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-transparent px-8 text-sm font-semibold text-foreground transition-all hover:bg-muted/60 active:scale-95 shadow-sm">
+                      <UserPlus className="h-4 w-4" />
+                      <span>Invite via Email</span>
+                    </button>
+                  }
+                />
               </div>
             )}
 
-            {activeTab === 'roles' && (
+            {activeTab === 'roles' && canManageRoles && (
               <div className="space-y-6">
                 <div className="p-6 border border-border rounded-xl bg-card/30">
                   <h3 className="text-sm font-bold mb-4">Workspace Roles</h3>
@@ -730,7 +736,7 @@ export default function OrganizationSettingsModal() {
                       </div>
                       <div>
                         <p className="text-sm font-bold">Owner</p>
-                        <p className="text-xs text-muted-foreground mt-1">Full control over the workspace, billing, and all settings.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Ultimate authority. Can transfer ownership, delete the workspace, and manage all billing and integrations.</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-4 p-4 border border-border rounded-lg">
@@ -739,23 +745,33 @@ export default function OrganizationSettingsModal() {
                       </div>
                       <div>
                         <p className="text-sm font-bold">Admin</p>
-                        <p className="text-xs text-muted-foreground mt-1">Can manage members, channels, and most workspace settings.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Can manage members, channels, and organization settings. Cannot delete the workspace or transfer ownership.</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-4 p-4 border border-border rounded-lg">
-                      <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                        <Users className="h-4 w-4 text-muted-foreground" />
+                      <div className="h-8 w-8 rounded bg-emerald-500/10 flex items-center justify-center shrink-0">
+                        <Users className="h-4 w-4 text-emerald-600" />
                       </div>
                       <div>
                         <p className="text-sm font-bold">Member</p>
-                        <p className="text-xs text-muted-foreground mt-1">Standard team member with access to channels and messaging.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Can view workspace details and participate in all public channels. Standard collaborator role.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4 p-4 border border-border rounded-lg">
+                      <div className="h-8 w-8 rounded bg-muted/50 flex items-center justify-center shrink-0">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold">Guest</p>
+                        <p className="text-xs text-muted-foreground mt-1">Restricted collaborator. Can only see and interact with specifically assigned private channels.</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             )}
-          </div>
+            </div>
+          </ScrollArea>
         </div>
       </DialogContent>
       </Dialog>
@@ -789,7 +805,7 @@ export default function OrganizationSettingsModal() {
                 Cancel
               </Button>
               <Button type="submit" disabled={updateChannelMutation.isPending} className="rounded-lg">
-                {updateChannelMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {updateChannelMutation.isPending && <OrbitalLoader size="sm" variant="minimal" className="mr-2" />}
                 Save Changes
               </Button>
             </DialogFooter>
@@ -821,12 +837,23 @@ export default function OrganizationSettingsModal() {
               disabled={deleteChannelMutation.isPending}
               className="rounded-lg"
             >
-              {deleteChannelMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {deleteChannelMutation.isPending && <OrbitalLoader size="sm" variant="minimal" className="mr-2" />}
               Delete Permanently
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DeleteOrganizationDialog
+        orgId={orgId}
+        orgName={organization?.name || "Workspace"}
+        open={isDeleteOrgOpen}
+        onOpenChange={setIsDeleteOrgOpen}
+        onSuccess={() => {
+          closeOrgSettings();
+          router.push("/dashboard");
+        }}
+      />
     </>
   );
 }

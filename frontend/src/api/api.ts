@@ -50,6 +50,19 @@ api.interceptors.request.use(
 let isRefreshing = false;
 let failedQueue: { resolve: (token: string) => void; reject: (error: unknown) => void }[] = [];
 
+// NEW: Helper to manage cross-tab locking
+const acquireLock = () => {
+  if (typeof window === 'undefined') return true;
+  if (localStorage.getItem('isRefreshing') === 'true') return false;
+  localStorage.setItem('isRefreshing', 'true');
+  return true;
+};
+
+const releaseLock = () => {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('isRefreshing');
+};
+
 const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
@@ -77,8 +90,19 @@ api.interceptors.response.use(
     // 2. ONLY trigger refresh if it's a 401, hasn't been retried, AND is NOT an auth route
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       
-      // If a refresh is already happening, put this request in the waiting queue
-      if (isRefreshing) {
+      // 🚨 FIX 1: The Multi-Tab / Fast Concurrency Check
+      const currentToken = getToken();
+      const requestToken = originalRequest.headers.Authorization?.replace('Bearer ', '');
+      
+      // If the token in cookies doesn't match the one that failed, another request 
+      // or browser tab ALREADY refreshed it! Skip the queue and just retry.
+      if (currentToken && requestToken && currentToken !== requestToken) {
+        originalRequest.headers.Authorization = `Bearer ${currentToken}`;
+        return api(originalRequest);
+      }
+
+      // Check BOTH the memory lock and the cross-tab lock
+      if (isRefreshing || !acquireLock()) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -86,9 +110,7 @@ api.interceptors.response.use(
             originalRequest.headers.Authorization = `Bearer ${token}`;
             return api(originalRequest);
           })
-          .catch((err) => {
-            return Promise.reject(err);
-          });
+          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
@@ -121,27 +143,29 @@ api.interceptors.response.use(
       } catch (refreshError: unknown) {
         // Reject all queued requests
         processQueue(refreshError, null);
-
-        let status: number | undefined;
-        if (axios.isAxiosError(refreshError)) {
-          status = refreshError.response?.status;
+        
+        // If refresh fails, session is completely dead. Log them out.
+        deleteToken();
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
         }
-
-        if (status === 401 || status === 403) {
-          deleteToken();
-          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          }
-        }
+        
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
+        releaseLock(); // ALWAYS release the lock so other tabs aren't stuck
       }
     }
 
-    // Handle 403 errors (Forbidden)
+    // Handle 403 errors cleanly
     if (error.response?.status === 403) {
-      console.error('Permission denied:', error.response.data);
+      console.error('[API] 403 Forbidden - Session invalid or expired.');
+      
+      // If we get a 403, the session cannot be saved. Wipe everything and redirect.
+      deleteToken();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+         window.location.href = '/login';
+      }
     }
 
     // Standardized error object

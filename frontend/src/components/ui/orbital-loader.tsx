@@ -1,23 +1,70 @@
+"use client";
+
 import { cn } from "@/lib/utils";
+import { useIsMounted } from "@/hooks/useIsMounted";
 
 interface OrbitalLoaderProps {
   size?: "sm" | "md" | "lg" | "xl";
+  variant?: "full" | "minimal";
+  color?: string; // Hex color or 'currentColor'
   className?: string;
 }
 
 const sizeClasses = {
-  sm: "w-5 h-5 border-[1.5px]",   // Slightly thinner stroke for tiny spaces
-  md: "w-8 h-8 border-2",         // Standard 2px stroke
-  lg: "w-16 h-16 border-[3px]",   // Scaled stroke for larger components
-  xl: "w-24 h-24 border-[3px]",   // Scaled stroke for page loads
+  sm: "w-4 h-4 border-[1.5px]",   // Slightly smaller for buttons
+  md: "w-8 h-8 border-2",
+  lg: "w-16 h-16 border-[3px]",
+  xl: "w-24 h-24 border-[3px]",
 };
 
-export function OrbitalLoader({ size = "md", className }: OrbitalLoaderProps) {
-  // Extract border width class for dynamic scaling
-  const borderClass = sizeClasses[size].split(" ").find(c => c.startsWith("border-"));
+export function OrbitalLoader({ 
+  size = "md", 
+  variant = "full",
+  color,
+  className 
+}: OrbitalLoaderProps) {
+  const isMounted = useIsMounted();
   const dimensionsClass = sizeClasses[size].split(" ").filter(c => !c.startsWith("border-")).join(" ");
+  const borderClass = sizeClasses[size].split(" ").find(c => c.startsWith("border-"));
+
+  // Button loader (minimal) uses currentColor by default to inherit button text color
+  const isMinimal = variant === "minimal";
+  const ringColor = color || (isMinimal ? "currentColor" : "#5D5CFF");
+  const isCurrentColor = ringColor === "currentColor";
+
+  // Prevent hydration mismatch by rendering a simple placeholder until mounted
+  if (!isMounted) {
+    return (
+      <OrbitalDesign className={className} borderClass={borderClass} dimensionsClass={dimensionsClass} />
+    );
+  }
+
+  if (isMinimal) {
+    return (
+      <div 
+        className={cn(
+          "animate-spin rounded-full",
+          isCurrentColor ? "border-current/20 border-t-current" : "",
+          dimensionsClass, 
+          borderClass,
+          className
+        )}
+        style={!isCurrentColor ? {
+          borderTopColor: ringColor,
+          borderColor: `${ringColor}33`,
+        } : undefined}
+      />
+    );
+  }
 
   return (
+    <OrbitalDesign className={className} borderClass={borderClass} dimensionsClass={dimensionsClass} />
+  );
+}
+
+
+const OrbitalDesign = ({className, borderClass, dimensionsClass}: {className?: string, borderClass?: string, dimensionsClass?: string}) => {
+  return(
     <>
       <style>{`
         .orbital-core-perspective { 
@@ -64,5 +111,5 @@ export function OrbitalLoader({ size = "md", className }: OrbitalLoaderProps) {
         )} />
       </div>
     </>
-  );
+  )
 }

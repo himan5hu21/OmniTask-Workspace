@@ -4,9 +4,10 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { 
   Paperclip, Code, Bold, Italic, CheckSquare, Send, Image as ImageIcon, 
-  Loader2, List, ListOrdered, Strikethrough, X, FileText
+  List, ListOrdered, Strikethrough, X, FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 export default function ChatInputBox({ 
   channelName, 
@@ -233,10 +234,9 @@ export default function ChatInputBox({
           disabled={(isEditorEmpty && attachments.length === 0) || isPending}
           className="h-8 rounded-xl px-4 font-semibold shrink-0"
         >
-          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {isPending ? <OrbitalLoader size="sm" variant="minimal" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
     </div>
   );
 }
-

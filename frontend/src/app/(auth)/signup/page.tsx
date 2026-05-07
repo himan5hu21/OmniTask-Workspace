@@ -185,7 +185,7 @@ export default function RegisterPage() {
                   >
                     {registerMutation.isPending ? (
                       <span className="flex items-center gap-2">
-                        <OrbitalLoader size="sm" className="mr-2" />
+                        <OrbitalLoader size="sm" variant="minimal" className="mr-2" />
                         Creating account...
                       </span>
                     ) : "Sign up"}

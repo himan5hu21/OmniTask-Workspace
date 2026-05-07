@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef, useCallback, type SyntheticEvent } from "react";
+import { List, useListRef, type ListImperativeAPI, type RowComponentProps } from "react-window";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { MessageSquareText, Sparkles, MoreHorizontal, Settings } from "lucide-react";
 import { OrbitalLoader } from "@/components/ui/orbital-loader";
@@ -15,7 +16,6 @@ import ChatInputBox from "@/components/ChatInputBox";
 import { Button } from "@/components/ui/button";
 import { FileText, ImageIcon } from "lucide-react";
 import Image from "next/image";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { AbilityProvider } from "@/components/providers/AbilityProvider";
 
 const COLLAPSED_MAX_HEIGHT = 320;
@@ -154,6 +154,68 @@ function MessageContent({ content, isOwnMessage, attachments }: { content: strin
   );
 }
 
+type MessageRowProps = {
+  messages: Message[];
+  userId?: string;
+};
+
+function MessageRow({
+  index,
+  style,
+  messages,
+  userId,
+  ariaAttributes,
+}: RowComponentProps<MessageRowProps>) {
+  const message = messages[index];
+
+  if (!message) {
+    return null;
+  }
+
+  const isOwnMessage = message.user_id === userId;
+
+  return (
+    <div
+      style={style}
+      {...ariaAttributes}
+      className="px-6 py-2 lg:px-8"
+    >
+      <div className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : ""}`}>
+        <Avatar className="h-9 w-9 shrink-0 border border-border/60">
+          <AvatarFallback className={isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}>
+            {(message.user_name || "User").charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div
+          className={`min-w-0 max-w-[85%] rounded-2xl px-5 py-3.5 shadow-sm transition-all ${
+            isOwnMessage
+              ? "bg-primary text-primary-foreground shadow-primary/20"
+              : "border border-border bg-muted/30 text-foreground"
+          }`}
+        >
+          <div className={`mb-1.5 flex items-center gap-2 ${isOwnMessage ? "justify-end" : ""}`}>
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+              {isOwnMessage ? "You" : message.user_name || "Unknown"}
+            </span>
+            <span className={`text-[10px] ${isOwnMessage ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+              {new Date(message.created_at).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+
+          <MessageContent
+            content={message.content}
+            isOwnMessage={isOwnMessage}
+            attachments={message.attachments}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // =========================================================================
 // MAIN PAGE COMPONENT
 // =========================================================================
@@ -176,8 +238,9 @@ export default function ChannelDetailPage() {
   
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const listRef = useListRef(null);
+  const [listHeight, setListHeight] = useState(600);
   const hasInitializedScrollRef = useRef(false);
   const pendingHistoryLoadRef = useRef(false);
   const previousScrollHeightRef = useRef(0);
@@ -229,19 +292,49 @@ export default function ChannelDetailPage() {
     );
   }, [messages, socketMessages]);
 
+  const getItemSize = useCallback((index: number) => {
+    const message = allMessages[index];
+
+    if (!message) {
+      return 96;
+    }
+
+    let height = 96;
+    const textLength = stripHtml(message.content).length;
+    height += Math.ceil(textLength / 60) * 20;
+
+    if (message.attachments?.length) {
+      message.attachments.forEach((attachment) => {
+        height += attachment.type === "IMAGE" ? 300 : 60;
+      });
+    }
+
+    if (textLength > LONG_MESSAGE_TEXT_LENGTH) {
+      height += 28;
+    }
+
+    return Math.max(height, 96);
+  }, [allMessages]);
+
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
-    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
-  }, []);
+    if (listRef.current && allMessages.length > 0) {
+      listRef.current.scrollToRow({
+        index: allMessages.length - 1,
+        align: "end",
+        behavior: behavior === "smooth" ? "smooth" : "instant",
+      });
+    }
+  }, [allMessages.length, listRef]);
 
   const isNearBottom = useCallback(() => {
-    const container = scrollContainerRef.current;
+    const container = listRef.current?.element;
     if (!container) return true;
 
     return container.scrollHeight - container.scrollTop - container.clientHeight < 120;
-  }, []);
+  }, [listRef]);
 
   useEffect(() => {
-    const container = scrollContainerRef.current;
+    const container = listRef.current?.element;
     const currentCount = allMessages.length;
 
     if (!container || currentCount === 0) {
@@ -275,10 +368,10 @@ export default function ChannelDetailPage() {
     }
 
     previousMessageCountRef.current = currentCount;
-  }, [allMessages.length, scrollToBottom]);
+  }, [allMessages.length, listRef, scrollToBottom]);
 
   const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
+    const container = listRef.current?.element;
 
     stickToBottomRef.current = isNearBottom();
 
@@ -296,7 +389,43 @@ export default function ChannelDetailPage() {
     previousScrollHeightRef.current = container.scrollHeight;
     previousScrollTopRef.current = container.scrollTop;
     void fetchNextPage();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, isNearBottom]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, isNearBottom, listRef]);
+
+  useEffect(() => {
+    const container = listRef.current?.element;
+    if (!container) {
+      return;
+    }
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [allMessages.length, handleScroll, listRef]);
+
+  useEffect(() => {
+    const element = listContainerRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateHeight = () => {
+      setListHeight(element.clientHeight);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   const handleMessageMediaLoad = useCallback((event: SyntheticEvent<HTMLDivElement>) => {
     const target = event.target;
@@ -342,17 +471,14 @@ export default function ChannelDetailPage() {
         {activeTab === "chat" ? (
         <>
           <section className="flex h-full min-h-0 flex-1 flex-col">
-            <ScrollArea 
-              viewportRef={scrollContainerRef}
-              onScroll={handleScroll}
-              className="h-full flex-1"
+            <div
+              ref={listContainerRef}
+              onLoadCapture={handleMessageMediaLoad}
+              className="h-full flex-1 min-h-0 py-5"
             >
-              <div 
-                onLoadCapture={handleMessageMediaLoad}
-                className="flex min-h-full flex-col justify-end px-6 py-5 lg:px-8"
-              >
+              <div className="flex h-full min-h-0 flex-col justify-end">
                 {allMessages.length === 0 ? (
-                  <div className="my-auto flex flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 p-10 text-center">
+                  <div className="mx-6 my-auto flex flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 p-10 text-center lg:mx-8">
                     <MessageSquareText className="mb-4 h-12 w-12 text-primary/60" />
                     <h2 className="text-lg font-semibold text-foreground">No conversation yet</h2>
                     <p className="mt-2 max-w-md text-sm text-muted-foreground">
@@ -360,59 +486,29 @@ export default function ChannelDetailPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="flex-1 min-h-0">
                     {isFetchingNextPage ? (
                       <div className="flex items-center justify-center py-2 text-muted-foreground">
                         <OrbitalLoader size="sm" variant="minimal" />
                       </div>
                     ) : null}
-
-                    {allMessages.map((message) => {
-                      const isOwnMessage = message.user_id === user?.id;
-
-                      return (
-                        <div
-                          key={message.id}
-                          className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : ""}`}
-                        >
-                          <Avatar className="h-9 w-9 shrink-0 border border-border/60">
-                            <AvatarFallback className={isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}>
-                              {(message.user_name || "User").charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div
-                            className={`min-w-0 max-w-[85%] rounded-2xl px-5 py-3.5 shadow-sm transition-all ${
-                              isOwnMessage
-                                ? "bg-primary text-primary-foreground shadow-primary/20"
-                                : "border border-border bg-muted/30 text-foreground"
-                            }`}
-                          >
-                            <div className={`mb-1.5 flex items-center gap-2 ${isOwnMessage ? "justify-end" : ""}`}>
-                              <span className={`text-[10px] font-bold uppercase tracking-wider ${isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                                {isOwnMessage ? "You" : message.user_name || "Unknown"}
-                              </span>
-                              <span className={`text-[10px] ${isOwnMessage ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
-                                {new Date(message.created_at).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                            </div>
-                            
-                            <MessageContent 
-                              content={message.content} 
-                              isOwnMessage={isOwnMessage} 
-                              attachments={message.attachments}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
+                    <List
+                      listRef={listRef}
+                      rowCount={allMessages.length}
+                      rowHeight={getItemSize}
+                      rowComponent={MessageRow}
+                      rowProps={{
+                        messages: allMessages,
+                        userId: user?.id,
+                      }}
+                      overscanCount={6}
+                      style={{ height: listHeight, width: "100%" }}
+                      className="scrollbar-hide"
+                    />
                   </div>
                 )}
               </div>
-            </ScrollArea>
+            </div>
 
             <div className="border-t border-border bg-background/85 px-6 py-4 backdrop-blur-md lg:px-8">
               {/* Isolated Input Component used here */}

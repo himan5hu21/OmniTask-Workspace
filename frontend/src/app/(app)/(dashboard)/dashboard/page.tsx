@@ -23,6 +23,7 @@ import { AbilityProvider } from "@/components/providers/AbilityProvider";
 import { useAbility } from "@casl/react";
 import { useIsMounted, useServerValue } from "@/hooks/useIsMounted";
 import type { Organization } from "@/api/organizations";
+import { DeleteOrganizationDialog } from "@/components/organizations/delete-organization-dialog";
 
 const orgSchema = z.object({
   name: z.string().min(3, { message: "Name must be at least 3 characters" }),
@@ -106,7 +107,6 @@ export default function DashboardPage() {
   
   const createMutation = useCreateOrganization();
   const updateMutation = useUpdateOrganization();
-  const deleteMutation = useDeleteOrganization();
 
   const currentDate = useServerValue(
     () =>
@@ -162,16 +162,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!orgToDelete) return;
-    try {
-      await deleteMutation.mutateAsync(orgToDelete.id);
-      toast.success("Organization deleted successfully");
-      setOrgToDelete(null);
-    } catch (error) {
-      handleApiError(error, {}, "Failed to delete organization");
-    }
-  };
 
   const openEditDialog = (org: Organization) => {
     setOrgToEdit(org);
@@ -345,7 +335,7 @@ export default function DashboardPage() {
                       Cancel
                     </Button>
                     <Button type="submit" disabled={createMutation.isPending} className="rounded-lg">
-                      {createMutation.isPending && <OrbitalLoader size="sm" className="mr-2" />}
+                      {createMutation.isPending && <OrbitalLoader size="sm" variant="minimal" className="mr-2" />}
                       Create
                     </Button>
                   </DialogFooter>
@@ -379,7 +369,7 @@ export default function DashboardPage() {
                       Cancel
                     </Button>
                     <Button type="submit" disabled={updateMutation.isPending} className="rounded-lg">
-                      {updateMutation.isPending && <OrbitalLoader size="sm" className="mr-2" />}
+                      {updateMutation.isPending && <OrbitalLoader size="sm" variant="minimal" className="mr-2" />}
                       Save Changes
                     </Button>
                   </DialogFooter>
@@ -388,35 +378,12 @@ export default function DashboardPage() {
             </Dialog>
 
             {/* Delete Confirmation Dialog */}
-            <Dialog open={!!orgToDelete} onOpenChange={(open) => !open && setOrgToDelete(null)}>
-              <DialogContent className="sm:max-w-md bg-card border-border rounded-xl">
-                <DialogHeader>
-                  <DialogTitle className="text-xl font-semibold text-destructive flex items-center gap-2">
-                    <Trash2 className="h-5 w-5" />
-                    Delete Organization
-                  </DialogTitle>
-                  <DialogDescription className="text-muted-foreground">
-                    This action cannot be undone. This will permanently delete the 
-                    <span className="font-bold text-foreground mx-1">{orgToDelete?.name}</span> 
-                    organization and all its data.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter className="mt-6 gap-2">
-                  <Button type="button" variant="ghost" onClick={() => setOrgToDelete(null)} className="rounded-lg">
-                    Cancel
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    onClick={handleDelete} 
-                    disabled={deleteMutation.isPending}
-                    className="rounded-lg"
-                  >
-                    {deleteMutation.isPending && <OrbitalLoader size="sm" className="mr-2" />}
-                    Delete Permanently
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <DeleteOrganizationDialog
+              orgId={orgToDelete?.id || ""}
+              orgName={orgToDelete?.name || ""}
+              open={!!orgToDelete}
+              onOpenChange={(open) => !open && setOrgToDelete(null)}
+            />
 
           </div>
         </Card>

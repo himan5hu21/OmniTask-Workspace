@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import {
   Hash,
-  Loader2,
   Trash2,
   UserMinus,
   Users,
@@ -11,6 +10,7 @@ import {
   Plus,
   Settings2,
 } from "lucide-react";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -204,7 +204,7 @@ export function ChannelManagementSheet({
 
           {isLoadingChannel ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <OrbitalLoader size="md" />
             </div>
           ) : channel ? (
             <div className="space-y-6 p-6">
@@ -272,7 +272,7 @@ export function ChannelManagementSheet({
                           onClick={handleSaveName}
                           disabled={updateChannelMutation.isPending || !nameDraft.trim() || nameDraft.trim() === channel.name}
                         >
-                          {updateChannelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+                          {updateChannelMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" /> : "Save Changes"}
                         </Button>
                       </div>
                     </div>
@@ -345,7 +345,7 @@ export function ChannelManagementSheet({
                                   })
                                 }
                               >
-                                {addMemberMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                                {addMemberMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" /> : "Add"}
                               </Button>
                             </div>
                           ))
@@ -408,7 +408,7 @@ export function ChannelManagementSheet({
                 <CardContent className="p-0">
                   {isLoadingMembers ? (
                     <div className="flex h-32 items-center justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <OrbitalLoader size="md" className="text-muted-foreground" />
                     </div>
                   ) : members.length > 0 ? (
                     <div className="divide-y divide-border/50">
@@ -545,7 +545,7 @@ export function ChannelManagementSheet({
                 })
               }
             >
-              {removeMemberMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Remove"}
+              {removeMemberMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" /> : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -577,7 +577,7 @@ export function ChannelManagementSheet({
                   }),
               })}
             >
-              {deleteChannelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+              {deleteChannelMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" /> : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

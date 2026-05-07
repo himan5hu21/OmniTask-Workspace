@@ -160,7 +160,7 @@ export default function LandingPage() {
 
       <footer className="w-full border-t mt-auto border-border bg-background">
         <div className="flex flex-col md:flex-row justify-between items-center px-8 py-12 gap-6 w-full max-w-7xl mx-auto">
-          <Logo showText={false} className="text-lg" iconClassName="h-5 w-5" />
+          <Logo showText={false} />
           <nav className="flex flex-wrap justify-center gap-6">
             <Link href="#" className="font-sans text-sm text-muted-foreground hover:text-primary transition-colors duration-200">
               Privacy Policy

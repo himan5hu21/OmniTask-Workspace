@@ -20,6 +20,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useAuthProfile, useLogoutMutation } from "@/api/auth"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -235,7 +236,7 @@ export function AppSidebar({
           className="cursor-pointer rounded-lg py-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
         >
           {logoutMutation.isPending ? (
-            <OrbitalLoader size="sm" className="mr-2" />
+            <OrbitalLoader size="sm" variant="minimal" color="currentColor" className="mr-2" />
           ) : (
             <LogOut className="mr-2 h-4 w-4" />
           )}
@@ -366,123 +367,125 @@ export function AppSidebar({
                   </div>
                 </SidebarHeader>
 
-                <SidebarContent className="px-5 py-3">
-                  <Can I="invite" a="Member">
-                    <div className="mb-5">
-                      <InviteMemberDialog
-                        orgId={organizationId || ""}
-                        trigger={
-                          <button
-                            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-sidebar-border/70 bg-transparent px-4 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60"
-                          >
-                            <UserPlus className="h-4 w-4" />
-                            <span>Invite Members</span>
-                          </button>
-                        }
-                      />
-                    </div>
-                  </Can>
+                <ScrollArea className="flex-1">
+                  <SidebarContent className="px-5 py-3">
+                    <Can I="invite" a="Member">
+                      <div className="mb-5">
+                        <InviteMemberDialog
+                          orgId={organizationId || ""}
+                          trigger={
+                            <button
+                              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-sidebar-border/70 bg-transparent px-4 text-sm font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60"
+                            >
+                              <UserPlus className="h-4 w-4" />
+                              <span>Invite Members</span>
+                            </button>
+                          }
+                        />
+                      </div>
+                    </Can>
 
-                  <SidebarGroup className="p-0">
-                    <div className="mb-2 px-2">
-                      <SidebarGroupLabel className="h-auto px-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        Channels
-                      </SidebarGroupLabel>
-                    </div>
-                    <SidebarGroupContent>
-                      {isLoadingChannels ? (
-                        <div className="flex w-full items-center justify-center py-8">
-                          <OrbitalLoader size="sm" />
-                        </div>
-                      ) : channels.length > 0 ? (
-                        <>
-                          <SidebarMenu className="gap-1">
-                            {channels.map((channel) => {
-                              const isActive = pathname === `/organizations/${organizationId}/channels/${channel.id}`
+                    <SidebarGroup className="p-0">
+                      <div className="mb-2 px-2">
+                        <SidebarGroupLabel className="h-auto px-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                          Channels
+                        </SidebarGroupLabel>
+                      </div>
+                      <SidebarGroupContent>
+                        {isLoadingChannels ? (
+                          <div className="flex w-full items-center justify-center py-8">
+                            <OrbitalLoader size="sm" />
+                          </div>
+                        ) : channels.length > 0 ? (
+                          <>
+                            <SidebarMenu className="gap-1">
+                              {channels.map((channel) => {
+                                const isActive = pathname === `/organizations/${organizationId}/channels/${channel.id}`
 
-                              return (
-                                <SidebarMenuItem key={channel.id}>
-                                  <SidebarMenuButton
-                                    asChild
-                                    isActive={isActive}
-                                    className={cn(
-                                      "h-9 rounded-lg border px-2 text-sm transition-all",
-                                      isActive
-                                        ? "border-primary/10 bg-primary/10! text-primary! shadow-xs font-semibold"
-                                        : "border-transparent text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
-                                    )}
-                                  >
-                                    <Link
-                                      href={`/organizations/${organizationId}/channels/${channel.id}`}
-                                      className="flex items-center gap-3"
+                                return (
+                                  <SidebarMenuItem key={channel.id}>
+                                    <SidebarMenuButton
+                                      asChild
+                                      isActive={isActive}
+                                      className={cn(
+                                        "h-9 rounded-lg border px-2 text-sm transition-all",
+                                        isActive
+                                          ? "border-primary/10 bg-primary/10! text-primary! shadow-xs font-semibold"
+                                          : "border-transparent text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
+                                      )}
                                     >
-                                      <Hash className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
-                                      <span className="truncate font-medium">{channel.name}</span>
-                                    </Link>
-                                  </SidebarMenuButton>
-                                </SidebarMenuItem>
-                              )
-                            })}
-                          </SidebarMenu>
-                          <Can I="create" a="Channel">
-                            <CreateChannelDialog
-                              orgId={organizationId || ""}
-                              trigger={
-                                <button
-                                  type="button"
-                                  className="group mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-solid border-sidebar-border/80 bg-sidebar-accent/20 px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all hover:border-primary/50 hover:border-dashed hover:bg-sidebar-accent/40 hover:text-foreground active:scale-[0.97]"
-                                >
-                                  <Plus className="h-4 w-4 transition-transform group-hover:rotate-90" />
-                                  <span>Create New Channel</span>
-                                </button>
-                              }
-                            />
-                          </Can>
-                        </>
-                      ) : (
-                        <div className="px-2 py-2 text-xs text-muted-foreground">No channels found</div>
-                      )}
-                    </SidebarGroupContent>
-                  </SidebarGroup>
+                                      <Link
+                                        href={`/organizations/${organizationId}/channels/${channel.id}`}
+                                        className="flex items-center gap-3"
+                                      >
+                                        <Hash className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
+                                        <span className="truncate font-medium">{channel.name}</span>
+                                      </Link>
+                                    </SidebarMenuButton>
+                                  </SidebarMenuItem>
+                                )
+                              })}
+                            </SidebarMenu>
+                            <Can I="create" a="Channel">
+                              <CreateChannelDialog
+                                orgId={organizationId || ""}
+                                trigger={
+                                  <button
+                                    type="button"
+                                    className="group mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-solid border-sidebar-border/80 bg-sidebar-accent/20 px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-all hover:border-primary/50 hover:border-dashed hover:bg-sidebar-accent/40 hover:text-foreground active:scale-[0.97]"
+                                  >
+                                    <Plus className="h-4 w-4 transition-transform group-hover:rotate-90" />
+                                    <span>Create New Channel</span>
+                                  </button>
+                                }
+                              />
+                            </Can>
+                          </>
+                        ) : (
+                          <div className="px-2 py-2 text-xs text-muted-foreground">No channels found</div>
+                        )}
+                      </SidebarGroupContent>
+                    </SidebarGroup>
 
-                  <SidebarGroup className="mt-6 p-0">
-                    <SidebarGroupLabel className="mb-2 h-auto px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Direct Messages
-                    </SidebarGroupLabel>
-                    <SidebarGroupContent>
-                      {isLoadingDMs ? (
-                        <div className="flex w-full items-center justify-center py-6">
-                          <OrbitalLoader size="sm" />
-                        </div>
-                      ) : (
-                        <SidebarMenu className="gap-1">
-                          {dummyDMs.map((dm) => (
-                            <SidebarMenuItem key={dm.id}>
-                              <SidebarMenuButton
-                                asChild
-                                isActive={pathname === `/messages/${dm.id}`}
-                                className="h-9 rounded-lg border border-transparent px-2 text-sm text-muted-foreground transition-all hover:bg-sidebar-accent/60 hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
-                              >
-                                <Link href={`/messages/${dm.id}`} className="flex items-center gap-2">
-                                  <div className="relative shrink-0">
-                                    <Avatar className="h-6 w-6 rounded-full border border-sidebar-border/70">
-                                      <AvatarImage src={dm.avatar} />
-                                      <AvatarFallback className="text-[9px]">{dm.name.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                    {dm.online ? (
-                                      <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-sidebar bg-emerald-500" />
-                                    ) : null}
-                                  </div>
-                                  <span className="truncate font-medium text-xs">{dm.name}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          ))}
-                        </SidebarMenu>
-                      )}
-                    </SidebarGroupContent>
-                  </SidebarGroup>
-                </SidebarContent>
+                    <SidebarGroup className="mt-6 p-0">
+                      <SidebarGroupLabel className="mb-2 h-auto px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        Direct Messages
+                      </SidebarGroupLabel>
+                      <SidebarGroupContent>
+                        {isLoadingDMs ? (
+                          <div className="flex w-full items-center justify-center py-6">
+                            <OrbitalLoader size="sm" variant="minimal" />
+                          </div>
+                        ) : (
+                          <SidebarMenu className="gap-1">
+                            {dummyDMs.map((dm) => (
+                              <SidebarMenuItem key={dm.id}>
+                                <SidebarMenuButton
+                                  asChild
+                                  isActive={pathname === `/messages/${dm.id}`}
+                                  className="h-9 rounded-lg border border-transparent px-2 text-sm text-muted-foreground transition-all hover:bg-sidebar-accent/60 hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                                >
+                                  <Link href={`/messages/${dm.id}`} className="flex items-center gap-2">
+                                    <div className="relative shrink-0">
+                                      <Avatar className="h-6 w-6 rounded-full border border-sidebar-border/70">
+                                        <AvatarImage src={dm.avatar} />
+                                        <AvatarFallback className="text-[9px]">{dm.name.charAt(0)}</AvatarFallback>
+                                      </Avatar>
+                                      {dm.online ? (
+                                        <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-sidebar bg-emerald-500" />
+                                      ) : null}
+                                    </div>
+                                    <span className="truncate font-medium text-xs">{dm.name}</span>
+                                  </Link>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            ))}
+                          </SidebarMenu>
+                        )}
+                      </SidebarGroupContent>
+                    </SidebarGroup>
+                  </SidebarContent>
+                </ScrollArea>
               </div>
             )}
           </div>

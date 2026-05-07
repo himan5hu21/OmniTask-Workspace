@@ -6,10 +6,10 @@ import { useParams } from "next/navigation";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import {
   Hash,
-  Loader2,
   Plus,
   UserPlus,
 } from "lucide-react";
+import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +43,7 @@ export default function OrganizationDetailPage() {
   if (isLoadingOrganization) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <OrbitalLoader size="md" className="text-primary" />
       </div>
     );
   }
