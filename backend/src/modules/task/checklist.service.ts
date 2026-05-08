@@ -11,6 +11,10 @@ export class ChecklistService {
     });
   }
 
+  async updateChecklist(checklistId: string, title: string) {
+    return checklistRepository.update(checklistId, { name: title });
+  }
+
   async addItem(checklistId: string, content: string, position: number = 0) {
     return checklistItemRepository.create({
       checklist_id: checklistId,

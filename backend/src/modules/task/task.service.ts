@@ -19,6 +19,10 @@ export class TaskService {
     });
   }
 
+  async deleteTask(id: string) {
+    return taskRepository.delete(id);
+  }
+
   async getTaskById(id: string) {
     return taskRepository.getById(id, {
       include: {
@@ -68,10 +72,18 @@ export class TaskService {
           select: {
             id: true,
             title: true,
+            status: true,
             priority: true,
             position: true,
             due_date: true,
-            // Add other lightweight fields here later
+            assignments: {
+              include: {
+                user: { select: { id: true, name: true, avatar_url: true } }
+              }
+            },
+            _count: {
+              select: { comments: true }
+            }
           }
         }
       }

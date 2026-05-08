@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef, useCallback, type SyntheticEvent 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { MessageSquareText, Sparkles, MoreHorizontal, Settings } from "lucide-react";
 import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import TaskBoard from "@/components/tasks/TaskBoard";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -449,29 +450,7 @@ export default function ChannelDetailPage() {
 
         </>
       ) : (
-        <section className="min-h-0 flex-1 overflow-y-auto px-6 py-5 lg:px-8">
-          <div className="mx-auto max-w-5xl space-y-6">
-            <Card className="rounded-3xl border-border/80 bg-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  Channel Tasks
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <p>
-                  The channel task surface is now wired into the frontend layout, but the backend task endpoints are still stubbed and do not return real task records yet.
-                </p>
-                <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-6">
-                  <p className="font-medium text-foreground">Ready once backend task CRUD is completed</p>
-                  <p className="mt-2">
-                    This tab is the right place for channel-only tasks, assignments, and progress tracking. Right now it is intentionally a placeholder instead of showing fake data.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
+        <TaskBoard />
       )}
       </div>
     </AbilityProvider>

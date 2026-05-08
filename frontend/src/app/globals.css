@@ -47,6 +47,21 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Kanban Theme Properties */
+  --color-kanban-board: var(--kanban-board);
+  --color-kanban-column: var(--kanban-column);
+  --color-kanban-card: var(--kanban-card);
+  --color-kanban-card-hover: var(--kanban-card-hover);
+  --color-kanban-border: var(--kanban-border);
+  --color-kanban-border-hover: var(--kanban-border-hover);
+  --color-kanban-text-primary: var(--kanban-text-primary);
+  --color-kanban-text-secondary: var(--kanban-text-secondary);
+  --color-kanban-text-tertiary: var(--kanban-text-tertiary);
+  --color-kanban-badge: var(--kanban-badge);
+  --color-priority-high: var(--priority-high);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-low: var(--priority-low);
 }
 
 :root {
@@ -103,6 +118,21 @@
   --code-block-foreground: oklch(0.97 0.01 260);
   --code-inline-bg: oklch(0.93 0.01 260);
   --code-inline-foreground: oklch(0.22 0.02 260);
+
+  /* Kanban Light Mode Equivalents */
+  --kanban-board: oklch(0.98 0.01 260); /* Slate-50 */
+  --kanban-column: oklch(0.95 0.01 260); /* Slate-100 */
+  --kanban-card: oklch(1 0 0); /* White */
+  --kanban-card-hover: oklch(0.98 0.01 260); /* Slate-50 */
+  --kanban-border: oklch(0.92 0.01 260); /* Slate-200 */
+  --kanban-border-hover: oklch(0.511 0.262 275.75); /* Primary */
+  --kanban-text-primary: oklch(0.2 0.02 260);
+  --kanban-text-secondary: oklch(0.5 0.02 260);
+  --kanban-text-tertiary: oklch(0.6 0.02 260);
+  --kanban-badge: oklch(0.92 0.01 260);
+  --priority-high: #F75A5A;
+  --priority-medium: #F7A84F;
+  --priority-low: #3DCC91;
 }
 
 .dark {
@@ -155,6 +185,21 @@
   --code-block-foreground: oklch(0.98 0.01 260);
   --code-inline-bg: oklch(0.26 0.02 260);
   --code-inline-foreground: oklch(0.98 0.01 260);
+
+  /* Kanban Dark Mode (Stitch's Theme) */
+  --kanban-board: #12131b;
+  --kanban-column: #1A1C27;
+  --kanban-card: #111218;
+  --kanban-card-hover: #22263A;
+  --kanban-border: #2A2D3E;
+  --kanban-border-hover: #4F6EF7;
+  --kanban-text-primary: #e2e1ed;
+  --kanban-text-secondary: #8e90a0;
+  --kanban-text-tertiary: #c4c5d7;
+  --kanban-badge: #33343d;
+  --priority-high: #F75A5A;
+  --priority-medium: #F7A84F;
+  --priority-low: #3DCC91;
 }
 
 @layer base {

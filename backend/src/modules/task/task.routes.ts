@@ -112,12 +112,23 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       body: z.object({
         title: z.string().min(1).optional(),
         description: z.string().optional(),
+        status: z.string().optional(),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
         due_date: z.string().datetime().optional(),
         cover_color: z.string().optional(),
       }),
     }),
     taskController.updateTask
+  );
+  
+  app.delete(
+    '/tasks/:id',
+    createSchema({
+      description: 'Delete a task card',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+    }),
+    taskController.deleteTask
   );
 
   // PHASE 4 — Collaboration Features
@@ -178,12 +189,23 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
     taskController.createChecklist
   );
 
+  app.patch(
+    '/checklists/:id',
+    createSchema({
+      description: 'Update checklist name',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+      body: z.object({ title: z.string().min(1) }),
+    }),
+    taskController.updateChecklist
+  );
+
   app.post(
     '/checklists/:id/items',
     createSchema({
       description: 'Add an item to a checklist',
       tags: ['Tasks'],
-      params: z.object({ id: z.string().cuid() }),
+      params: z.object({ id: z.cuid() }),
       body: z.object({ title: z.string().min(1), position: z.number().int().max(2147483647).optional() }),
     }),
     taskController.addChecklistItem
@@ -202,6 +224,26 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       }),
     }),
     taskController.updateChecklistItem
+  );
+
+  app.delete(
+    '/checklist-items/:id',
+    createSchema({
+      description: 'Delete a checklist item',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+    }),
+    taskController.deleteChecklistItem
+  );
+
+  app.delete(
+    '/checklists/:id',
+    createSchema({
+      description: 'Delete a checklist',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+    }),
+    taskController.deleteChecklist
   );
 
   // 12. Labels

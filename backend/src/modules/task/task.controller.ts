@@ -38,6 +38,7 @@ export class TaskController {
     this.assignLabel = this.assignLabel.bind(this);
     this.addAttachment = this.addAttachment.bind(this);
     this.createSubtask = this.createSubtask.bind(this);
+    this.deleteTask = this.deleteTask.bind(this);
   }
 
   // 1. Create Board List
@@ -217,10 +218,10 @@ export class TaskController {
   }
 
   // 6. Get Single Task Details
-  async getTask(
+  getTask = async (
     request: FastifyRequest<{ Params: { id: string } }>,
     reply: FastifyReply
-  ) {
+  ) => {
     const { id } = request.params;
     const userId = (request.user as any).userId;
 
@@ -231,23 +232,16 @@ export class TaskController {
     const channelId = task.channel_id;
 
     // Fetch roles
-    const [orgMembership, channelMembership] = await Promise.all([
-      organizationMemberRepository.getMember(orgId, userId),
-      channelMemberRepository.getMember(channelId, userId)
-    ]);
-
-    const orgRole = orgMembership?.role;
-    const channelRole = channelMembership?.role;
-
-    if (!PermissionGuard.canChannel(orgRole, channelRole, 'task.view')) {
+    const [orgMembership, channelMembership] = await this.getRoles(orgId, channelId, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.view')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to view task details');
     }
 
     return sendSuccess(reply, task, 'FETCH');
-  }
+  };
 
   // 7. Update Task API
-  async updateTask(
+  updateTask = async (
     request: FastifyRequest<{
       Params: { id: string };
       Body: {
@@ -259,7 +253,7 @@ export class TaskController {
       };
     }>,
     reply: FastifyReply
-  ) {
+  ) => {
     const { id } = request.params;
     const userId = (request.user as any).userId;
 
@@ -270,21 +264,35 @@ export class TaskController {
     const channelId = task.channel_id;
 
     // Fetch roles
-    const [orgMembership, channelMembership] = await Promise.all([
-      organizationMemberRepository.getMember(orgId, userId),
-      channelMemberRepository.getMember(channelId, userId)
-    ]);
+    const [orgMembership, channelMembership] = await this.getRoles(orgId, channelId, userId);
 
-    const orgRole = orgMembership?.role;
-    const channelRole = channelMembership?.role;
-
-    if (!PermissionGuard.canChannel(orgRole, channelRole, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update task');
     }
 
     const updatedTask = await taskService.updateTask(id, request.body);
     return sendSuccess(reply, updatedTask, 'UPDATE');
-  }
+  };
+
+  // 7.5. Delete Task API
+  deleteTask = async (
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+  ) => {
+    const { id } = request.params;
+    const userId = (request.user as any).userId;
+
+    const task = await taskRepository.getById(id);
+    if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.delete')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete task');
+    }
+
+    await taskService.deleteTask(id);
+    return sendSuccess(reply, { success: true }, 'DELETE');
+  };
 
   // PHASE 4 — Collaboration Features
 
@@ -362,7 +370,7 @@ export class TaskController {
   }
 
   // 10. Checklists
-  async createChecklist(request: FastifyRequest<{ Params: { id: string }; Body: { title: string } }>, reply: FastifyReply) {
+  createChecklist = async (request: FastifyRequest<{ Params: { id: string }; Body: { title: string } }>, reply: FastifyReply) => {
     const { id } = request.params;
     const { title } = request.body;
     const { userId } = request.user as any;
@@ -377,9 +385,26 @@ export class TaskController {
 
     const checklist = await checklistService.createChecklist(id, title);
     return sendSuccess(reply, checklist, 'CREATE');
-  }
+  };
 
-  async addChecklistItem(request: FastifyRequest<{ Params: { id: string }; Body: { title: string; position?: number } }>, reply: FastifyReply) {
+  updateChecklist = async (request: FastifyRequest<{ Params: { id: string }; Body: { title: string } }>, reply: FastifyReply) => {
+    const { id: checklistId } = request.params;
+    const { title } = request.body;
+    const { userId } = request.user as any;
+
+    const checklist = await checklistRepository.getById(checklistId, { include: { task: true } });
+    if (!checklist) return sendError(reply, HttpStatus.NOT_FOUND, 'Checklist not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles((checklist as any).task.org_id, (checklist as any).task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update checklists');
+    }
+
+    const updatedChecklist = await checklistService.updateChecklist(checklistId, title);
+    return sendSuccess(reply, updatedChecklist, 'UPDATE');
+  };
+
+  addChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { title: string; position?: number } }>, reply: FastifyReply) => {
     const { id: checklistId } = request.params;
     const { title, position } = request.body;
     const { userId } = request.user as any;
@@ -395,9 +420,9 @@ export class TaskController {
 
     const item = await checklistService.addItem(checklistId, title, position);
     return sendSuccess(reply, item, 'CREATE');
-  }
+  };
 
-  async updateChecklistItem(request: FastifyRequest<{ Params: { id: string }; Body: { title?: string; is_completed?: boolean; position?: number } }>, reply: FastifyReply) {
+  updateChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { title?: string; is_completed?: boolean; position?: number } }>, reply: FastifyReply) => {
     const { id: itemId } = request.params;
     const { userId } = request.user as any;
 
@@ -411,10 +436,42 @@ export class TaskController {
 
     const updatedItem = await checklistService.updateItem(itemId, request.body);
     return sendSuccess(reply, updatedItem, 'UPDATE');
-  }
+  };
+
+  deleteChecklistItem = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { id: itemId } = request.params;
+    const { userId } = request.user as any;
+
+    const item = await checklistItemRepository.getById(itemId, { include: { checklist: { include: { task: true } } } });
+    if (!item) return sendError(reply, HttpStatus.NOT_FOUND, 'Item not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles((item as any).checklist.task.org_id, (item as any).checklist.task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete items');
+    }
+
+    await checklistService.deleteItem(itemId);
+    return sendSuccess(reply, { success: true }, 'DELETE');
+  };
+
+  deleteChecklist = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { id: checklistId } = request.params;
+    const { userId } = request.user as any;
+
+    const checklist = await checklistRepository.getById(checklistId, { include: { task: true } });
+    if (!checklist) return sendError(reply, HttpStatus.NOT_FOUND, 'Checklist not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles((checklist as any).task.org_id, (checklist as any).task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete checklists');
+    }
+
+    await checklistService.deleteChecklist(checklistId);
+    return sendSuccess(reply, { success: true }, 'DELETE');
+  };
 
   // 12. Labels
-  async createLabel(request: FastifyRequest<{ Body: { org_id: string; name: string; color: string } }>, reply: FastifyReply) {
+  createLabel = async (request: FastifyRequest<{ Body: { org_id: string; name: string; color: string } }>, reply: FastifyReply) => {
     const { org_id, name, color } = request.body;
     const { userId } = request.user as any;
 
@@ -426,9 +483,9 @@ export class TaskController {
 
     const label = await labelService.createLabel(org_id, name, color);
     return sendSuccess(reply, label, 'CREATE');
-  }
+  };
 
-  async assignLabel(request: FastifyRequest<{ Params: { id: string }; Body: { label_id: string } }>, reply: FastifyReply) {
+  assignLabel = async (request: FastifyRequest<{ Params: { id: string }; Body: { label_id: string } }>, reply: FastifyReply) => {
     const { id } = request.params;
     const { label_id } = request.body;
     const { userId } = request.user as any;
@@ -443,10 +500,10 @@ export class TaskController {
 
     const assignment = await labelService.assignLabel(id, label_id);
     return sendSuccess(reply, assignment, 'CREATE');
-  }
+  };
 
   // 11. Attachments
-  async addAttachment(request: FastifyRequest<{ Params: { id: string }; Body: { name: string; url: string; file_type: string; file_size: number } }>, reply: FastifyReply) {
+  addAttachment = async (request: FastifyRequest<{ Params: { id: string }; Body: { name: string; url: string; file_type: string; file_size: number } }>, reply: FastifyReply) => {
     const { id } = request.params;
     const { userId } = request.user as any;
 
@@ -460,10 +517,10 @@ export class TaskController {
 
     const attachment = await attachmentService.addAttachment(id, userId, request.body);
     return sendSuccess(reply, attachment, 'CREATE');
-  }
+  };
 
   // PHASE 5 — Nested Tasks
-  async createSubtask(request: FastifyRequest<{ Params: { id: string }; Body: { title: string } }>, reply: FastifyReply) {
+  createSubtask = async (request: FastifyRequest<{ Params: { id: string }; Body: { title: string } }>, reply: FastifyReply) => {
     const { id: parentId } = request.params;
     const { title } = request.body;
     const { userId } = request.user as any;
@@ -478,7 +535,7 @@ export class TaskController {
 
     const subtask = await taskService.createSubtask(parentId, { title, creator_id: userId });
     return sendSuccess(reply, subtask, 'CREATE');
-  }
+  };
 
   // Private Helper
   private async getRoles(orgId: string, channelId: string, userId: string) {
