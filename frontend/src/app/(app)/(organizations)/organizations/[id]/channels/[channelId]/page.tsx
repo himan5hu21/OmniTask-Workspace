@@ -230,7 +230,23 @@ export default function ChannelDetailPage() {
   }, [messages, socketMessages]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
-    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+ 
+    const performScroll = () => {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior,
+      });
+    };
+ 
+    // Immediate scroll
+    performScroll();
+ 
+    // Reinforce after a short delay for dynamic content/layout shifts
+    if (behavior === "auto") {
+      setTimeout(performScroll, 50);
+    }
   }, []);
 
   const isNearBottom = useCallback(() => {
@@ -239,6 +255,13 @@ export default function ChannelDetailPage() {
 
     return container.scrollHeight - container.scrollTop - container.clientHeight < 120;
   }, []);
+
+  // Reset initialization when switching to chat tab to force a scroll-to-bottom
+  useEffect(() => {
+    if (activeTab === "chat") {
+      hasInitializedScrollRef.current = false;
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -275,7 +298,7 @@ export default function ChannelDetailPage() {
     }
 
     previousMessageCountRef.current = currentCount;
-  }, [allMessages.length, scrollToBottom]);
+  }, [allMessages.length, scrollToBottom, activeTab]);
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;

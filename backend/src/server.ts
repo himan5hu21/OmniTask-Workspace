@@ -3,7 +3,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import socketPlugin from '@/plugins/socket';
 import authRoutes from '@/modules/auth/auth.routes';
-import taskRoutes from '@/modules/task/tasks';
+import taskRoutes from '@/modules/task/task.routes';
 import orgRoutes from '@/modules/organizations/organizations.routes';
 import channelRoutes from '@/modules/channels/channels.routes';
 import messageRoutes from '@/modules/message/message.routes';

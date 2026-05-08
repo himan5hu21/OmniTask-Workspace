@@ -12,11 +12,14 @@ export const ORG_PERMISSIONS = {
     'label.manage', 'settings.manage'
   ],
   ADMIN: [
-    'org.read', 'org.update', 'member.invite', 'member.remove', 
+    'org.read', 'org.update', 'member.invite', 'member.remove', 'member.role.change',
     'channel.create', 'channel.delete', 'channel.update', 'channel.view', 'channel.manage',
     'label.manage', 'settings.manage', 'org.leave'
   ],
-  MEMBER: ['org.read', 'channel.view', 'org.leave'],
+  MEMBER: [
+    'org.read', 'channel.view', 'org.leave',
+    'task.create', 'task.view', 'task.comment'
+  ],
   GUEST: ['org.read', 'channel.view', 'org.leave']
 } as const;
 

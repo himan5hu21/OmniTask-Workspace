@@ -141,4 +141,9 @@ export class BaseRepository {
       return client.delete({ where: { id: idOrIds } });
     }
   }
+
+  // 9. DELETE MANY (by condition)
+  async deleteMany(options: { where: any }, tx?: any) {
+    return this.getClient(tx).deleteMany(options);
+  }
 }
