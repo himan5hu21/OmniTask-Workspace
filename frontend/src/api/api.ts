@@ -46,33 +46,42 @@ api.interceptors.request.use(
   }
 );
 
-// Add these variables at the top of your file, outside the interceptor
-let isRefreshing = false;
-let failedQueue: { resolve: (token: string) => void; reject: (error: unknown) => void }[] = [];
+// This shared promise handles concurrent 401s within a single tab
+let refreshPromise: Promise<string> | null = null;
 
-// NEW: Helper to manage cross-tab locking
-const acquireLock = () => {
-  if (typeof window === 'undefined') return true;
-  if (localStorage.getItem('isRefreshing') === 'true') return false;
-  localStorage.setItem('isRefreshing', 'true');
-  return true;
-};
+// Multi-tab synchronization using BroadcastChannel
+const authChannel = typeof window !== 'undefined' ? new BroadcastChannel('auth_sync') : null;
 
-const releaseLock = () => {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem('isRefreshing');
-};
-
-const processQueue = (error: unknown, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token as string);
+if (authChannel) {
+  authChannel.onmessage = (event) => {
+    if (event.data.type === 'TOKEN_REFRESHED' && event.data.token) {
+      const currentToken = getToken();
+      if (currentToken !== event.data.token) {
+        console.log('[API] Token sync received from another tab');
+        setToken(event.data.token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${event.data.token}`;
+        
+        // Notify local listeners (like sockets)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('token_refreshed'));
+        }
+      }
+    } else if (event.data.type === 'LOGOUT') {
+      console.log('[API] Logout sync received from another tab');
+      deleteToken();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
-  });
-  failedQueue = [];
-};
+  };
+
+  // Cleanup BroadcastChannel on page unload
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+      authChannel?.close();
+    });
+  }
+}
 
 // Add response interceptor for global error handling and automatic token refresh
 api.interceptors.response.use(
@@ -89,84 +98,75 @@ api.interceptors.response.use(
 
     // 2. ONLY trigger refresh if it's a 401, hasn't been retried, AND is NOT an auth route
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
-      
-      // 🚨 FIX 1: The Multi-Tab / Fast Concurrency Check
-      const currentToken = getToken();
-      const requestToken = originalRequest.headers.Authorization?.replace('Bearer ', '');
-      
-      // If the token in cookies doesn't match the one that failed, another request 
-      // or browser tab ALREADY refreshed it! Skip the queue and just retry.
-      if (currentToken && requestToken && currentToken !== requestToken) {
-        originalRequest.headers.Authorization = `Bearer ${currentToken}`;
-        return api(originalRequest);
-      }
-
-      // Check BOTH the memory lock and the cross-tab lock
-      if (isRefreshing || !acquireLock()) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return api(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
+      // 🚨 FIX: Prevent recursive refresh attempts if the refresh call itself fails with 401
+      if (originalRequest.url?.includes('/auth/refresh')) {
+        return Promise.reject(error);
       }
 
       originalRequest._retry = true;
-      isRefreshing = true;
 
       try {
-        // Call refresh API (bypassing interceptor to avoid loops)
-        const res = await axios.post(`${FASTIFY_API_URL}/auth/refresh`, {}, {
-          withCredentials: true 
-        });
+        // Multi-tab check: If token changed while this request was flying, another tab refreshed it!
+        const currentToken = getToken();
+        const requestToken = 
+          typeof originalRequest.headers?.Authorization === 'string'
+            ? originalRequest.headers.Authorization.replace('Bearer ', '')
+            : null;
 
-        const newToken = res.data.data.accessToken;
-        
-        // Save the new token
-        setToken(newToken);
-        api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
-
-        // IMPORTANT FOR SOCKETS: Dispatch an event telling the socket to reconnect
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('token_refreshed'));
+        if (currentToken && requestToken && currentToken !== requestToken) {
+          originalRequest.headers.Authorization = `Bearer ${currentToken}`;
+          return api(originalRequest);
         }
 
-        // Release the queued requests
-        processQueue(null, newToken);
+        // Shared promise pattern: If a refresh is already running in this tab, wait for it.
+        if (!refreshPromise) {
+          refreshPromise = axios
+            .post(`${FASTIFY_API_URL}/auth/refresh`, {}, { withCredentials: true })
+            .then((res) => {
+              const newToken = res.data.data.accessToken;
+              setToken(newToken);
+              api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+              
+              // Notify local listeners (like sockets)
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event('token_refreshed'));
+              }
 
-        // Retry the original request that triggered the refresh
+              // Broadcast to other tabs
+              if (authChannel) {
+                authChannel.postMessage({
+                  type: 'TOKEN_REFRESHED',
+                  token: newToken,
+                });
+              }
+              
+              return newToken;
+            })
+            .finally(() => {
+              refreshPromise = null;
+            });
+        }
+
+        const newToken = await refreshPromise;
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
 
       } catch (refreshError: unknown) {
-        // Reject all queued requests
-        processQueue(refreshError, null);
-        
         // If refresh fails, session is completely dead. Log them out.
         deleteToken();
+
+        // Broadcast logout to other tabs
+        if (authChannel) {
+          authChannel.postMessage({ type: 'LOGOUT' });
+        }
+
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
-        
         return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
-        releaseLock(); // ALWAYS release the lock so other tabs aren't stuck
       }
     }
 
-    // Handle 403 errors cleanly
-    if (error.response?.status === 403) {
-      console.error('[API] 403 Forbidden - Session invalid or expired.');
-      
-      // If we get a 403, the session cannot be saved. Wipe everything and redirect.
-      deleteToken();
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-         window.location.href = '/login';
-      }
-    }
 
     // Standardized error object
     const apiError = {

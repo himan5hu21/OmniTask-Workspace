@@ -3,13 +3,14 @@ import { createContext } from 'react';
 import { createContextualCan } from '@casl/react';
 import { ORG_PERMISSIONS, CHANNEL_PERMISSIONS, OrgRole, ChannelRole } from './permission-matrices';
 
-export type Actions = 'create' | 'read' | 'update' | 'delete' | 'manage' | 'invite' | 'remove' | 'promote' | 'leave' | 'view' | 'change';
+export type Actions = 'create' | 'read' | 'update' | 'delete' | 'manage' | 'invite' | 'remove' | 'promote' | 'leave' | 'view' | 'change' | 'add' | 'send' | 'list';
 export type Subjects = 'Organization' | 'Channel' | 'Member' | 'Task' | 'Message' | 'Settings' | 'Label' | 'Board' | 'all';
 
 export type AppAbility = MongoAbility<[Actions, Subjects]>;
 
 const SUBJECT_MAP: Record<string, Subjects> = {
   org: 'Organization',
+  organization: 'Organization',
   member: 'Member',
   channel: 'Channel',
   label: 'Label',

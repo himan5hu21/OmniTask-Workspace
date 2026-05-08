@@ -6,9 +6,10 @@ const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000'
 
 let socket: Socket | null = null;
 
-// 🚨 FIX 1: Create a memory bank for active channel rooms
-// This tracks channelId -> userId
 const activeRooms = new Map<string, string>(); 
+let isCheckingAuth = false;
+let isReconnecting = false;
+let isListenerAttached = false;
 
 export const getSocket = () => {
   const token = getToken();
@@ -40,18 +41,28 @@ export const getSocket = () => {
     socket.on('connect_error', async (err) => {
       console.error('[Socket] Connection error:', err.message);
       const errMsg = err.message.toLowerCase();
+
+      // Stricter auth error matching to avoid accidental disconnects on generic network errors
+      const isAuthError = 
+        errMsg.includes('jwt') || 
+        errMsg.includes('unauthorized') || 
+        errMsg.includes('authentication') || 
+        errMsg.includes('token has expired');
       
-      if (['auth', 'jwt', 'token', 'expired'].some(k => errMsg.includes(k))) {
-        socket?.disconnect(); 
-        
+      if (isAuthError) {
+        if (socket?.connected) socket.disconnect();
+
+        if (isCheckingAuth) return;
+        isCheckingAuth = true;
+
         try {
           console.log('[Socket] Auth error. Triggering Axios check...');
           const { default: api } = await import('@/api/api');
-          
+
           // This triggers the Axios 401 interceptor if the token is truly expired.
           // The interceptor will fire 'token_refreshed' and handle reconnection automatically!
-          await api.get('/auth/profile'); 
-          
+          await api.get('/auth/profile');
+
           // 🚨 FIX 2: Only reconnect manually if the socket is STILL disconnected.
           // This happens if api.get('/auth/profile') succeeds WITHOUT needing a refresh 
           // (meaning the access token was fine, but the socket had a separate hiccup).
@@ -65,6 +76,8 @@ export const getSocket = () => {
           }
         } catch {
           console.error('[Socket] Session completely expired. Socket will remain disconnected.');
+        } finally {
+          isCheckingAuth = false;
         }
       }
     });
@@ -74,9 +87,25 @@ export const getSocket = () => {
     const newToken = `Bearer ${token}`;
     
     if (currentToken !== newToken) {
-      socket.auth = { token: newToken };
-      socket.disconnect().connect();
-      console.log('[Socket] Token updated, reconnected.');
+      if (!isReconnecting) {
+        isReconnecting = true;
+        
+        if (socket.connected) {
+          socket.disconnect();
+        }
+ 
+        // IMPORTANT: Update auth token before reconnecting
+        socket.auth = { token: newToken };
+ 
+        setTimeout(() => {
+          try {
+            socket?.connect();
+            console.log('[Socket] Token updated, reconnected cleanly.');
+          } finally {
+            isReconnecting = false;
+          }
+        }, 0);
+      }
     }
   }
 
@@ -92,10 +121,6 @@ export const joinChannelRoom = (channelId: string, userId: string) => {
   
   if (activeSocket.connected) {
     activeSocket.emit('channel:join', { channelId, userId });
-  } else {
-    activeSocket.once('connect', () => {
-      activeSocket.emit('channel:join', { channelId, userId });
-    });
   }
   
   return activeSocket;
@@ -118,21 +143,35 @@ export const disconnectSocket = () => {
   }
 };
 
-// Global listener for token refresh events from Axios interceptor
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && !isListenerAttached) {
+  isListenerAttached = true;
+
   window.addEventListener('token_refreshed', () => {
     console.log('[Socket] Token refreshed event received. Syncing socket...');
+    
     if (socket) {
+      if (isReconnecting) return;
+      isReconnecting = true;
+
       const token = getToken();
       if (token) {
         socket.auth = { token: `Bearer ${token}` };
         
-        // 🚨 FIX 3: Safe reconnect based on current state to avoid overlapping connections
-        if (socket.disconnected) {
-          socket.connect();
-        } else {
-          socket.disconnect().connect();
+        // 🚨 FIX 3: Safe reconnect logic with microtask delay to avoid transport overlap
+        if (socket.connected) {
+          socket.disconnect();
         }
+        
+        setTimeout(() => {
+          try {
+            socket?.connect();
+            console.log('[Socket] Socket synced after refresh.');
+          } finally {
+            isReconnecting = false;
+          }
+        }, 0);
+      } else {
+        isReconnecting = false;
       }
     } else {
       getSocket();

@@ -15,7 +15,10 @@ import {
   Hash,
   Pencil,
   AlertTriangle,
-  User
+  User,
+  Settings,
+  Crown,
+  ShieldCheck
 } from 'lucide-react';
 import { OrbitalLoader } from '@/components/ui/orbital-loader';
 import { useUIStore } from '@/store/ui.store';
@@ -24,7 +27,8 @@ import {
   useOrganizationMembers, 
   useUpdateOrganizationMemberRole, 
   useRemoveOrganizationMember,
-  useDeleteOrganization
+  useDeleteOrganization,
+  useUpdateOrganization
 } from '@/api/organizations';
 import { useParams, useRouter } from 'next/navigation';
 import { 
@@ -48,7 +52,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+import { cn, getInitials } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthProfile } from '@/api/auth';
 import { 
@@ -81,8 +85,9 @@ import { AbilityContext } from '@/lib/casl';
 import { InviteMemberDialog } from '@/components/organizations/invite-member-dialog';
 import { CreateChannelDialog } from '@/components/organizations/create-channel-dialog';
 import { DeleteOrganizationDialog } from '@/components/organizations/delete-organization-dialog';
+import { useDebounce } from '@/hooks/useDebounce';
 
-type Tab = 'overview' | 'members' | 'invites' | 'roles' | 'channels';
+type Tab = 'overview' | 'members' | 'invites' | 'roles' | 'channels' | 'settings';
 
 export default function OrganizationSettingsModal() {
   const isMounted = useIsMounted();
@@ -96,7 +101,9 @@ export default function OrganizationSettingsModal() {
   
   const [activeTab, setActiveTab] = useState<Tab>('members');
   const [memberSearch, setMemberSearch] = useState("");
+  const debouncedMemberSearch = useDebounce(memberSearch, 500);
   const [channelSearch, setChannelSearch] = useState("");
+  const debouncedChannelSearch = useDebounce(channelSearch, 500);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [channelPage, setChannelPage] = useState(1);
@@ -105,6 +112,11 @@ export default function OrganizationSettingsModal() {
   const [isUpdateChannelOpen, setIsUpdateChannelOpen] = useState(false);
   const [editChannelName, setEditChannelName] = useState("");
   const [isDeleteOrgOpen, setIsDeleteOrgOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [prevOrgName, setPrevOrgName] = useState<string | undefined>(undefined);
+
+  const updateOrgMutation = useUpdateOrganization();
+  const deleteOrgMutation = useDeleteOrganization();
 
   const { organization } = useOrganization(orgId, {
     enabled: isOrgSettingsOpen && !!orgId
@@ -115,7 +127,7 @@ export default function OrganizationSettingsModal() {
     pagination,
     isLoading: isLoadingMembers 
   } = useOrganizationMembers(orgId, {
-    search: memberSearch,
+    search: debouncedMemberSearch,
     page,
     limit
   }, {
@@ -127,16 +139,39 @@ export default function OrganizationSettingsModal() {
     pagination: channelPagination,
     isLoading: isLoadingChannels
   } = useOrgChannels(orgId, {
-    search: channelSearch,
+    search: debouncedChannelSearch,
     page: channelPage,
     limit
   }, {
     enabled: isOrgSettingsOpen && !!orgId && activeTab === 'channels'
   });
 
+  // Sync draft when organization data loads or changes
+  if (organization?.name !== prevOrgName) {
+    setPrevOrgName(organization?.name);
+    setNameDraft(organization?.name || "");
+  }
+
+  const handleSaveName = () => {
+    const nextName = nameDraft.trim();
+    if (!organization || !nextName || nextName === organization.name) {
+      return;
+    }
+
+    updateOrgMutation.mutate({
+      orgId,
+      data: { name: nextName },
+    }, {
+      onSuccess: () => toast.success("Organization updated successfully"),
+      onError: (error) =>
+        handleApiError(error, {
+          onOtherError: (message) => toast.error(message),
+        }),
+    });
+  };
+
   const updateRoleMutation = useUpdateOrganizationMemberRole();
   const removeMemberMutation = useRemoveOrganizationMember();
-  const deleteOrgMutation = useDeleteOrganization();
   const deleteChannelMutation = useDeleteChannel();
   const updateChannelMutation = useUpdateChannel();
 
@@ -215,7 +250,7 @@ export default function OrganizationSettingsModal() {
           <div className="px-6 h-[72px] border-b border-border flex items-center">
             <div className="flex items-center gap-3 w-full">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary font-bold text-lg">
-                {organization?.name?.charAt(0).toUpperCase() || "W"}
+                {getInitials(organization?.name, "W")}
               </div>
               <h2 className="text-base font-bold tracking-tight text-foreground truncate">
                 {organization?.name || "Workspace"}
@@ -280,6 +315,18 @@ export default function OrganizationSettingsModal() {
                 Roles
               </button>
             )}
+            {ability.can('update', 'Organization') && (
+              <button 
+                onClick={() => setActiveTab('settings')}
+                className={cn(
+                  "px-4 py-2.5 mx-1 md:mx-2 rounded-lg text-sm font-medium transition-all flex items-center gap-3 whitespace-nowrap",
+                  activeTab === 'settings' ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Settings className="h-4 w-4" />
+                Settings
+              </button>
+            )}
           </nav>
         </div>
 
@@ -289,7 +336,8 @@ export default function OrganizationSettingsModal() {
           <div className="px-6 pr-15 h-[72px] border-b border-border flex items-center justify-between shrink-0">
             <h1 className="text-lg font-bold tracking-tight text-foreground">
               {activeTab === 'members' && "Manage Members"}
-              {activeTab === 'channels' && "Manage Channels"}
+              {activeTab === 'channels' && "Workspace Channels"}
+              {activeTab === 'settings' && "General Settings"}
               {activeTab === 'overview' && "Workspace Overview"}
               {activeTab === 'invites' && "Pending Invitations"}
               {activeTab === 'roles' && "Roles & Permissions"}
@@ -770,6 +818,58 @@ export default function OrganizationSettingsModal() {
                 </div>
               </div>
             )}
+
+            {activeTab === 'settings' && (
+              <div className="space-y-8">
+                {ability.can('update', 'Organization') && (
+                  <div className="p-6 border border-border rounded-xl bg-card/30 space-y-4">
+                    <h3 className="text-sm font-bold">Workspace Details</h3>
+                    <div className="space-y-4 max-w-md">
+                      <div className="space-y-2">
+                        <Label htmlFor="org-name" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Organization Name</Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            id="org-name"
+                            value={nameDraft}
+                            onChange={(e) => setNameDraft(e.target.value)}
+                            className="h-11 bg-muted/20 border-border" 
+                          />
+                          <Button 
+                            onClick={handleSaveName}
+                            disabled={updateOrgMutation.isPending || !nameDraft.trim() || nameDraft.trim() === organization?.name}
+                            className="h-11 px-6 rounded-xl font-bold"
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {ability.can('delete', 'Organization') && (
+                  <div className="border border-destructive/20 bg-destructive/5 rounded-xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-bold text-destructive flex items-center gap-2">
+                        <ShieldAlert className="h-4 w-4" />
+                        Danger Zone
+                      </h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Permanently delete this organization and all its data (channels, members, tasks). This action cannot be undone.
+                      </p>
+                    </div>
+                    <Button 
+                      variant="destructive" 
+                      className="rounded-lg text-xs font-bold px-6 shrink-0"
+                      onClick={() => setIsDeleteOrgOpen(true)}
+                      disabled={deleteOrgMutation.isPending}
+                    >
+                      Delete Organization
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
             </div>
           </ScrollArea>
         </div>
@@ -855,44 +955,5 @@ export default function OrganizationSettingsModal() {
         }}
       />
     </>
-  );
-}
-
-function Crown({ className }: { className?: string }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className={className}
-    >
-      <path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14" />
-    </svg>
-  );
-}
-
-function ShieldCheck({ className }: { className?: string }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className={className}
-    >
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
   );
 }

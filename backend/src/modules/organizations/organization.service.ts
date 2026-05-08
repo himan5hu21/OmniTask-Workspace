@@ -192,11 +192,26 @@ export class OrganizationService {
       throw new AppError('You lack the member.role.change capability', HttpStatus.FORBIDDEN);
     }
 
+    // Role Rule: Cannot change anyone TO owner via this method
+    if (newRole === 'OWNER') {
+      throw new AppError('Cannot assign the OWNER role via update', HttpStatus.BAD_REQUEST);
+    }
+
     const org = await orgRepo.getById(orgId);
-    if (org?.owner_id === userId) throw new AppError('Cannot change the organization owner role', HttpStatus.BAD_REQUEST);
+    if (!org) throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
+
+    // Role Rule: Cannot change the primary owner's role (Source of Truth)
+    if (org.owner_id === userId) {
+      throw new AppError('Cannot change the organization owner role', HttpStatus.BAD_REQUEST);
+    }
 
     const updatedMember = await orgMemberRepo.findOne({ organization_id: orgId, user_id: userId });
     if (!updatedMember) throw new AppError('Member not found', HttpStatus.NOT_FOUND);
+
+    // Role Rule: Cannot change the role of anyone who currently HAS the owner role
+    if (updatedMember.role === 'OWNER') {
+      throw new AppError('Cannot change the role of an organization owner', HttpStatus.BAD_REQUEST);
+    }
 
     await orgMemberRepo.update(updatedMember.id, { role: newRole });
 

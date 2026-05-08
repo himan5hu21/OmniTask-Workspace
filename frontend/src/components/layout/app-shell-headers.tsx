@@ -4,9 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckSquare,
   CircleHelp,
-  Hash,
   MessageSquareText,
-  MoreHorizontal,
   Search,
   Settings,
 } from "lucide-react";
@@ -14,16 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChannelManagementSheet } from "@/components/organizations/channel-management-sheet";
-import { cn } from "@/lib/utils";
+import { ChannelSettingsModal } from "@/components/organizations/channel-management-sheet";
+import { cn, getInitials } from "@/lib/utils";
 
 export function DashboardHeader() {
   return (
@@ -60,6 +50,10 @@ export function OrganizationHeader({
   organizationName?: string;
   onSettingsClick?: () => void;
 }) {
+  const initials = organizationName
+    ? organizationName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+    : "OT";
+
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-md">
       <div className="flex items-center gap-4">
@@ -69,11 +63,17 @@ export function OrganizationHeader({
           <span className="text-lg font-bold">OmniTask</span>
         </div>
         
-        {/* Org Name on Desktop */}
-        <div className="hidden md:flex items-center gap-2">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">
-            {organizationName || "OmniTask"}
-          </h2>
+        {/* Breadcrumb style for Desktop */}
+        <div className="hidden md:flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-sm font-bold text-primary shadow-sm">
+            {initials}
+          </div>
+          <div className="flex flex-col">
+            <h2 className="text-sm font-semibold tracking-tight text-foreground leading-tight">
+              Home
+            </h2>
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider leading-tight">Overview</p>
+          </div>
         </div>
       </div>
 
@@ -111,7 +111,7 @@ export function ChannelHeader({
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") === "tasks" ? "tasks" : "chat";
-  const initials = getChannelInitials(channelName);
+  const initials = getInitials(channelName, "CH");
 
   const setTab = (tab: "chat" | "tasks") => {
     const params = new URLSearchParams(searchParams.toString());
@@ -120,19 +120,16 @@ export function ChannelHeader({
   };
 
   return (
-    <header className="sticky top-0 z-40 flex h-20 shrink-0 items-center gap-4 border-b border-border bg-background/85 px-6 backdrop-blur-md">
+    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-4 border-b border-border bg-background/85 px-6 backdrop-blur-md">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-base font-bold text-primary shadow-sm">
           {initials}
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-base font-semibold text-foreground">{channelName || "Channel"}</h1>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Live
-            </span>
           </div>
-          <p className="text-xs text-muted-foreground">Chat, updates, and channel-scoped work in one place</p>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Collaborate & Manage Tasks</p>
         </div>
       </div>
 
@@ -164,49 +161,19 @@ export function ChannelHeader({
           </Button>
         </div>
 
-        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
-          <Hash className="h-5 w-5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
-          <Search className="h-5 w-5" />
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+
+        <ChannelSettingsModal
+          channelId={channelId}
+          orgId={organizationId}
+          trigger={
             <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-foreground">
-              <MoreHorizontal className="h-5 w-5" />
+              <Settings className="h-5 w-5" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-lg border-border">
-            <ChannelManagementSheet
-              channelId={channelId}
-              orgId={organizationId}
-              trigger={
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="rounded-lg cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Manage Channel</span>
-                </DropdownMenuItem>
-              }
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
+          }
+        />
       </div>
     </header>
   );
 }
 
-function getChannelInitials(channelName?: string) {
-  if (!channelName) return "CH";
-
-  const words = channelName
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (words.length >= 2) {
-    return `${words[0][0]}${words[1][0]}`.toUpperCase();
-  }
-
-  const normalized = words[0] ?? channelName;
-  return normalized.slice(0, 2).toUpperCase();
-}
 

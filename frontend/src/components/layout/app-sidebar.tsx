@@ -44,7 +44,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { useIsMounted } from "@/hooks/useIsMounted"
-import { cn } from "@/lib/utils"
+import { cn, getInitials } from "@/lib/utils"
 import { useUIStore } from "@/store/ui.store"
 import { InviteMemberDialog } from "@/components/organizations/invite-member-dialog"
 import { CreateChannelDialog } from "@/components/organizations/create-channel-dialog"
@@ -90,8 +90,8 @@ export function AppSidebar({
     },
   })
 
-  const userInitials = user?.name ? user.name.substring(0, 2).toUpperCase() : "U"
-  const organizationInitial = organizationName?.charAt(0).toUpperCase() || "O"
+  const userInitials = getInitials(user?.name, "U")
+  const organizationInitial = getInitials(organizationName, "O")
 
 
   const globalNavItems =
@@ -174,7 +174,7 @@ export function AppSidebar({
             "group-hover:border-primary/30"
           )}>
             <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-xs transition-colors group-hover:bg-primary/20">
-              {userInitials}
+              {isMounted ? userInitials : null}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
@@ -202,7 +202,7 @@ export function AppSidebar({
               <div className="flex items-center gap-3 px-2 py-2 text-left text-sm">
                 <Avatar className="h-9 w-9 rounded-lg border border-sidebar-border/70">
                   <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-xs">
-                    {userInitials}
+                    {isMounted ? userInitials : null}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
@@ -344,8 +344,8 @@ export function AppSidebar({
               <div className="flex flex-1 flex-col min-h-0">
                 <SidebarHeader className="h-18 shrink-0 border-b border-sidebar-border/70 px-5 flex items-center">
                   <div className="flex items-center gap-3 w-full h-full">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary font-bold text-lg">
-                      {organizationInitial}
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary font-bold text-lg shadow-sm">
+                      {isMounted ? organizationInitial : null}
                     </div>
                     <div className="min-w-0 flex-1">
                       {isLoadingOrg ? (

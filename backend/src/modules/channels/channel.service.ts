@@ -236,6 +236,20 @@ export class ChannelService {
       throw new AppError('You lack the channel.member.promote capability', HttpStatus.FORBIDDEN);
     }
 
+    const targetOrgMembership = await orgMemberRepo.findOne({ organization_id: channel.org_id, user_id: userId });
+
+    // Rule: ADMIN (Org) cannot change role of OWNER (Org)
+    if (orgMembership?.role === 'ADMIN' && targetOrgMembership?.role === 'OWNER') {
+      throw new AppError('Admins cannot change the role of the organization owner', HttpStatus.FORBIDDEN);
+    }
+
+    // Rule: MANAGER (Channel) cannot change role of ADMIN (Org) or OWNER (Org)
+    if (orgMembership?.role !== 'OWNER' && orgMembership?.role !== 'ADMIN' && channelMembership?.role === 'MANAGER') {
+      if (targetOrgMembership?.role === 'ADMIN' || targetOrgMembership?.role === 'OWNER') {
+        throw new AppError('Channel managers cannot change the role of organization admins or owners', HttpStatus.FORBIDDEN);
+      }
+    }
+
     const memberToUpdate = await channelMemberRepo.findOne({ channel_id: channelId, user_id: userId });
     if (!memberToUpdate) throw new AppError('Member not found', HttpStatus.NOT_FOUND);
 
