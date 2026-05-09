@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { TiptapEditor } from "@/components/TiptapEditor";
+
 import { 
   useTask, 
   useUpdateTask, 
@@ -300,32 +302,61 @@ export function TaskDetailDialog({
 
               {/* Description Editor */}
               <section className="flex flex-col gap-2 mt-4">
-                <div className="flex items-center gap-2 text-foreground font-bold">
-                  <AlignLeft className="h-5 w-5 text-primary" />
-                  <h3>Description</h3>
-                </div>
-                <div className="border border-border rounded bg-muted/10 overflow-hidden focus-within:border-primary transition-colors">
-                  <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border bg-muted/30">
-                    <button aria-label="Bold" className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"><Bold size={16} /></button>
-                    <button aria-label="Italic" className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"><Italic size={16} /></button>
-                    <div className="w-px h-3 bg-border mx-1"></div>
-                    <button aria-label="Bulleted List" className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"><List size={16} /></button>
-                    <button aria-label="Numbered List" className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"><ListOrdered size={16} /></button>
-                    <div className="w-px h-3 bg-border mx-1"></div>
-                    <button aria-label="Code Block" className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"><Code size={16} /></button>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-foreground font-bold">
+                    <AlignLeft className="h-5 w-5 text-primary" />
+                    <h3>Description</h3>
                   </div>
-                  <div 
-                    className="p-3 min-h-[120px] text-sm text-foreground focus:outline-none" 
-                    contentEditable={true}
-                    suppressContentEditableWarning={true}
-                    onBlur={(e) => {
-                      setDescription(e.currentTarget.innerHTML);
-                      updateTask({ id: taskId, data: { description: e.currentTarget.innerHTML } });
-                    }}
-                    dangerouslySetInnerHTML={{ __html: task.description || "<p class='text-muted-foreground'>Add a more detailed description...</p>" }}
-                  />
+                  {isEditingDescription && (
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setIsEditingDescription(false);
+                          setDescription(task.description || "");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="h-7 text-xs"
+                        onClick={handleUpdateDescription}
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  )}
                 </div>
+
+                {isEditingDescription ? (
+                  <TiptapEditor 
+                    content={description || task.description || ""}
+                    onChange={setDescription}
+                    placeholder="Add a more detailed description..."
+                    autoFocus
+                  />
+                ) : (
+                  <div 
+                    onClick={() => {
+                      setDescription(task.description || "");
+                      setIsEditingDescription(true);
+                    }}
+                    className={cn(
+                      "p-3 min-h-[120px] text-sm text-foreground rounded border border-transparent hover:border-border hover:bg-muted/5 transition-all cursor-text prose prose-sm dark:prose-invert max-w-none [&_p]:my-0",
+                      (!task.description || task.description.replace(/<[^>]*>/g, '').trim() === '') && "text-muted-foreground italic"
+                    )}
+                    dangerouslySetInnerHTML={{ 
+                      __html: (task.description && task.description.replace(/<[^>]*>/g, '').trim() !== '') 
+                        ? task.description 
+                        : "Add a more detailed description..." 
+                    }}
+                  />
+                )}
               </section>
+
 
               {/* Subtasks Section (Nested Tasks) */}
               <section className="flex flex-col gap-3 mt-4">
@@ -586,7 +617,37 @@ export function TaskDetailDialog({
               </div>
             </div>
 
+            {/* Comment Input Header */}
+            <div className="p-4 border-b border-border bg-card shrink-0">
+              <div className="flex flex-col gap-2">
+                <div className="bg-muted/10 border border-border rounded-lg focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all flex flex-col">
+                  <textarea 
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    className="w-full bg-transparent border-none p-3 focus:ring-0 text-sm text-foreground placeholder-muted-foreground resize-none h-20 focus:outline-none" 
+                    placeholder="Write a comment..."
+                  ></textarea>
+                  <div className="flex items-center justify-between p-1 bg-card border-t border-border rounded-b-lg">
+                    <div className="flex items-center gap-1">
+                      <button aria-label="Attach File" className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors">
+                        <Paperclip size={16} />
+                      </button>
+                    </div>
+                    <Button 
+                      onClick={handleAddComment}
+                      disabled={!newComment.trim()}
+                      size="sm"
+                      className="text-[13px] font-medium px-4 py-1.5 h-auto flex items-center gap-1"
+                    >
+                      Comment
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <ScrollArea className="flex-1 p-4">
+
               <div className="flex flex-col gap-4 relative pb-4">
 
                 
@@ -617,34 +678,7 @@ export function TaskDetailDialog({
               </div>
             </ScrollArea>
 
-            {/* Comment Input Footer */}
-            <div className="p-4 border-t border-border bg-card shrink-0">
-              <div className="flex flex-col gap-2">
-                <div className="bg-muted/10 border border-border rounded-lg focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all flex flex-col">
-                  <textarea 
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    className="w-full bg-transparent border-none p-3 focus:ring-0 text-sm text-foreground placeholder-muted-foreground resize-none h-20 focus:outline-none" 
-                    placeholder="Write a comment..."
-                  ></textarea>
-                  <div className="flex items-center justify-between p-1 bg-card border-t border-border rounded-b-lg">
-                    <div className="flex items-center gap-1">
-                      <button aria-label="Attach File" className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors">
-                        <Paperclip size={16} />
-                      </button>
-                    </div>
-                    <Button 
-                      onClick={handleAddComment}
-                      disabled={!newComment.trim()}
-                      size="sm"
-                      className="text-[13px] font-medium px-4 py-1.5 h-auto flex items-center gap-1"
-                    >
-                      Comment
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
+
           </aside>
 
         </div>
