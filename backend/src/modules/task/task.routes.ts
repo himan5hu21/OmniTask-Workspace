@@ -88,6 +88,30 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }),
     taskController.reorderLists
   );
+  
+  app.patch(
+    '/board-lists/:id',
+    createSchema({
+      description: 'Update a board list (column) name or position',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+      body: z.object({
+        name: z.string().min(1).optional(),
+        position: z.number().int().max(2147483647).optional(),
+      }),
+    }),
+    taskController.updateBoardList
+  );
+
+  app.delete(
+    '/board-lists/:id',
+    createSchema({
+      description: 'Delete a board list (column) and all its tasks',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+    }),
+    taskController.deleteBoardList
+  );
 
   // PHASE 3 — Task Modal
 

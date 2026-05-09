@@ -39,7 +39,7 @@ model Task {
   parent_task Task?  @relation("SubTasks", fields: [parent_task_id], references: [id], onDelete: Cascade)
   subtasks    Task[] @relation("SubTasks")
 
-  list        BoardList? @relation(fields: [list_id], references: [id])
+  list        BoardList? @relation(fields: [list_id], references: [id], onDelete: Cascade)
 
   assignments TaskAssignment[]
   labels      TaskLabel[]

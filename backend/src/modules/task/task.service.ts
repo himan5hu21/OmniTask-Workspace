@@ -4,23 +4,67 @@ import { boardListRepository } from '@/repositories/board-list.repository';
 export class TaskService {
   async createTask(data: {
     title: string;
-    list_id?: string;
+    list_id: string;
     channel_id: string;
     org_id: string;
     creator_id: string;
+    position?: number;
   }) {
+    if (data.position === undefined) {
+      const lastTask = await taskRepository.findOne(
+        { list_id: data.list_id },
+        { orderBy: { position: 'desc' } }
+      );
+      data.position = lastTask ? lastTask.position + 1000 : 1000;
+    }
     return taskRepository.create(data);
   }
 
   async moveTask(taskId: string, targetListId: string, position: number) {
-    return taskRepository.update(taskId, {
+    const updated = await taskRepository.update(taskId, {
       list_id: targetListId,
       position,
     });
+
+    // Normalize when gaps become too small
+    const tasks = await taskRepository.getAll({
+      where: { list_id: targetListId },
+      orderBy: { position: 'asc' },
+    });
+
+    let shouldNormalize = false;
+    for (let i = 1; i < tasks.length; i++) {
+      const gap = tasks[i].position - tasks[i - 1].position;
+      if (gap <= 1) {
+        shouldNormalize = true;
+        break;
+      }
+    }
+
+    if (shouldNormalize) {
+      await this.normalizeListPositions(targetListId);
+    }
+
+    return updated;
+  }
+
+  async normalizeListPositions(listId: string) {
+    const tasks = await taskRepository.getAll({
+      where: { list_id: listId },
+      orderBy: { position: 'asc' },
+    });
+
+    await Promise.all(
+      tasks.map((task: any, index: number) =>
+        taskRepository.update(task.id, {
+          position: (index + 1) * 1000,
+        } as any)
+      )
+    );
   }
 
   async deleteTask(id: string) {
-    return taskRepository.delete(id);
+    return taskRepository.hardDelete(id);
   }
 
   async getTaskById(id: string) {

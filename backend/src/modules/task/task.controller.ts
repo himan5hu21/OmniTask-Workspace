@@ -25,6 +25,8 @@ export class TaskController {
     this.createTask = this.createTask.bind(this);
     this.moveTask = this.moveTask.bind(this);
     this.reorderLists = this.reorderLists.bind(this);
+    this.updateBoardList = this.updateBoardList.bind(this);
+    this.deleteBoardList = this.deleteBoardList.bind(this);
     this.getTask = this.getTask.bind(this);
     this.updateTask = this.updateTask.bind(this);
     this.assignUser = this.assignUser.bind(this);
@@ -99,6 +101,60 @@ export class TaskController {
 
     const board = await taskService.getBoardData(channelId);
     return sendSuccess(reply, board, 'FETCH');
+  }
+
+  // 2.1 Update Board List
+  async updateBoardList(
+    request: FastifyRequest<{ Params: { id: string }; Body: { name?: string; position?: number } }>,
+    reply: FastifyReply
+  ) {
+    const { id } = request.params;
+    
+    const list = await boardListRepository.getById(id);
+    if (!list) return sendError(reply, HttpStatus.NOT_FOUND, 'List not found');
+
+    const channel = await channelRepository.getById(list.channel_id);
+    if (!channel) return sendError(reply, HttpStatus.NOT_FOUND, 'Channel not found');
+
+    // Fetch roles
+    const [orgMembership, channelMembership] = await Promise.all([
+      organizationMemberRepository.getMember(channel.org_id, (request.user as any).userId),
+      channelMemberRepository.getMember(list.channel_id, (request.user as any).userId)
+    ]);
+
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'board.list.edit')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update board list');
+    }
+
+    const updated = await boardListService.updateList(id, request.body);
+    return sendSuccess(reply, updated, 'UPDATE');
+  }
+
+  // 2.2 Delete Board List
+  async deleteBoardList(
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+  ) {
+    const { id } = request.params;
+    
+    const list = await boardListRepository.getById(id);
+    if (!list) return sendError(reply, HttpStatus.NOT_FOUND, 'List not found');
+
+    const channel = await channelRepository.getById(list.channel_id);
+    if (!channel) return sendError(reply, HttpStatus.NOT_FOUND, 'Channel not found');
+
+    // Fetch roles
+    const [orgMembership, channelMembership] = await Promise.all([
+      organizationMemberRepository.getMember(channel.org_id, (request.user as any).userId),
+      channelMemberRepository.getMember(list.channel_id, (request.user as any).userId)
+    ]);
+
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'board.list.delete')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete board list');
+    }
+
+    await boardListService.deleteList(id);
+    return sendSuccess(reply, { success: true }, 'DELETE');
   }
 
   // 3. Create Task

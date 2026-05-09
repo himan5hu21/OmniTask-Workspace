@@ -135,6 +135,12 @@ export const taskService = {
   reorderLists: async (data: ReorderListsInput): Promise<SuccessResponse> => {
     return apiRequest.patch<SuccessResponse>('/board-lists/reorder', data);
   },
+  updateBoardList: async (id: string, data: { name?: string; position?: number }): Promise<ApiSuccess<BoardList>> => {
+    return apiRequest.patch<ApiSuccess<BoardList>>(`/board-lists/${id}`, data);
+  },
+  deleteBoardList: async (id: string): Promise<SuccessResponse> => {
+    return apiRequest.delete<SuccessResponse>(`/board-lists/${id}`);
+  },
 
   // Tasks
   createTask: async (data: CreateTaskInput): Promise<TaskResponse> => {
@@ -238,6 +244,27 @@ export const useReorderLists = () => {
     mutationFn: taskService.reorderLists,
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.board(variables.channel_id) });
+    },
+  });
+};
+
+export const useUpdateBoardList = (channelId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; position?: number } }) => 
+      taskService.updateBoardList(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.board(channelId) });
+    },
+  });
+};
+
+export const useDeleteBoardList = (channelId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: taskService.deleteBoardList,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.board(channelId) });
     },
   });
 };

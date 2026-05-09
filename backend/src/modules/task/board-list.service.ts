@@ -24,6 +24,14 @@ export class BoardListService {
       )
     );
   }
+
+  async updateList(id: string, data: { name?: string; position?: number }) {
+    return boardListRepository.update(id, data);
+  }
+
+  async deleteList(id: string) {
+    return boardListRepository.delete(id);
+  }
 }
 
 export const boardListService = new BoardListService();

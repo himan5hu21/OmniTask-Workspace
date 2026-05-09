@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import {
@@ -37,6 +37,7 @@ import {
   MoreHorizontal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSyncedState } from "@/hooks/useSyncedState";
 import { useBoard, useMoveTask, useReorderLists, useUpdateTask, useDeleteTask, BoardList, Task } from "@/api/tasks";
 import Spinner from "@/components/Loading";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -45,6 +46,14 @@ import { CreateListDialog } from "./create-list-dialog";
 import { CreateTaskDialog } from "./create-task-dialog";
 import { DeleteTaskDialog } from "./delete-task-dialog";
 import { TaskDetailDialog } from "./task-detail-dialog";
+import { EditListDialog } from "./edit-list-dialog";
+import { DeleteListDialog } from "./delete-list-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // --- Helper for Priority Colors ---
 const getPriorityStyles = (priority: string) => {
@@ -227,7 +236,9 @@ function BoardColumn({
   orgId, 
   channelId,
   onDeleteTask,
-  onOpenTaskDetail
+  onOpenTaskDetail,
+  onEditList,
+  onDeleteList
 }: { 
   list: BoardList; 
   tasks: Task[]; 
@@ -235,6 +246,8 @@ function BoardColumn({
   channelId: string;
   onDeleteTask: (task: Task) => void;
   onOpenTaskDetail: (task: Task) => void;
+  onEditList: (list: BoardList) => void;
+  onDeleteList: (list: BoardList) => void;
 }) {
   const {
     setNodeRef,
@@ -279,9 +292,29 @@ function BoardColumn({
             {tasks.length}
           </span>
         </div>
-        <button className="text-kanban-text-secondary hover:text-kanban-text-primary transition-colors">
-          <MoreHorizontal size={18} />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="text-kanban-text-secondary hover:text-kanban-text-primary transition-colors focus:outline-none">
+              <MoreHorizontal size={18} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40 rounded-xl bg-card border-border shadow-xl">
+            <DropdownMenuItem 
+              className="flex items-center gap-2 cursor-pointer focus:bg-muted py-2"
+              onClick={() => onEditList(list)}
+            >
+              <Pencil size={14} className="text-muted-foreground" />
+              <span className="text-sm font-medium">Edit List</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              className="flex items-center gap-2 cursor-pointer focus:bg-destructive/10 text-destructive py-2"
+              onClick={() => onDeleteList(list)}
+            >
+              <Trash2 size={14} />
+              <span className="text-sm font-medium">Delete List</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Task List with ScrollArea */}
@@ -334,9 +367,7 @@ export default function TaskBoard() {
   const { mutate: moveTask } = useMoveTask(channelId);
   const { mutate: reorderLists } = useReorderLists();
 
-  const [localLists, setLocalLists] = useState<BoardList[]>(lists || []);
-  const [prevServerLists, setPrevServerLists] = useState<BoardList[] | undefined>(lists);
-
+  const [localLists, setLocalLists] = useSyncedState<BoardList[]>(lists || []);
   const [activeColumn, setActiveColumn] = useState<BoardList | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
@@ -345,6 +376,12 @@ export default function TaskBoard() {
 
   const [taskForDetail, setTaskForDetail] = useState<Task | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  const [listToEdit, setListToEdit] = useState<BoardList | null>(null);
+  const [isEditListModalOpen, setIsEditListModalOpen] = useState(false);
+
+  const [listToDelete, setListToDelete] = useState<BoardList | null>(null);
+  const [isDeleteListModalOpen, setIsDeleteListModalOpen] = useState(false);
 
   const handleDeleteRequest = (task: Task) => {
     setTaskToDelete(task);
@@ -356,10 +393,6 @@ export default function TaskBoard() {
     setIsDetailModalOpen(true);
   };
 
-  if (lists !== prevServerLists) {
-    setPrevServerLists(lists);
-    setLocalLists(lists || []);
-  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -389,94 +422,79 @@ export default function TaskBoard() {
     const { active, over } = event;
     if (!over) return;
 
-    const activeId = active.id;
-    const overId = over.id;
-
+    const activeId = String(active.id);
+    const overId = String(over.id);
     if (activeId === overId) return;
 
-    const activeType = active.data.current?.type;
-    const overType = over.data.current?.type;
+    const isActiveTask = active.data.current?.type === "Task";
+    const isOverColumn = over.data.current?.type === "Column";
 
-    if (activeType === "Task" && overType === "Task") {
-      const activeListId = localLists.find((l) => (l.tasks || []).some((t) => t.id === activeId))?.id;
-      const overListId = localLists.find((l) => (l.tasks || []).some((t) => t.id === overId))?.id;
+    if (!isActiveTask) return;
 
-      if (activeListId && overListId && activeListId !== overListId) {
-        setLocalLists((prev) => {
-          const activeListIndex = prev.findIndex((l) => l.id === activeListId);
-          const overListIndex = prev.findIndex((l) => l.id === overListId);
+    setLocalLists((prev) => {
+      // Find the columns
+      const activeListIndex = prev.findIndex((l) => l.tasks?.some((t) => t.id === activeId));
+      const overListIndex = isOverColumn
+        ? prev.findIndex((l) => l.id === overId)
+        : prev.findIndex((l) => l.tasks?.some((t) => t.id === overId));
 
-          const activeList = prev[activeListIndex];
-          const overList = prev[overListIndex];
-
-          const activeTasks = activeList.tasks || [];
-          const overTasks = overList.tasks || [];
-
-          const activeTaskIndex = activeTasks.findIndex((t) => t.id === activeId);
-          const overTaskIndex = overTasks.findIndex((t) => t.id === overId);
-
-          const newActiveTasks = [...activeTasks];
-          const [movedTask] = newActiveTasks.splice(activeTaskIndex, 1);
-
-          const newOverTasks = [...overTasks];
-          newOverTasks.splice(overTaskIndex, 0, movedTask);
-
-          const newLists = [...prev];
-          newLists[activeListIndex] = { ...activeList, tasks: newActiveTasks };
-          newLists[overListIndex] = { ...overList, tasks: newOverTasks };
-
-          return newLists;
-        });
+      // If missing or same list, let onDragEnd handle the sorting
+      if (activeListIndex === -1 || overListIndex === -1 || activeListIndex === overListIndex) {
+        return prev;
       }
-    } else if (activeType === "Task" && overType === "Column") {
-      const activeListId = localLists.find((l) => (l.tasks || []).some((t) => t.id === activeId))?.id;
-      const overListId = overId as string;
 
-      if (activeListId && activeListId !== overListId) {
-        setLocalLists((prev) => {
-          const activeListIndex = prev.findIndex((l) => l.id === activeListId);
-          const overListIndex = prev.findIndex((l) => l.id === overListId);
+      // Different lists: Move optimistically
+      const newLists = [...prev];
+      const activeTasks = [...(newLists[activeListIndex].tasks || [])];
+      const overTasks = [...(newLists[overListIndex].tasks || [])];
 
-          const activeList = prev[activeListIndex];
-          const overList = prev[overListIndex];
+      const activeTaskIndex = activeTasks.findIndex((t) => t.id === activeId);
+      const [movedTask] = activeTasks.splice(activeTaskIndex, 1);
+      
+      // Optimistic reference update
+      movedTask.list_id = newLists[overListIndex].id; 
 
-          const activeTasks = activeList.tasks || [];
-          const overTasks = overList.tasks || [];
-
-          const activeTaskIndex = activeTasks.findIndex((t) => t.id === activeId);
-
-          const newActiveTasks = [...activeTasks];
-          const [movedTask] = newActiveTasks.splice(activeTaskIndex, 1);
-
-          const newOverTasks = [...overTasks, movedTask];
-
-          const newLists = [...prev];
-          newLists[activeListIndex] = { ...activeList, tasks: newActiveTasks };
-          newLists[overListIndex] = { ...overList, tasks: newOverTasks };
-
-          return newLists;
-        });
+      if (over.data.current?.type === "Task") {
+        const overTaskIndex = overTasks.findIndex((t) => t.id === overId);
+        // Optional: Logic to drop above/below based on mouse position
+        const isBelowOverItem = over && active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height;
+        const modifier = isBelowOverItem ? 1 : 0;
+        overTasks.splice(overTaskIndex >= 0 ? overTaskIndex + modifier : overTasks.length, 0, movedTask);
+      } else {
+        overTasks.push(movedTask);
       }
-    }
+
+      newLists[activeListIndex] = { ...newLists[activeListIndex], tasks: activeTasks };
+      newLists[overListIndex] = { ...newLists[overListIndex], tasks: overTasks };
+
+      return newLists;
+    });
   };
 
   const onDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
     setActiveColumn(null);
     setActiveTask(null);
 
+    const { active, over } = event;
     if (!over) return;
 
-    const activeId = active.id;
-    const overId = over.id;
+    const activeId = String(active.id);
+    const overId = String(over.id);
 
-    if (active.data.current?.type === "Column") {
+    const isActiveColumn = active.data.current?.type === "Column";
+    const isActiveTask = active.data.current?.type === "Task";
+
+    // 1. Handle Board List Reordering
+    if (isActiveColumn) {
       if (activeId !== overId) {
         setLocalLists((prev) => {
           const oldIndex = prev.findIndex((l) => l.id === activeId);
           const newIndex = prev.findIndex((l) => l.id === overId);
+          if (oldIndex === -1 || newIndex === -1) return prev;
+
           const newLists = arrayMove(prev, oldIndex, newIndex);
 
+          // Safe mapped array
           reorderLists({
             channel_id: channelId,
             items: newLists.map((l, i) => ({ id: l.id, position: i * 1000 })),
@@ -485,27 +503,72 @@ export default function TaskBoard() {
           return newLists;
         });
       }
-    } else if (active.data.current?.type === "Task") {
-      const activeList = localLists.find((l) => (l.tasks || []).some((t) => t.id === activeId));
-      const overList = localLists.find((l) => l.id === overId) || localLists.find((l) => (l.tasks || []).some((t) => t.id === overId));
+      return;
+    }
 
-      if (activeList && overList) {
-        const activeTasks = activeList.tasks || [];
-        const overTasks = overList.tasks || [];
+    // 2. Handle Task Ordering (Same List & Cross List Drop)
+    if (isActiveTask) {
+      setLocalLists((prev) => {
+        // Because onDragOver already moved items across lists optimistically,
+        // the active item is already in the target list in local state.
+        const currentListIndex = prev.findIndex((l) => l.tasks?.some((t) => t.id === activeId));
+        if (currentListIndex === -1) return prev;
 
-        const activeTaskIndex = activeTasks.findIndex((t) => t.id === activeId);
-        const overTaskIndex = overList.id === overId
-          ? overTasks.length
-          : overTasks.findIndex((t) => t.id === overId);
+        const newLists = [...prev];
+        const currentTasks = [...(newLists[currentListIndex].tasks || [])];
+        const targetListId = newLists[currentListIndex].id;
 
+        const oldIndex = currentTasks.findIndex((t) => t.id === activeId);
+
+        let newIndex = oldIndex;
+        if (over.data.current?.type === "Task") {
+            newIndex = currentTasks.findIndex((t) => t.id === overId);
+        } else if (over.data.current?.type === "Column" && overId === targetListId) {
+            newIndex = currentTasks.length - 1; // Dropped on empty space in column, move to bottom
+        }
+
+        let finalTasks = currentTasks;
+        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+            finalTasks = arrayMove(currentTasks, oldIndex, newIndex);
+        }
+
+        newLists[currentListIndex] = { ...newLists[currentListIndex], tasks: finalTasks };
+
+        // Helper for calculating absolute fractional position gaps
+        const calculatePosition = (tasks: Task[], idx: number) => {
+            // 1. If it's the only task in the list
+            if (tasks.length <= 1) return 1000;
+
+            // 2. If moved to the very top
+            if (idx === 0) {
+                const nextPos = tasks[1]?.position || 1000;
+                // FIX: Halve the space instead of subtracting 1000.
+                // This prevents the position from ever going negative!
+                return Math.floor(nextPos / 2);
+            }
+
+            // 3. If moved to the very bottom
+            if (idx === tasks.length - 1) {
+                const prevPos = tasks[idx - 1]?.position || 0;
+                return prevPos + 1000;
+            }
+
+            // 4. If moved right between two existing tasks
+            const prevPos = tasks[idx - 1]?.position || 0;
+            const nextPos = tasks[idx + 1]?.position || 0;
+            return Math.floor((prevPos + nextPos) / 2);
+        };
+
+        const newPos = calculatePosition(finalTasks, newIndex !== -1 ? newIndex : oldIndex);
+
+        // Fire the API call
         moveTask({
-          id: activeId as string,
-          data: {
-            target_list_id: overList.id,
-            position: overTaskIndex * 1000,
-          },
+            id: activeId,
+            data: { target_list_id: targetListId, position: newPos },
         });
-      }
+
+        return newLists;
+      });
     }
   };
 
@@ -554,6 +617,14 @@ export default function TaskBoard() {
                 channelId={channelId}
                 onDeleteTask={handleDeleteRequest}
                 onOpenTaskDetail={handleOpenDetail}
+                onEditList={(list) => {
+                  setListToEdit(list);
+                  setIsEditListModalOpen(true);
+                }}
+                onDeleteList={(list) => {
+                  setListToDelete(list);
+                  setIsDeleteListModalOpen(true);
+                }}
               />
             ))}
           </SortableContext>
@@ -582,6 +653,8 @@ export default function TaskBoard() {
               channelId={channelId}
               onDeleteTask={() => {}}
               onOpenTaskDetail={() => {}}
+              onEditList={() => {}}
+              onDeleteList={() => {}}
             />
           ) : null}
           {activeTask ? (
@@ -616,6 +689,28 @@ export default function TaskBoard() {
         onOpenChange={setIsDetailModalOpen}
         taskId={taskForDetail.id}
         channelId={channelId}
+      />
+    )}
+
+    {listToEdit && (
+      <EditListDialog
+        key={`${listToEdit.id}-${isEditListModalOpen}`}
+        channelId={channelId}
+        listId={listToEdit.id}
+        initialName={listToEdit.name}
+        open={isEditListModalOpen}
+        onOpenChange={setIsEditListModalOpen}
+      />
+    )}
+
+    {listToDelete && (
+      <DeleteListDialog
+        key={listToDelete.id}
+        channelId={channelId}
+        listId={listToDelete.id}
+        listName={listToDelete.name}
+        open={isDeleteListModalOpen}
+        onOpenChange={setIsDeleteListModalOpen}
       />
     )}
   </main>
