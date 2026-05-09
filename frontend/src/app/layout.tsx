@@ -28,13 +28,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col overflow-hidden" suppressHydrationWarning>
         <AppQueryProvider>
-          <Suspense fallback={
-            <div className="flex h-screen w-full items-center justify-center bg-background">
-              <OrbitalLoader size="xl" />
-            </div>
-          }>
-            {children}
-          </Suspense>
+          {children}
           <Toaster position="top-center" />
           <OfflineOverlay />
         </AppQueryProvider>

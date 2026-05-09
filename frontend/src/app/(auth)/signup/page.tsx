@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import * as z from "zod/v4";
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { ButtonSpinner } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,7 +185,7 @@ export default function RegisterPage() {
                   >
                     {registerMutation.isPending ? (
                       <span className="flex items-center gap-2">
-                        <OrbitalLoader size="sm" variant="minimal" className="mr-2" />
+                        <ButtonSpinner className="mr-2" />
                         Creating account...
                       </span>
                     ) : "Sign up"}

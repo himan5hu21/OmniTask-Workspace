@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckSquare,
@@ -12,8 +13,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { ChannelSettingsModal } from "@/components/organizations/channel-management-sheet";
+const ChannelSettingsModal = dynamic(
+  () => import("@/components/organizations/channel-management-sheet").then(mod => mod.ChannelSettingsModal),
+  { ssr: false }
+);
 import { cn, getInitials } from "@/lib/utils";
+import { useIsMounted } from "@/hooks/useIsMounted";
 
 export function DashboardHeader() {
   return (
@@ -50,7 +55,8 @@ export function OrganizationHeader({
   organizationName?: string;
   onSettingsClick?: () => void;
 }) {
-  const initials = organizationName
+  const isMounted = useIsMounted();
+  const initials = isMounted && organizationName
     ? organizationName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
     : "OT";
 
@@ -111,7 +117,8 @@ export function ChannelHeader({
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") === "tasks" ? "tasks" : "chat";
-  const initials = getInitials(channelName, "CH");
+  const isMounted = useIsMounted();
+  const initials = isMounted ? getInitials(channelName, "CH") : "CH";
 
   const setTab = (tab: "chat" | "tasks") => {
     const params = new URLSearchParams(searchParams.toString());

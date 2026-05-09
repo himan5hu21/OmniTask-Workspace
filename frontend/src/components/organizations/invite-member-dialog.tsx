@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { Shield, Users, Mail } from "lucide-react";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { ButtonSpinner } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -178,7 +178,7 @@ export function InviteMemberDialog({
               disabled={addMemberMutation.isPending || !inviteEmail.trim()}
             >
               {addMemberMutation.isPending ? (
-                <OrbitalLoader size="sm" variant="minimal" color="currentColor" />
+                <ButtonSpinner />
               ) : (
                 "Send Invite"
               )}

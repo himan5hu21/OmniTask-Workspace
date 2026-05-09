@@ -20,7 +20,7 @@ import {
   UserMinus,
   Users,
 } from "lucide-react";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { OrbitalLoader, ButtonSpinner } from "@/components/ui/orbital-loader";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -387,7 +387,7 @@ export default function OrganizationDetailPage() {
                             size="sm"
                             disabled={createChannelMutation.isPending || !channelName.trim()}
                           >
-                            {createChannelMutation.isPending ? <OrbitalLoader size="sm" /> : "Create"}
+                            {createChannelMutation.isPending ? <ButtonSpinner /> : "Create"}
                           </Button>
                         </DialogFooter>
                       </form>
@@ -514,7 +514,7 @@ export default function OrganizationDetailPage() {
                             Cancel
                           </Button>
                           <Button type="submit" size="sm" disabled={addMemberMutation.isPending || !inviteEmail.trim()}>
-                            {addMemberMutation.isPending ? <OrbitalLoader size="sm" /> : "Send Invite"}
+                            {addMemberMutation.isPending ? <ButtonSpinner /> : "Send Invite"}
                           </Button>
                         </DialogFooter>
                       </form>
@@ -789,7 +789,7 @@ export default function OrganizationDetailPage() {
                 })
               }
             >
-              {removeMemberMutation.isPending ? <OrbitalLoader size="sm" /> : "Remove"}
+              {removeMemberMutation.isPending ? <ButtonSpinner /> : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -819,7 +819,7 @@ export default function OrganizationDetailPage() {
                   }),
               })}
             >
-              {deleteOrgMutation.isPending ? <OrbitalLoader size="sm" /> : "Delete workspace"}
+              {deleteOrgMutation.isPending ? <ButtonSpinner /> : "Delete workspace"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

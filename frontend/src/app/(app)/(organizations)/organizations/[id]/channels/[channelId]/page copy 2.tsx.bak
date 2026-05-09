@@ -489,7 +489,7 @@ export default function ChannelDetailPage() {
                   <div className="flex-1 min-h-0">
                     {isFetchingNextPage ? (
                       <div className="flex items-center justify-center py-2 text-muted-foreground">
-                        <OrbitalLoader size="sm" variant="minimal" />
+                        <OrbitalLoader size="sm" />
                       </div>
                     ) : null}
                     <List

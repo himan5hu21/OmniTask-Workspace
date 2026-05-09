@@ -3,7 +3,7 @@
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon } from "lucide-react"
-import { OrbitalLoader } from "@/components/ui/orbital-loader"
+import { ButtonSpinner } from "@/components/ui/orbital-loader"
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
@@ -26,7 +26,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           <OctagonXIcon className="size-4" />
         ),
         loading: (
-          <OrbitalLoader size="sm" variant="minimal" />
+          <ButtonSpinner size="sm" />
         ),
       }}
       style={

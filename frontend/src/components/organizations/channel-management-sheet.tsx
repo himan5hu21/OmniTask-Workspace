@@ -18,7 +18,8 @@ import {
   Pencil,
   Search
 } from "lucide-react";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { ButtonSpinner } from "@/components/ui/orbital-loader";
+import Spinner from "@/components/Loading";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -303,9 +304,7 @@ export function ChannelSettingsModal({
             <ScrollArea className="flex-1">
               <div className="px-6 py-6">
                 {isLoadingChannel ? (
-                  <div className="flex h-64 items-center justify-center">
-                    <OrbitalLoader size="md" />
-                  </div>
+                  <Spinner size="md" />
                 ) : (
                   <>
                     {activeTab === 'overview' && (
@@ -383,9 +382,7 @@ export function ChannelSettingsModal({
                               {isLoadingMembers ? (
                                 <TableRow>
                                   <TableCell colSpan={3} className="h-32 text-center">
-                                    <div className="flex justify-center">
-                                      <OrbitalLoader size="md" className="text-muted-foreground" />
-                                    </div>
+                                    <Spinner size="md" />
                                   </TableCell>
                                 </TableRow>
                               ) : members.length === 0 ? (
@@ -681,7 +678,7 @@ export function ChannelSettingsModal({
                         })
                       }
                     >
-                      {addMemberMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" /> : "Add"}
+                      {addMemberMutation.isPending ? <ButtonSpinner /> : "Add"}
                     </Button>
                   </div>
                 ))
@@ -732,7 +729,7 @@ export function ChannelSettingsModal({
                 })
               }
             >
-              {removeMemberMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" /> : "Remove"}
+              {removeMemberMutation.isPending ? <ButtonSpinner /> : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -764,7 +761,7 @@ export function ChannelSettingsModal({
                   }),
               })}
             >
-              {deleteChannelMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" /> : "Delete"}
+              {deleteChannelMutation.isPending ? <ButtonSpinner /> : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

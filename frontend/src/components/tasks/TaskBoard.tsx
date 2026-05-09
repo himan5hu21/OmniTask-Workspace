@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBoard, useMoveTask, useReorderLists, useUpdateTask, useDeleteTask, BoardList, Task } from "@/api/tasks";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import Spinner from "@/components/Loading";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { CreateListDialog } from "./create-list-dialog";
@@ -522,11 +522,7 @@ export default function TaskBoard() {
   if (!isMounted) return null;
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center p-8 bg-kanban-board">
-        <OrbitalLoader />
-      </div>
-    );
+    return <Spinner size="lg" className="bg-kanban-board p-8" />;
   }
 
   if (isError) {

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Building2, Plus, MoreVertical, ArrowRight, Trash2 } from "lucide-react";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { ButtonSpinner } from "@/components/ui/orbital-loader";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -207,7 +207,7 @@ export default function DashboardPage() {
                 className="h-11 rounded-xl shadow-md transition-all font-semibold text-base" 
                 disabled={createMutation.isPending}
               >
-                {createMutation.isPending && <OrbitalLoader size="sm" variant="minimal" className="mr-2" />} 
+                {createMutation.isPending && <ButtonSpinner className="mr-2" />} 
                 Create Workspace
               </Button>
             </DialogFooter>
@@ -241,7 +241,7 @@ export default function DashboardPage() {
               disabled={deleteMutation.isPending}
               className="h-11 rounded-xl shadow-md transition-all font-semibold text-base bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteMutation.isPending && <OrbitalLoader size="sm" variant="minimal" className="mr-2" />}
+              {deleteMutation.isPending && <ButtonSpinner className="mr-2" />}
               Delete Workspace
             </Button>
           </DialogFooter>

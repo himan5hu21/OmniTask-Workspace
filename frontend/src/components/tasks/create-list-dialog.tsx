@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { ButtonSpinner } from "@/components/ui/orbital-loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,7 +106,7 @@ export function CreateListDialog({
               size="sm"
               disabled={createListMutation.isPending || !listName.trim()}
             >
-              {createListMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" color="currentColor" /> : "Create"}
+              {createListMutation.isPending ? <ButtonSpinner /> : "Create"}
             </Button>
           </DialogFooter>
         </form>

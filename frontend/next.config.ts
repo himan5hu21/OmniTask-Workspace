@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
       "axios",
       "zod",
       "zustand",
+      "date-fns",
+      "framer-motion",
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+      "@tiptap/extension-placeholder",
     ],
   },
 

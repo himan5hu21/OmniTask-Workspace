@@ -9,7 +9,7 @@ import {
   Plus,
   UserPlus,
 } from "lucide-react";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import Spinner from "@/components/Loading";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,11 +41,7 @@ export default function OrganizationDetailPage() {
   if (!isMounted) return null;
 
   if (isLoadingOrganization) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <OrbitalLoader size="md" className="text-primary" />
-      </div>
-    );
+    return <Spinner size="md" />;
   }
 
   if (!organization) {

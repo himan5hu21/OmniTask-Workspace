@@ -1,13 +1,11 @@
 "use client";
 
-import { Suspense } from "react";
 import { useParams } from "next/navigation";
 
 import { ChannelHeader } from "@/components/layout/app-shell-headers";
 import { useOrgChannels, useChannelMembers } from "@/api/channels";
 import { AbilityProvider } from "@/components/providers/AbilityProvider";
 import { useOrganization } from "@/api/organizations";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
 
 export default function ChannelLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
@@ -28,13 +26,7 @@ export default function ChannelLayout({ children }: { children: React.ReactNode 
         channelName={channel?.name}
       />
       <div className="min-h-0 flex flex-1 overflow-hidden">
-        <Suspense fallback={
-          <div className="flex-1 flex items-center justify-center">
-            <OrbitalLoader size="lg" />
-          </div>
-        }>
-          {children}
-        </Suspense>
+        {children}
       </div>
     </AbilityProvider>
   );

@@ -1,10 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useRef, useCallback, type SyntheticEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { MessageSquareText, Sparkles, MoreHorizontal, Settings } from "lucide-react";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
-import TaskBoard from "@/components/tasks/TaskBoard";
+import Spinner from "@/components/Loading";
+const TaskBoard = dynamic(() => import("@/components/tasks/TaskBoard"), {
+  ssr: false,
+  loading: () => <Spinner size="lg" />
+});
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -353,11 +357,7 @@ export default function ChannelDetailPage() {
   };
 
   if (isLoadingUser || isLoadingMessages) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-background">
-        <OrbitalLoader size="md" className="text-muted-foreground" />
-      </div>
-    );
+    return <Spinner size="lg" />;
   }
 
   return (
@@ -387,10 +387,9 @@ export default function ChannelDetailPage() {
                   <div className="space-y-4">
                     {isFetchingNextPage ? (
                       <div className="flex items-center justify-center py-2 text-muted-foreground">
-                        <OrbitalLoader size="sm" variant="minimal" />
+                        <Spinner size="sm" />
                       </div>
                     ) : null}
-
                     {allMessages.map((message) => {
                       const isOwnMessage = message.user_id === user?.id;
 

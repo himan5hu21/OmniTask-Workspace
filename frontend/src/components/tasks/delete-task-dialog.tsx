@@ -2,7 +2,7 @@
 
 import { Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { ButtonSpinner } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -93,7 +93,7 @@ export function DeleteTaskDialog({
           >
             {deleteTaskMutation.isPending ? (
               <>
-                <OrbitalLoader size="sm" variant="minimal" className="mr-2" />
+                <ButtonSpinner className="mr-2" />
                 Deleting...
               </>
             ) : (

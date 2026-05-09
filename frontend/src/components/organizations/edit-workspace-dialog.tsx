@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { toast } from "sonner";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { ButtonSpinner } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,7 @@ export function EditWorkspaceDialog({
                 className="h-11 rounded-xl shadow-md transition-all font-semibold text-base"
                 disabled={updateMutation.isPending}
               >
-                {updateMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" className="mr-2" /> : null}
+                {updateMutation.isPending ? <ButtonSpinner className="mr-2" /> : null}
                 Save Changes
               </Button>
             </DialogFooter>

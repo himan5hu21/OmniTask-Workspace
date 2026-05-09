@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { ButtonSpinner } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,7 +107,7 @@ export function CreateChannelDialog({
               size="sm"
               disabled={createChannelMutation.isPending || !channelName.trim()}
             >
-              {createChannelMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" color="currentColor" /> : "Create"}
+              {createChannelMutation.isPending ? <ButtonSpinner /> : "Create"}
             </Button>
           </DialogFooter>
         </form>

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import { ButtonSpinner } from "@/components/ui/orbital-loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,7 +109,7 @@ export function CreateTaskDialog({
               size="sm"
               disabled={createTaskMutation.isPending || !taskTitle.trim()}
             >
-              {createTaskMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" color="currentColor" /> : "Create"}
+              {createTaskMutation.isPending ? <ButtonSpinner /> : "Create"}
             </Button>
           </DialogFooter>
         </form>

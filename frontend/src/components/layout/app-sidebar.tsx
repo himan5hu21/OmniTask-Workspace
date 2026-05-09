@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import {
   Bell,
   ChevronsUpDown,
@@ -29,7 +30,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { OrbitalLoader } from "@/components/ui/orbital-loader"
+import { ButtonSpinner } from "@/components/ui/orbital-loader"
+import Spinner from "@/components/Loading"
 import { Logo } from "@/components/logo"
 import {
   Sidebar,
@@ -46,8 +48,15 @@ import {
 import { useIsMounted } from "@/hooks/useIsMounted"
 import { cn, getInitials } from "@/lib/utils"
 import { useUIStore } from "@/store/ui.store"
-import { InviteMemberDialog } from "@/components/organizations/invite-member-dialog"
-import { CreateChannelDialog } from "@/components/organizations/create-channel-dialog"
+const InviteMemberDialog = dynamic(
+  () => import("@/components/organizations/invite-member-dialog").then(mod => mod.InviteMemberDialog),
+  { ssr: false }
+);
+
+const CreateChannelDialog = dynamic(
+  () => import("@/components/organizations/create-channel-dialog").then(mod => mod.CreateChannelDialog),
+  { ssr: false }
+);
 import { Can } from "@/lib/casl"
 
 export interface AppSidebarProps {
@@ -236,7 +245,7 @@ export function AppSidebar({
           className="cursor-pointer rounded-lg py-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
         >
           {logoutMutation.isPending ? (
-            <OrbitalLoader size="sm" variant="minimal" color="currentColor" className="mr-2" />
+            <ButtonSpinner className="mr-2" />
           ) : (
             <LogOut className="mr-2 h-4 w-4" />
           )}
@@ -338,7 +347,7 @@ export function AppSidebar({
           <div className="flex min-h-0 flex-1 flex-col bg-sidebar">
             {isLoadingOrg && isLoadingChannels && isLoadingDMs ? (
               <div className="flex flex-1 items-center justify-center">
-                <OrbitalLoader size="lg" />
+                <Spinner size="lg" className="bg-sidebar" />
               </div>
             ) : (
               <div className="flex flex-1 flex-col min-h-0">
@@ -394,7 +403,7 @@ export function AppSidebar({
                       <SidebarGroupContent>
                         {isLoadingChannels ? (
                           <div className="flex w-full items-center justify-center py-8">
-                            <OrbitalLoader size="sm" />
+                            <Spinner size="sm" className="bg-sidebar" />
                           </div>
                         ) : channels.length > 0 ? (
                           <>
@@ -454,7 +463,7 @@ export function AppSidebar({
                       <SidebarGroupContent>
                         {isLoadingDMs ? (
                           <div className="flex w-full items-center justify-center py-6">
-                            <OrbitalLoader size="sm" variant="minimal" />
+                          <ButtonSpinner />
                           </div>
                         ) : (
                           <SidebarMenu className="gap-1">

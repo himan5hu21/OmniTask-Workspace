@@ -23,17 +23,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isOrganizationContext = pathname.startsWith('/organizations/') && !!params.id;
   const orgId = isOrganizationContext ? params.id as string : undefined;
 
-  const { organizations = [] } = useOrganizations({}, {
+  const { organizations = [], isLoading: isLoadingOrgs } = useOrganizations({}, {
     enabled: isOrganizationContext,
   });
   
   // Fetch organization data if in organization context
   const { channels, isLoading: isLoadingChannels } = useOrgChannels(orgId || "", { page: 1, limit: 50 });
   const { organization, isLoading: isLoadingOrg } = useOrganization(orgId || '', {
-    enabled: isOrganizationContext,
-  });
-
-  const { isLoading: isLoadingOrgs } = useOrganizations({}, {
     enabled: isOrganizationContext,
   });
 
@@ -65,13 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         />
         <SidebarInset className="m-2 ml-1 flex min-h-0 flex-col overflow-hidden rounded-lg border">
           <main className="flex flex-col min-h-0 flex-1 overflow-hidden">
-            <Suspense fallback={
-              <div className="flex-1 flex items-center justify-center">
-                <OrbitalLoader size="lg" />
-              </div>
-            }>
-              {children}
-            </Suspense>
+            {children}
           </main>
         </SidebarInset>
       </SidebarProvider>

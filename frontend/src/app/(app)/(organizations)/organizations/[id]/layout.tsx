@@ -9,6 +9,7 @@ import { OrbitalLoader } from "@/components/ui/orbital-loader";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import { AbilityProvider } from "@/components/providers/AbilityProvider";
 import { useUIStore } from "@/store/ui.store";
+import Spinner from "@/components/Loading";
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const isMounted = useIsMounted();
@@ -27,11 +28,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   }, [isMounted, organizations, orgId]);
 
   if (!isMounted || isLoadingUser) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <OrbitalLoader size="xl" />
-      </div>
-    );
+    return <Spinner />
   }
 
   if (isChannelRoute) {
@@ -45,13 +42,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
         onSettingsClick={openOrgSettings}
       />
       <div className="h-full min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <Suspense fallback={
-          <div className="flex h-full items-center justify-center min-h-[400px]">
-            <OrbitalLoader size="lg" />
-          </div>
-        }>
           {children}
-        </Suspense>
       </div>
     </AbilityProvider>
   );

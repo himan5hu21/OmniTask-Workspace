@@ -20,7 +20,7 @@ import {
   Crown,
   ShieldCheck
 } from 'lucide-react';
-import { OrbitalLoader } from '@/components/ui/orbital-loader';
+import { OrbitalLoader, ButtonSpinner } from '@/components/ui/orbital-loader';
 import { useUIStore } from '@/store/ui.store';
 import { 
   useOrganization, 
@@ -743,7 +743,7 @@ export default function OrganizationSettingsModal() {
                       onClick={handleDeleteWorkspace}
                       disabled={deleteOrgMutation.isPending}
                     >
-                      {deleteOrgMutation.isPending ? <OrbitalLoader size="sm" variant="minimal" className="mr-2" /> : "Delete Workspace"}
+                      {deleteOrgMutation.isPending ? <ButtonSpinner className="mr-2" /> : "Delete Workspace"}
                     </Button>
                   </div>
                 )}
@@ -905,7 +905,7 @@ export default function OrganizationSettingsModal() {
                 Cancel
               </Button>
               <Button type="submit" disabled={updateChannelMutation.isPending} className="rounded-lg">
-                {updateChannelMutation.isPending && <OrbitalLoader size="sm" variant="minimal" className="mr-2" />}
+                {updateChannelMutation.isPending && <ButtonSpinner className="mr-2" />}
                 Save Changes
               </Button>
             </DialogFooter>
@@ -937,7 +937,7 @@ export default function OrganizationSettingsModal() {
               disabled={deleteChannelMutation.isPending}
               className="rounded-lg"
             >
-              {deleteChannelMutation.isPending && <OrbitalLoader size="sm" variant="minimal" className="mr-2" />}
+              {deleteChannelMutation.isPending && <ButtonSpinner className="mr-2" />}
               Delete Permanently
             </Button>
           </DialogFooter>
