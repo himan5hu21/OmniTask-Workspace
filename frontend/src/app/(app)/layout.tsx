@@ -20,8 +20,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useAuthProfile();
   
   // Detect if we're in organization context
-  const isOrganizationContext = pathname.startsWith('/organizations/') && !!params.id;
-  const orgId = isOrganizationContext ? params.id as string : undefined;
+  const pathSegments = pathname.split('/');
+  const isOrganizationContext = pathSegments[1] === 'organizations' && !!pathSegments[2];
+  const orgId = isOrganizationContext ? pathSegments[2] : undefined;
 
   const { organizations = [], isLoading: isLoadingOrgs } = useOrganizations({}, {
     enabled: isOrganizationContext,

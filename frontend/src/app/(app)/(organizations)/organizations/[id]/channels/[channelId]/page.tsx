@@ -356,7 +356,7 @@ export default function ChannelDetailPage() {
     }
   };
 
-  if (isLoadingUser || isLoadingMessages) {
+  if (isLoadingUser || (channelId && isLoadingMessages)) {
     return <Spinner size="lg" />;
   }
 

@@ -19,7 +19,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
 import { useAuthProfile, useLogoutMutation } from "@/api/auth"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -45,7 +45,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { useIsMounted } from "@/hooks/useIsMounted"
 import { cn, getInitials } from "@/lib/utils"
 import { useUIStore } from "@/store/ui.store"
 const InviteMemberDialog = dynamic(
@@ -73,9 +72,9 @@ export interface AppSidebarProps {
 }
 
 const dummyDMs = [
-  { id: "1", name: "Sarah Jenkins", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah", online: true },
-  { id: "2", name: "Mike Thompson", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mike", online: false },
-  { id: "3", name: "Alex Rivera", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex", online: true },
+  { id: "1", name: "Alice", online: true },
+  { id: "2", name: "Bob", online: false },
+  { id: "3", name: "Alex", online: true },
 ]
 
 export function AppSidebar({
@@ -91,7 +90,6 @@ export function AppSidebar({
   const pathname = usePathname()
   const router = useRouter()
   const { user } = useAuthProfile()
-  const isMounted = useIsMounted()
 
   const logoutMutation = useLogoutMutation({
     onSuccess: () => {
@@ -101,6 +99,7 @@ export function AppSidebar({
 
   const userInitials = getInitials(user?.name, "U")
   const organizationInitial = getInitials(organizationName, "O")
+  const showOrganizationPaneLoader = !organizationName && !!isLoadingOrg
 
 
   const globalNavItems =
@@ -183,7 +182,7 @@ export function AppSidebar({
             "group-hover:border-primary/30"
           )}>
             <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-xs transition-colors group-hover:bg-primary/20">
-              {isMounted ? userInitials : null}
+              {userInitials}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
@@ -211,7 +210,7 @@ export function AppSidebar({
               <div className="flex items-center gap-3 px-2 py-2 text-left text-sm">
                 <Avatar className="h-9 w-9 rounded-lg border border-sidebar-border/70">
                   <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-xs">
-                    {isMounted ? userInitials : null}
+                    {userInitials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
@@ -345,7 +344,7 @@ export function AppSidebar({
 
           {/* Organization Content Pane */}
           <div className="flex min-h-0 flex-1 flex-col bg-sidebar">
-            {isLoadingOrg && isLoadingChannels && isLoadingDMs ? (
+            {showOrganizationPaneLoader ? (
               <div className="flex flex-1 items-center justify-center">
                 <Spinner size="lg" className="bg-sidebar" />
               </div>
@@ -354,7 +353,7 @@ export function AppSidebar({
                 <SidebarHeader className="h-18 shrink-0 border-b border-sidebar-border/70 px-5 flex items-center">
                   <div className="flex items-center gap-3 w-full h-full">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary font-bold text-lg shadow-sm">
-                      {isMounted ? organizationInitial : null}
+                      {organizationInitial}
                     </div>
                     <div className="min-w-0 flex-1">
                       {isLoadingOrg ? (
@@ -365,14 +364,12 @@ export function AppSidebar({
                         </div>
                       )}
                     </div>
-                    {isMounted && (
-                      <Link
-                        href="/dashboard"
-                        className="flex py-1 items-center justify-center rounded-lg border border-sidebar-border/70 bg-sidebar-accent/50 px-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-foreground active:scale-95 shadow-xs"
-                      >
-                        Exit
-                      </Link>
-                    )}
+                    <Link
+                      href="/dashboard"
+                      className="flex py-1 items-center justify-center rounded-lg border border-sidebar-border/70 bg-sidebar-accent/50 px-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-foreground active:scale-95 shadow-xs"
+                    >
+                      Exit
+                    </Link>
                   </div>
                 </SidebarHeader>
 
@@ -476,9 +473,10 @@ export function AppSidebar({
                                 >
                                   <Link href={`/messages/${dm.id}`} className="flex items-center gap-2">
                                     <div className="relative shrink-0">
-                                      <Avatar className="h-6 w-6 rounded-full border border-sidebar-border/70">
-                                        <AvatarImage src={dm.avatar} />
-                                        <AvatarFallback className="text-[9px]">{dm.name.charAt(0)}</AvatarFallback>
+                                      <Avatar className="h-6 w-6 rounded-md border border-primary/20 bg-primary/10">
+                                        <AvatarFallback className="bg-transparent text-primary font-bold text-[9px] shadow-sm uppercase">
+                                          {getInitials(dm.name)}
+                                        </AvatarFallback>
                                       </Avatar>
                                       {dm.online ? (
                                         <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-sidebar bg-emerald-500" />
@@ -562,9 +560,10 @@ export function AppSidebar({
                   >
                     <Link href={`/messages/${dm.id}`} className="flex items-center gap-3">
                       <div className="relative shrink-0">
-                        <Avatar className="h-6 w-6 rounded-lg border border-border">
-                          <AvatarImage src={dm.avatar} />
-                          <AvatarFallback className="rounded-lg text-[10px]">{dm.name.charAt(0)}</AvatarFallback>
+                        <Avatar className="h-6 w-6 rounded-md border border-primary/20 bg-primary/10">
+                          <AvatarFallback className="bg-transparent text-primary font-bold text-[9px] shadow-sm uppercase">
+                            {getInitials(dm.name)}
+                          </AvatarFallback>
                         </Avatar>
                         {dm.online ? (
                           <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-emerald-500 shadow-sm" />

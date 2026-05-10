@@ -60,7 +60,7 @@ export function AppQueryProvider({ children }: { children: React.ReactNode }) {
       {children}
       
       {/* Standard DevTools (Development only by default) */}
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* <ReactQueryDevtools initialIsOpen={false} /> */}
       
       {/* Production DevTools (Lazy loaded) */}
       {showDevtools && (
