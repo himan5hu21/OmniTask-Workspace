@@ -80,17 +80,19 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  overlayClassName,
   ref,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   open?: boolean
+  overlayClassName?: string
 }) {
   const { open } = React.useContext(DialogContext)
 
   return (
     <DialogPortal forceMount>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <AnimatePresence>
         {open && (
           <DialogPrimitive.Content asChild forceMount {...props}>

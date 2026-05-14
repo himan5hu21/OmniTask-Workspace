@@ -9,19 +9,21 @@ model Task {
   // Self-referencing field for deep hierarchy
   parent_task_id String?
 
-  // Chat-to-task relation
-  source_message_id String?
-
   // Board List (Column) relation
   list_id String?
 
   title       String
   description String?
-  status      String    @default("OPEN")
-  priority    String    @default("MEDIUM")
+  status      TaskStatus   @default(OPEN)
+  priority    TaskPriority?
+  start_date  DateTime?
   due_date    DateTime?
+  completed_at DateTime?
+
   position    Int       @default(0)
   cover_color String?
+
+
 
   // Soft delete
   deleted_at DateTime?
@@ -33,7 +35,6 @@ model Task {
   organization   Organization    @relation(fields: [org_id], references: [id], onDelete: Cascade)
   channel        Channel         @relation(fields: [channel_id], references: [id], onDelete: Cascade)
   creator        User            @relation("TaskCreator", fields: [creator_id], references: [id])
-  source_message ChannelMessage? @relation("MessageToTask", fields: [source_message_id], references: [id])
 
   // Self-relations for Subtasks
   parent_task Task?  @relation("SubTasks", fields: [parent_task_id], references: [id], onDelete: Cascade)
@@ -45,7 +46,9 @@ model Task {
   labels      TaskLabel[]
   comments    TaskComment[]
   attachments TaskAttachment[]
-  checklists  TaskChecklist[]
+  checklists  TaskChecklist[]  @relation("TaskChecklists")
+  activities  TaskActivity[]
+  linked_checklist_items TaskChecklistItem[]
 
   // Indexing for performance
   @@index([org_id])
@@ -53,6 +56,27 @@ model Task {
   @@index([parent_task_id])
   @@index([list_id])
   @@map("tasks")
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AssignmentRole {
+  ASSIGNEE
+  REVIEWER
+  WATCHER
 }
 
 model BoardList {
@@ -104,26 +128,15 @@ model TaskChecklist {
   name     String @default("Checklist")
   position Int    @default(0)
 
-  items    TaskChecklistItem[]
+  items    TaskChecklistItem[] @relation("ChecklistItems")
 
-  task     Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  task     Task @relation("TaskChecklists", fields: [task_id], references: [id], onDelete: Cascade)
   
   @@index([task_id])
   @@map("task_checklists")
 }
 
-model TaskChecklistItem {
-  id           String  @id @default(cuid())
-  checklist_id String
-  title        String
-  is_completed Boolean @default(false)
-  position     Int     @default(0)
 
-  checklist    TaskChecklist @relation(fields: [checklist_id], references: [id], onDelete: Cascade)
-  
-  @@index([checklist_id])
-  @@map("task_checklist_items")
-}
 
 model TaskComment {
   id         String @id @default(cuid())
@@ -162,23 +175,68 @@ model TaskAttachment {
 }
 
 model TaskAssignment {
-  id      String @id @default(cuid())
   task_id String
   user_id String
 
-  // Granular Permission Flags (Defaults to false per security spec, except view)
-  can_view   Boolean @default(true)
-  can_edit   Boolean @default(false)
-  can_delete Boolean @default(false)
-  can_assign Boolean @default(false)
+  role AssignmentRole @default(ASSIGNEE)
 
-  // Relations
   task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
+
+  @@id([task_id, user_id])
+  @@index([user_id])
+  @@map("task_assignments")
+}
+
+model TaskChecklistItem {
+  id            String @id @default(cuid())
+  checklist_id  String
+
+  // Optional subtask relation
+  subtask_id    String?
+
+  text          String
+  is_completed  Boolean @default(false)
+  position      Int @default(0)
+
+  created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  @@unique([task_id, user_id])
-  @@map("task_assignments")
+  checklist TaskChecklist @relation("ChecklistItems", fields: [checklist_id], references: [id], onDelete: Cascade)
+
+  // Optional linked task/subtask
+  subtask Task? @relation(fields: [subtask_id], references: [id], onDelete: SetNull)
+
+  @@index([checklist_id])
+  @@map("task_checklist_items")
+}
+
+model TaskActivity {
+  id        String @id @default(cuid())
+  task_id   String
+  user_id   String
+
+  type      TaskActivityType
+  content   String?
+
+  created_at DateTime @default(now())
+
+  task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([task_id])
+  @@map("task_activities")
+}
+
+enum TaskActivityType {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  ASSIGNED
+  UNASSIGNED
+  COMMENTED
+  CHECKLIST_UPDATED
+  ATTACHMENT_ADDED
 }

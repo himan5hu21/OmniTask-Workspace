@@ -5,8 +5,12 @@ import {
 } from "@tanstack/react-query";
 import { apiRequest } from "@/api/api";
 import type { ApiSuccess } from "@/types/api";
+import { useMemo } from "react";
 
 // --- TYPES ---
+export type TaskStatus = 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED' | 'CANCELLED';
+export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
 
 export type TaskUser = {
   id: string;
@@ -15,9 +19,9 @@ export type TaskUser = {
 };
 
 export type TaskAssignment = {
-  id: string;
   user_id: string;
   user?: TaskUser;
+  role: string;
 };
 
 export type TaskLabel = {
@@ -28,9 +32,10 @@ export type TaskLabel = {
 
 export type TaskChecklistItem = {
   id: string;
-  title: string;
+  text: string;
   is_completed: boolean;
   position: number;
+  subtask?: Task;
 };
 
 export type TaskChecklist = {
@@ -61,11 +66,14 @@ export type Task = {
   id: string;
   title: string;
   description?: string;
-  status: string;
-  priority: string;
+  status: TaskStatus;
+  priority?: TaskPriority;
+  start_date?: string;
   due_date?: string;
+  completed_at?: string;
   position: number;
   list_id: string;
+  parent_task_id?: string;
   channel_id: string;
   org_id: string;
   creator_id: string;
@@ -99,13 +107,13 @@ export type SuccessResponse = ApiSuccess<{ success: boolean }>;
 export type CreateBoardListInput = { channel_id: string; name: string; position: number };
 export type ReorderListsInput = { channel_id: string; items: { id: string; position: number }[] };
 export type CreateTaskInput = { title: string; list_id: string; channel_id: string; org_id: string };
-export type UpdateTaskInput = { title?: string; description?: string; status?: string; priority?: string; due_date?: string; cover_color?: string };
+export type UpdateTaskInput = { title?: string; description?: string; status?: TaskStatus; priority?: TaskPriority | null; start_date?: string | null; due_date?: string | null; completed_at?: string | null; cover_color?: string };
 export type MoveTaskInput = { target_list_id: string; position: number };
-export type AssignUserInput = { user_id: string };
+export type AssignUserInput = { user_id: string; role?: string };
 export type CreateCommentInput = { content: string };
 export type CreateChecklistInput = { title: string };
-export type AddChecklistItemInput = { title: string; position?: number };
-export type UpdateChecklistItemInput = { title?: string; is_completed?: boolean; position?: number };
+export type AddChecklistItemInput = { text: string; position?: number };
+export type UpdateChecklistItemInput = { text?: string; is_completed?: boolean; position?: number };
 export type CreateLabelInput = { org_id: string; name: string; color: string };
 export type AssignLabelInput = { label_id: string };
 export type AddAttachmentInput = { name: string; url: string; file_type: string; file_size: number };
@@ -205,6 +213,9 @@ export const taskService = {
   addAttachment: async (id: string, data: AddAttachmentInput): Promise<ApiSuccess<TaskAttachment>> => {
     return apiRequest.post<ApiSuccess<TaskAttachment>>(`/tasks/${id}/attachments`, data);
   },
+  deleteAttachment: async (id: string): Promise<SuccessResponse> => {
+    return apiRequest.delete<SuccessResponse>(`/attachments/${id}`);
+  },
 
   // Subtasks
   createSubtask: async (parentId: string, data: CreateSubtaskInput): Promise<TaskResponse> => {
@@ -222,9 +233,11 @@ export const useBoard = (channelId: string, options?: { enabled?: boolean }) => 
     staleTime: 1000 * 60,
   });
 
+  const lists = useMemo(() => query.data?.success ? query.data.data.lists : [], [query.data]);
+
   return {
     ...query,
-    lists: query.data?.success ? query.data.data.lists : [],
+    lists,
   };
 };
 
@@ -331,9 +344,11 @@ export const useTaskComments = (taskId: string, options?: { enabled?: boolean })
     enabled: (options?.enabled ?? true) && !!taskId,
   });
 
+  const comments = useMemo(() => query.data?.success ? query.data.data : [], [query.data]);
+
   return {
     ...query,
-    comments: query.data?.success ? query.data.data : [],
+    comments,
   };
 };
 
@@ -448,4 +463,23 @@ export const useCreateSubtask = (taskId: string) => {
   });
 };
 
+export const useAddAttachment = (taskId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: AddAttachmentInput }) => taskService.addAttachment(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+    },
+  });
+};
 
+
+export const useDeleteAttachment = (taskId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => taskService.deleteAttachment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+    },
+  });
+};

@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { apiRequest } from "@/api/api";
 import type { ApiSuccess } from "@/types/api";
+import { useMemo } from "react";
 
 // --- TYPES ---
 
@@ -96,9 +97,11 @@ export const useMessages = (channelId: string) => {
     staleTime: 1000 * 30,
   });
 
+  const messages = useMemo(() => query.data?.pages.flatMap((page) => page.data.messages) ?? [], [query.data]);
+
   return {
     ...query,
-    messages: query.data?.pages.flatMap((page) => page.data.messages) ?? [],
+    messages,
   };
 };
 

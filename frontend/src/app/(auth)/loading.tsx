@@ -1,6 +1,6 @@
 import Spinner from "@/components/Loading";
 
 export default function AuthLoading() {
-  return <Spinner />
+  return <Spinner className="h-screen" />
 }
 

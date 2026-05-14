@@ -1,6 +1,7 @@
 import { taskRepository } from '@/repositories/task.repository';
 import { boardListRepository } from '@/repositories/board-list.repository';
 
+
 export class TaskService {
   async createTask(data: {
     title: string;
@@ -82,7 +83,22 @@ export class TaskService {
           include: { label: true }
         },
         checklists: {
-          include: { items: { orderBy: { position: 'asc' } } },
+          include: { 
+            items: { 
+              orderBy: { position: 'asc' },
+              include: {
+                subtask: {
+                  include: {
+                    assignments: {
+                      include: {
+                        user: { select: { id: true, name: true, avatar_url: true } }
+                      }
+                    }
+                  }
+                }
+              }
+            } 
+          },
           orderBy: { position: 'asc' }
         },
         attachments: {
@@ -94,7 +110,8 @@ export class TaskService {
           select: { comments: true }
         },
         subtasks: {
-          select: { id: true, title: true, priority: true, status: true, position: true }
+          select: { id: true, title: true, priority: true, status: true, position: true },
+          orderBy: { position: 'asc' }
         }
       }
     });
@@ -111,7 +128,10 @@ export class TaskService {
       orderBy: { position: 'asc' },
       include: {
         tasks: {
-          where: { deleted_at: null },
+          where: { 
+            deleted_at: null,
+            parent_task_id: null 
+          },
           orderBy: { position: 'asc' },
           select: {
             id: true,
@@ -119,7 +139,9 @@ export class TaskService {
             status: true,
             priority: true,
             position: true,
+            start_date: true,
             due_date: true,
+            completed_at: true,
             assignments: {
               include: {
                 user: { select: { id: true, name: true, avatar_url: true } }

@@ -15,15 +15,15 @@ export class ChecklistService {
     return checklistRepository.update(checklistId, { name: title });
   }
 
-  async addItem(checklistId: string, content: string, position: number = 0) {
+  async addItem(checklistId: string, creatorId: string, content: string, position: number = 0) {
     return checklistItemRepository.create({
-      checklist_id: checklistId,
-      title: content,
+      text: content,
       position,
+      checklist_id: checklistId,
     });
   }
 
-  async updateItem(itemId: string, data: { title?: string; is_completed?: boolean; position?: number }) {
+  async updateItem(itemId: string, data: { text?: string; is_completed?: boolean; position?: number }) {
     return checklistItemRepository.update(itemId, data);
   }
 
@@ -32,7 +32,7 @@ export class ChecklistService {
   }
 
   async deleteItem(itemId: string) {
-    return checklistItemRepository.delete(itemId);
+    return checklistItemRepository.hardDelete(itemId);
   }
 }
 

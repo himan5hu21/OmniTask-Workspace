@@ -14,7 +14,6 @@ model ChannelMessage {
   // Relations
   channel     Channel             @relation(fields: [channel_id], references: [id], onDelete: Cascade)
   sender      User                @relation(fields: [sender_id], references: [id])
-  tasks       Task[]              @relation("MessageToTask") // Chat-to-Task relation
   attachments MessageAttachment[]
 
   // Indexing for performance

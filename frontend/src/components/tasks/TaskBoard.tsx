@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import {
@@ -56,15 +56,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // --- Helper for Priority Colors ---
-const getPriorityStyles = (priority: string) => {
+const getPriorityStyles = (priority?: string | null) => {
   switch (priority?.toLowerCase()) {
+    case "urgent":
+      return { bg: "bg-rose-500", text: "text-rose-500", badgeBg: "bg-rose-500/15" };
     case "high":
-      return { bg: "bg-priority-high", text: "text-priority-high", badgeBg: "bg-priority-high/15" };
+      return { bg: "bg-red-500", text: "text-red-500", badgeBg: "bg-red-500/15" };
     case "medium":
-      return { bg: "bg-priority-medium", text: "text-priority-medium", badgeBg: "bg-priority-medium/15" };
+      return { bg: "bg-amber-500", text: "text-amber-500", badgeBg: "bg-amber-500/15" };
     case "low":
+      return { bg: "bg-blue-500", text: "text-blue-500", badgeBg: "bg-blue-500/15" };
     default:
-      return { bg: "bg-priority-low", text: "text-priority-low", badgeBg: "bg-priority-low/15" };
+      return { bg: "bg-muted/20", text: "text-muted-foreground", badgeBg: "bg-muted/10" };
   }
 };
 
@@ -84,7 +87,6 @@ function TaskCard({
   onOpenDetail?: (task: Task) => void;
 }) {
   const { mutate: updateTask } = useUpdateTask(channelId);
-  const { mutate: deleteTask } = useDeleteTask(channelId);
   
   const {
     setNodeRef,
@@ -108,7 +110,8 @@ function TaskCard({
   };
 
   const pStyle = getPriorityStyles(task.priority);
-  const isDone = task.status === "DONE";
+  const isDone = task.status === "COMPLETED";
+  const hasFooterContent = !!(task.due_date || task._count?.comments || (task.checklists?.length ?? 0) > 0 || (task.assignments?.length ?? 0) > 0);
 
   const cardContent = (
     <div
@@ -121,7 +124,7 @@ function TaskCard({
       )}
     >
       {/* Top Action Buttons (Edit/Delete) */}
-      <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all transform translate-y-[-4px] group-hover:translate-y-0 z-20">
+      <div className="absolute top-1.5 right-2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all transform translate-y-[-4px] group-hover:translate-y-0 z-20">
         <button 
           onClick={(e) => {
             e.stopPropagation();
@@ -147,15 +150,15 @@ function TaskCard({
       <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg opacity-60 group-hover:opacity-100", pStyle.bg)} />
       
       <div className="pl-1 pr-1">
-        {/* Top Row: Checkbox and Priority */}
-        <div className="flex items-center h-5 mb-1.5 relative">
+        {/* Top Row: Checkbox and Priority (or Title if no priority) */}
+        <div className={cn("flex items-center h-5 relative", (task.priority || hasFooterContent) && "mb-1.5")}>
           {/* Toggle Checkbox Button - Absolute and animated */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               updateTask({ 
                 id: task.id, 
-                data: { status: task.status === "DONE" ? "TODO" : "DONE" } 
+                data: { status: task.status === "COMPLETED" ? "OPEN" : "COMPLETED" } 
               });
             }}
             className={cn(
@@ -170,53 +173,63 @@ function TaskCard({
 
           {/* Priority Badge - Moves right on hover if checkbox appears */}
           <div className={cn(
-            "transition-all duration-300",
+            "transition-all duration-300 flex-1 min-w-0",
             !isDone ? "group-hover:translate-x-6" : "translate-x-6"
           )}>
-            {task.priority && task.priority !== "NONE" && (
-              <span className={cn("px-2 py-0.5 rounded-md text-[9px] tracking-wider uppercase font-bold", pStyle.badgeBg, pStyle.text)}>
+            {task.priority ? (
+              <span className={cn("px-2 py-0.5 rounded-md text-[9px] tracking-wider uppercase font-bold shrink-0", pStyle.badgeBg, pStyle.text)}>
                 {task.priority}
               </span>
+            ) : (
+              <h3 className={cn("text-[13px] font-medium leading-tight truncate pr-4", isDone ? "line-through text-kanban-text-secondary" : "text-kanban-text-primary")}>
+                {task.title}
+              </h3>
             )}
           </div>
         </div>
 
-        {/* Title - Stays stationary */}
-        <h3 className={cn("text-[13px] font-medium leading-tight mb-2 pr-4", isDone ? "line-through text-kanban-text-secondary" : "text-kanban-text-primary")}>
-          {task.title}
-        </h3>
-        <div className="flex justify-between items-center mt-auto pt-0.5">
-          <div className="flex items-center gap-2.5 text-kanban-text-secondary">
-            {task.due_date && (
-              <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                <Calendar size={13} className="opacity-70" />
-                <span>{new Date(task.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-              </div>
-            )}
-            {task._count?.comments ? (
-              <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                <MessageSquare size={13} className="opacity-70" />
-                <span>{task._count.comments}</span>
-              </div>
-            ) : null}
-            {(task.checklists?.length ?? 0) > 0 && (
-              <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                <CheckSquare size={13} className="opacity-70" />
-                <span>{task.checklists?.length}</span>
-              </div>
-            )}
+        {/* Title Below Priority (only if priority exists) */}
+        {task.priority && (
+          <h3 className={cn("text-[13px] font-medium leading-tight mb-2 pr-4", isDone ? "line-through text-kanban-text-secondary" : "text-kanban-text-primary")}>
+            {task.title}
+          </h3>
+        )}
+
+
+        {hasFooterContent && (
+          <div className="flex justify-between items-center mt-auto pt-0.5">
+            <div className="flex items-center gap-2.5 text-kanban-text-secondary">
+              {task.due_date && (
+                <div className="flex items-center gap-1.5 text-[11px] font-medium">
+                  <Calendar size={13} className="opacity-70" />
+                  <span>{new Date(task.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                </div>
+              )}
+              {task._count?.comments ? (
+                <div className="flex items-center gap-1.5 text-[11px] font-medium">
+                  <MessageSquare size={13} className="opacity-70" />
+                  <span>{task._count.comments}</span>
+                </div>
+              ) : null}
+              {(task.checklists?.length ?? 0) > 0 && (
+                <div className="flex items-center gap-1.5 text-[11px] font-medium">
+                  <CheckSquare size={13} className="opacity-70" />
+                  <span>{task.checklists?.length}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex -space-x-1.5">
+              {task.assignments?.map((assignment) => (
+                <Avatar key={assignment.user_id} className="w-5.5 h-5.5 border-2 border-kanban-card ring-offset-background">
+                  <AvatarImage src={assignment.user?.avatar_url || ""} />
+                  <AvatarFallback className="text-[8px] font-bold bg-secondary">
+                    {assignment.user?.name?.substring(0, 2).toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+              ))}
+            </div>
           </div>
-          <div className="flex -space-x-1.5">
-            {task.assignments?.map((assignment) => (
-              <Avatar key={assignment.id} className="w-5.5 h-5.5 border-2 border-kanban-card ring-offset-background">
-                <AvatarImage src={assignment.user?.avatar_url || ""} />
-                <AvatarFallback className="text-[8px] font-bold bg-secondary">
-                  {assignment.user?.name?.substring(0, 2).toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

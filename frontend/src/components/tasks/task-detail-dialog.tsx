@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import Image from "next/image";
 import { 
   AlignLeft, 
   CheckSquare, 
   MessageSquare, 
-  Calendar, 
+  Calendar as CalendarIcon, 
   Plus,
   Code,
   FileText,
@@ -16,7 +17,14 @@ import {
   List,
   ListOrdered,
   ChevronsUp,
-  Trash2
+  Trash2,
+  X,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  Download,
+  ExternalLink,
+  RotateCcw
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -34,8 +42,13 @@ import {
   useUpdateChecklist,
   useDeleteChecklist,
   useCreateSubtask,
-  useDeleteTask
+  useDeleteTask,
+  useAssignUser,
+  useUnassignUser,
+  useAddAttachment,
+  useDeleteAttachment
 } from "@/api/tasks";
+import { useChannelMembers } from "@/api/channels";
 import { motion, AnimatePresence } from "framer-motion";
 
 import {
@@ -43,12 +56,33 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { OrbitalLoader } from "@/components/ui/orbital-loader";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface TaskDetailDialogProps {
   taskId: string;
@@ -64,9 +98,17 @@ export function TaskDetailDialog({
   onOpenChange 
 }: TaskDetailDialogProps) {
   const { task, isLoading } = useTask(taskId, { enabled: open });
-  const { comments, isLoading: isCommentsLoading } = useTaskComments(taskId, { enabled: open });
+  const { comments } = useTaskComments(taskId, { enabled: open });
   const { mutate: updateTask } = useUpdateTask(channelId);
   const { mutate: createComment } = useCreateComment();
+  const { mutate: deleteTask } = useDeleteTask(channelId);
+  const { mutate: assignUser } = useAssignUser(taskId);
+  const { mutate: unassignUser } = useUnassignUser(taskId);
+  const { mutate: addAttachment } = useAddAttachment(taskId);
+  const { mutate: deleteAttachment } = useDeleteAttachment(taskId);
+  const { members: channelMembers } = useChannelMembers(channelId);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { mutate: updateChecklistItem } = useUpdateChecklistItem(taskId);
   const { mutate: deleteChecklistItem } = useDeleteChecklistItem(taskId);
   const { mutate: updateChecklist } = useUpdateChecklist(taskId);
@@ -74,7 +116,6 @@ export function TaskDetailDialog({
   const { mutateAsync: addChecklistItemAsync } = useAddChecklistItem(taskId);
   const { mutateAsync: createChecklistAsync } = useCreateChecklist();
   const { mutateAsync: createSubtaskAsync } = useCreateSubtask(taskId);
-  const { mutate: deleteTask } = useDeleteTask(channelId);
   
   const [newComment, setNewComment] = useState("");
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -91,6 +132,8 @@ export function TaskDetailDialog({
   const [editSubtaskValue, setEditSubtaskValue] = useState("");
   const [isAddChecklistDialogOpen, setIsAddChecklistDialogOpen] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState("Checklist");
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   if (!open) return null;
 
@@ -137,7 +180,7 @@ export function TaskDetailDialog({
     if (!title?.trim()) return;
     setAddingChecklistId(checklistId);
     try {
-      await addChecklistItemAsync({ checklistId, data: { title } });
+      await addChecklistItemAsync({ checklistId, data: { text: title } });
       setNewChecklistItems(prev => ({ ...prev, [checklistId]: "" }));
     } catch (error) {
       console.error("Failed to add checklist item:", error);
@@ -169,7 +212,7 @@ export function TaskDetailDialog({
       setEditingItemId(null);
       return;
     }
-    updateChecklistItem({ itemId, data: { title: editItemValue } });
+    updateChecklistItem({ itemId, data: { text: editItemValue } });
     setEditingItemId(null);
   };
 
@@ -229,50 +272,123 @@ export function TaskDetailDialog({
                         key={l.label.id}
                         variant="outline"
                         style={{ backgroundColor: `${l.label.color}15`, color: l.label.color, borderColor: `${l.label.color}30` }}
-                        className="px-2 py-0.5 rounded text-[11px] font-bold"
+                        className="px-2 h-7 rounded text-[11px] font-bold flex items-center"
                       >
                         {l.label.name}
                       </Badge>
                     ))}
-                    {(!task.labels || task.labels.length === 0) && (
-                      <span className="text-sm text-muted-foreground italic">None</span>
-                    )}
+                    <Button variant="outline" size="sm" className="h-7 px-2 border-dashed text-muted-foreground hover:text-primary hover:border-primary text-[11px] font-bold">
+                      <Plus size={14} className="mr-1" />
+                      Add Label
+                    </Button>
                   </div>
                 </div>
 
                 {/* Assignees */}
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Members</span>
-                  <div className="flex items-center -space-x-2">
-                    {task.assignments?.map((a) => (
-                      <div key={a.id} className="w-7 h-7 rounded-full border border-card bg-muted overflow-hidden z-20">
-                        <Avatar className="w-full h-full">
-                          <AvatarImage src={a.user?.avatar_url} />
-                          <AvatarFallback className="text-[10px] font-bold">{a.user?.name?.substring(0,2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
+                  <div className="flex items-center">
+                    <TooltipProvider>
+                      <div className="flex items-center -space-x-2">
+                        {task.assignments?.map((a) => (
+                          <Tooltip key={a.user_id}>
+                            <TooltipTrigger asChild>
+                              <div 
+                                onClick={() => unassignUser({ id: taskId, userId: a.user_id })}
+                                className="w-7 h-7 rounded-full border-2 border-card bg-muted overflow-hidden z-20 cursor-pointer hover:border-red-500 transition-colors"
+                              >
+                                <Avatar className="w-full h-full">
+                                  <AvatarImage src={a.user?.avatar_url} />
+                                  <AvatarFallback className="text-[10px] font-bold">{a.user?.name?.substring(0,2).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="text-[11px] font-bold">
+                              {a.user?.name} (Click to remove)
+                            </TooltipContent>
+                          </Tooltip>
+                        ))}
                       </div>
-                    ))}
-                    {(!task.assignments || task.assignments.length === 0) && (
-                      <span className="text-sm text-muted-foreground italic pl-2">None</span>
-                    )}
-                    <Button variant="outline" size="icon" aria-label="Add Assignee" className="w-7 h-7 rounded-full border-dashed text-muted-foreground hover:text-primary hover:border-primary z-30 ml-2">
-                      <Plus size={14} />
-                    </Button>
+                    </TooltipProvider>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        {(!task.assignments || task.assignments.length === 0) ? (
+                          <Button variant="outline" size="sm" className="h-7 px-2 border-dashed text-muted-foreground hover:text-primary hover:border-primary text-[11px] font-bold">
+                            <Plus size={14} className="mr-1" />
+                            Join
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="icon" className="w-7 h-7 rounded-full border-dashed text-muted-foreground hover:text-primary hover:border-primary ml-2">
+                            <Plus size={14} />
+                          </Button>
+                        )}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56 rounded-xl bg-card border-border shadow-xl p-1">
+                        <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Channel Members</DropdownMenuLabel>
+                        <DropdownMenuSeparator className="bg-border/50" />
+                        <div className="max-h-60 overflow-y-auto">
+                          {channelMembers?.map((member) => {
+                            const isAssigned = task.assignments?.some(a => a.user_id === member.user_id);
+                            return (
+                              <DropdownMenuItem 
+                                key={member.user_id}
+                                onClick={() => isAssigned 
+                                  ? unassignUser({ id: taskId, userId: member.user_id }) 
+                                  : assignUser({ id: taskId, data: { user_id: member.user_id } })
+                                }
+                                className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-lg hover:bg-muted"
+                              >
+                                <Avatar className="w-6 h-6">
+                                  <AvatarImage src={member.avatar_url} />
+                                  <AvatarFallback className="text-[8px] font-bold">{member.name.substring(0,2).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs font-medium flex-1">{member.name}</span>
+                                {isAssigned && <Check size={14} className="text-primary" />}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
 
                 {/* Priority */}
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Priority</span>
-                  <Badge variant="outline" className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded transition-colors w-fit",
-                    task.priority === 'HIGH' || task.priority === 'URGENT' ? "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20" : 
-                    task.priority === 'MEDIUM' ? "bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20" :
-                    "bg-blue-500/10 border-blue-500/20 text-blue-500 hover:bg-blue-500/20"
-                  )}>
-                    <ChevronsUp size={14} className="text-current" />
-                    <span className="text-[11px] uppercase font-bold tracking-wider">{task.priority || 'NONE'}</span>
-                  </Badge>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Badge variant="outline" className={cn(
+                        "flex items-center gap-1.5 px-2 h-7 rounded transition-colors w-fit cursor-pointer text-[11px] font-bold uppercase tracking-wider",
+                        task.priority === 'URGENT' ? "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500/20" :
+                        task.priority === 'HIGH' ? "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20" : 
+                        task.priority === 'MEDIUM' ? "bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20" :
+                        task.priority === 'LOW' ? "bg-blue-500/10 border-blue-500/20 text-blue-500 hover:bg-blue-500/20" :
+                        "bg-transparent border-dashed border-border text-muted-foreground hover:text-primary hover:border-primary"
+                      )}>
+                        {task.priority ? <ChevronsUp size={14} /> : <Plus size={14} />}
+                        <span>{task.priority || 'NONE'}</span>
+                      </Badge>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-40 rounded-xl bg-card border-border shadow-xl">
+                      <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'URGENT' } })} className="flex items-center gap-2 cursor-pointer focus:bg-rose-500/10 text-rose-500 py-2">
+                        <span className="text-xs font-bold uppercase tracking-wider">Urgent</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'HIGH' } })} className="flex items-center gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 py-2">
+                        <span className="text-xs font-bold uppercase tracking-wider">High</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'MEDIUM' } })} className="flex items-center gap-2 cursor-pointer focus:bg-amber-500/10 text-amber-500 py-2">
+                        <span className="text-xs font-bold uppercase tracking-wider">Medium</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'LOW' } })} className="flex items-center gap-2 cursor-pointer focus:bg-blue-500/10 text-blue-500 py-2">
+                        <span className="text-xs font-bold uppercase tracking-wider">Low</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: null } })} className="flex items-center gap-2 cursor-pointer focus:bg-muted py-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">None</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {/* Add Checklist Option */}
@@ -282,19 +398,85 @@ export function TaskDetailDialog({
                     variant="outline" 
                     size="sm" 
                     onClick={() => setIsAddChecklistDialogOpen(true)}
-                    className="flex items-center gap-2 px-2 py-1 h-auto w-fit text-foreground hover:bg-muted border-dashed transition-colors font-normal"
+                    className="flex items-center gap-2 px-2 h-7 w-fit text-foreground hover:bg-muted border-dashed transition-colors text-[11px] font-bold"
                   >
                     <CheckSquare size={14} className="text-muted-foreground" />
                     <span>Add Checklist</span>
                   </Button>
                 </div>
 
-                {/* Due Date */}
+                 {/* Due Date */}
+                 <div className="flex flex-col gap-1.5">
+                   <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Due Date</span>
+                   <Popover>
+                     <PopoverTrigger asChild>
+                       <Button 
+                         variant="outline" 
+                         size="sm" 
+                         className={cn(
+                           "h-7 text-[11px] font-bold border-dashed flex items-center gap-2 w-fit px-2",
+                           task.due_date ? "border-solid bg-blue-500/5 text-blue-600 border-blue-500/30" : "text-muted-foreground hover:text-primary hover:border-primary"
+                         )}
+                       >
+                         <CalendarIcon size={14} className={task.due_date ? "text-blue-600" : ""} />
+                         {task.due_date ? format(new Date(task.due_date), "MMM d, yyyy") : "Due Date"}
+                       </Button>
+                     </PopoverTrigger>
+                     <PopoverContent className="w-auto p-0 z-[150]" align="start">
+                       <Calendar
+                         mode="single"
+                         selected={task.due_date ? new Date(task.due_date) : undefined}
+                         onSelect={(date) => {
+                           updateTask({ id: taskId, data: { due_date: date ? date.toISOString() : null } });
+                         }}
+                         disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                       />
+                       {task.due_date && (
+                         <div className="p-2 border-t border-border flex justify-end">
+                           <Button 
+                             variant="ghost" 
+                             size="sm" 
+                             className="text-[10px] h-6 text-red-500 hover:text-red-600 hover:bg-red-50"
+                             onClick={() => updateTask({ id: taskId, data: { due_date: null } })}
+                           >
+                             Clear Date
+                           </Button>
+                         </div>
+                       )}
+                     </PopoverContent>
+                   </Popover>
+                 </div>
+
+                {/* Add Attachment Option */}
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Due Date</span>
-                  <Button variant="ghost" size="sm" className="flex items-center gap-2 px-2 py-1 h-auto w-full justify-start text-foreground hover:bg-muted group-hover:border-border border border-transparent transition-colors font-normal">
-                    <Calendar size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                    <span className="text-sm text-foreground">{task.due_date ? format(new Date(task.due_date), 'MMM d, yyyy') : 'Set date'}</span>
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Attachment</span>
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      addAttachment({
+                        id: taskId,
+                        data: {
+                          name: file.name,
+                          url: URL.createObjectURL(file), // Temporary URL for demo
+                          file_type: file.type,
+                          file_size: file.size
+                        }
+                      });
+                    }}
+                  />
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 px-2 h-7 w-fit text-foreground hover:bg-muted border-dashed transition-colors text-[11px] font-bold"
+                  >
+                    <Paperclip size={14} className="text-muted-foreground" />
+                    <span>Attach</span>
                   </Button>
                 </div>
 
@@ -357,6 +539,161 @@ export function TaskDetailDialog({
                 )}
               </section>
 
+              {/* Attachments Section */}
+              {task.attachments && task.attachments.length > 0 && (
+                <section className="flex flex-col gap-3 mt-4">
+                  <div className="flex items-center gap-2 text-foreground font-bold">
+                    <Paperclip size={18} className="text-primary" />
+                    <h3>Attachments</h3>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3">
+                    {task.attachments.map((file) => {
+                      const isImage = file.mime_type?.startsWith('image/');
+                      const isPdf = file.mime_type === 'application/pdf';
+                      
+                      return (
+                        <div 
+                          key={file.id} 
+                          onClick={() => isImage ? setSelectedImage(file.file_url) : window.open(file.file_url, '_blank')}
+                          className="flex flex-col rounded-lg border border-border bg-muted/20 overflow-hidden group hover:border-primary/40 transition-all cursor-pointer shadow-sm"
+                        >
+                          {isImage ? (
+                            <div className="h-16 w-full relative bg-muted overflow-hidden">
+                              <Image 
+                                src={file.file_url} 
+                                alt={file.file_name} 
+                                fill
+                                unoptimized
+                                className="object-cover transition-transform duration-500 group-hover:scale-110" 
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                            </div>
+                          ) : (
+                            <div className="h-16 w-full flex items-center justify-center bg-muted/50 border-b border-border">
+                              <div className={cn(
+                                "w-7 h-7 rounded flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm",
+                                isPdf ? "bg-red-500/10 text-red-500" : "bg-primary/10 text-primary"
+                              )}>
+                                {isPdf ? <FileText size={16} /> : <Paperclip size={16} />}
+                              </div>
+                            </div>
+                          )}
+                          <div className="p-1.5 flex items-center justify-between min-w-0">
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[9px] font-bold truncate group-hover:text-primary transition-colors">{file.file_name}</span>
+                              <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-tight">{(file.file_size / 1024).toFixed(1)} KB</span>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 rounded-full text-muted-foreground hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteAttachment(file.id);
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Image Lightbox Dialog */}
+              <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
+                <DialogContent 
+                  showCloseButton={false}
+                  overlayClassName="bg-gray-950/20 backdrop-blur-md"
+                  className="max-w-none w-screen h-screen p-0 overflow-hidden bg-transparent border-none shadow-none flex items-center justify-center z-100"
+                >
+                  <div className="sr-only">
+                    <DialogTitle>Image Preview</DialogTitle>
+                    <DialogDescription>Full screen view of the selected attachment</DialogDescription>
+                  </div>
+
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setSelectedImage(null)}
+                    className="absolute top-6 right-6 z-130 h-12 w-12 rounded-full bg-black/20 hover:bg-black/40 text-white/80 hover:text-white backdrop-blur-sm border border-white/10 transition-all shadow-xl group"
+                  >
+                    <X size={28} className="transition-transform group-hover:rotate-90 duration-300" />
+                  </Button>
+                  
+                  {selectedImage && (
+                    <div className="flex flex-col w-full h-full">
+                      {/* Toolbar */}
+                      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-120 flex items-center gap-2 p-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl">
+                        <Button 
+                          variant="ghost" size="icon" 
+                          className="h-9 w-9 text-white/70 hover:text-white hover:bg-white/10 rounded-full"
+                          onClick={() => setZoomLevel(prev => Math.max(0.5, prev - 0.25))}
+                        >
+                          <ZoomOut size={18} />
+                        </Button>
+                        <div className="px-2 text-[11px] font-bold text-white/60 min-w-[45px] text-center">
+                          {Math.round(zoomLevel * 100)}%
+                        </div>
+                        <Button 
+                          variant="ghost" size="icon" 
+                          className="h-9 w-9 text-white/70 hover:text-white hover:bg-white/10 rounded-full"
+                          onClick={() => setZoomLevel(prev => Math.min(3, prev + 0.25))}
+                        >
+                          <ZoomIn size={18} />
+                        </Button>
+                        <div className="w-px h-4 bg-white/10 mx-1" />
+                        <Button 
+                          variant="ghost" size="icon" 
+                          className="h-9 w-9 text-white/70 hover:text-white hover:bg-white/10 rounded-full"
+                          onClick={() => setZoomLevel(1)}
+                          title="Reset Zoom"
+                        >
+                          <RotateCcw size={18} />
+                        </Button>
+                        <Button 
+                          variant="ghost" size="icon" 
+                          className="h-9 w-9 text-white/70 hover:text-white hover:bg-white/10 rounded-full"
+                          onClick={() => window.open(selectedImage, '_blank')}
+                          title="Open in New Tab"
+                        >
+                          <ExternalLink size={18} />
+                        </Button>
+                        <a 
+                          href={selectedImage} 
+                          download 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="h-9 w-9 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                          title="Download"
+                        >
+                          <Download size={18} />
+                        </a>
+                      </div>
+
+                      {/* Image Area */}
+                      <div className="flex-1 flex items-center justify-center p-4 md:p-12 overflow-auto">
+                        <div 
+                          className="transition-transform duration-200 ease-out flex items-center justify-center"
+                          style={{ transform: `scale(${zoomLevel})` }}
+                        >
+                          <Image 
+                            src={selectedImage} 
+                            alt="Preview" 
+                            width={2000}
+                            height={1500}
+                            unoptimized
+                            className="w-auto h-auto max-w-full max-h-[85vh] object-contain shadow-2xl rounded-sm" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+
 
               {/* Subtasks Section (Nested Tasks) */}
               <section className="flex flex-col gap-3 mt-4">
@@ -371,15 +708,15 @@ export function TaskDetailDialog({
                       <button 
                         onClick={() => updateTask({ 
                           id: subtask.id, 
-                          data: { status: subtask.status === 'DONE' ? 'OPEN' : 'DONE' } 
+                          data: { status: subtask.status === 'COMPLETED' ? 'OPEN' : 'COMPLETED' } 
                         })}
-                        aria-label={subtask.status === 'DONE' ? "Mark incomplete" : "Mark complete"} 
+                        aria-label={subtask.status === 'COMPLETED' ? "Mark incomplete" : "Mark complete"} 
                         className={cn(
                           "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
-                          subtask.status === 'DONE' ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"
+                          subtask.status === 'COMPLETED' ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"
                         )}
                       >
-                        {subtask.status === 'DONE' && <Check size={12} strokeWidth={3} />}
+                        {subtask.status === 'COMPLETED' && <Check size={12} strokeWidth={3} />}
                       </button>
 
                       {editingSubtaskId === subtask.id ? (
@@ -402,7 +739,7 @@ export function TaskDetailDialog({
                           }}
                           className={cn(
                             "text-sm font-medium flex-1 truncate transition-all cursor-text", 
-                            subtask.status === 'DONE' ? "text-muted-foreground line-through" : "text-foreground"
+                            subtask.status === 'COMPLETED' ? "text-muted-foreground line-through" : "text-foreground"
                           )}
                         >
                           {subtask.title}
@@ -531,14 +868,14 @@ export function TaskDetailDialog({
                             <span 
                               onClick={() => {
                                 setEditingItemId(item.id);
-                                setEditItemValue(item.title);
+                                setEditItemValue(item.text);
                               }}
                               className={cn(
                                 "text-sm flex-1 truncate transition-all cursor-text", 
                                 item.is_completed ? "text-muted-foreground line-through" : "text-foreground"
                               )}
                             >
-                              {item.title}
+                              {item.text}
                             </span>
                           )}
 
@@ -582,28 +919,7 @@ export function TaskDetailDialog({
                 );
               })}
 
-              {/* Attachments */}
-              {task.attachments && task.attachments.length > 0 && (
-              <section className="flex flex-col gap-2 mt-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-[13px] font-medium text-muted-foreground">Attachments</div>
-                  <Button variant="link" size="sm" className="p-0 h-auto text-[13px] font-medium">Add</Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {task.attachments.map(att => (
-                    <div key={att.id} className="flex items-center gap-2 p-2 border border-border rounded bg-card hover:border-primary/50 transition-colors cursor-pointer group">
-                      <div className="w-8 h-8 rounded bg-muted flex items-center justify-center text-primary group-hover:bg-primary/10 transition-colors">
-                        <FileText size={18} />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[13px] font-medium text-foreground truncate">{att.file_name}</span>
-                        <span className="text-[12px] text-muted-foreground truncate">{(att.file_size / 1024).toFixed(1)} KB</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-              )}
+
               </div>
             </ScrollArea>
           </main>

@@ -132,13 +132,15 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
     createSchema({
       description: 'Update core properties of a task',
       tags: ['Tasks'],
-      params: z.object({ id: z.string().cuid() }),
+      params: z.object({ id: z.cuid() }),
       body: z.object({
         title: z.string().min(1).optional(),
         description: z.string().optional(),
         status: z.string().optional(),
-        priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
-        due_date: z.string().datetime().optional(),
+        priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).nullable().optional(),
+        start_date: z.date().nullable().optional(),
+        due_date: z.date().nullable().optional(),
+        completed_at: z.date().nullable().optional(),
         cover_color: z.string().optional(),
       }),
     }),
@@ -230,7 +232,7 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       description: 'Add an item to a checklist',
       tags: ['Tasks'],
       params: z.object({ id: z.cuid() }),
-      body: z.object({ title: z.string().min(1), position: z.number().int().max(2147483647).optional() }),
+      body: z.object({ text: z.string().min(1), position: z.number().int().max(2147483647).optional() }),
     }),
     taskController.addChecklistItem
   );
@@ -242,7 +244,7 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       tags: ['Tasks'],
       params: z.object({ id: z.string().cuid() }),
       body: z.object({
-        title: z.string().optional(),
+        text: z.string().optional(),
         is_completed: z.boolean().optional(),
         position: z.number().int().max(2147483647).optional(),
       }),
@@ -307,6 +309,16 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       }),
     }),
     taskController.addAttachment
+  );
+
+  app.delete(
+    '/attachments/:id',
+    createSchema({
+      description: 'Remove an attachment from a task',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+    }),
+    taskController.deleteAttachment
   );
 
   // PHASE 5 — Nested Tasks

@@ -13,10 +13,12 @@ import { HttpStatus } from '@/types/api';
 import { boardListRepository } from '@/repositories/board-list.repository';
 import { organizationMemberRepository } from '@/repositories/organization-member.repository';
 import { channelMemberRepository } from '@/repositories/channel-member.repository';
-import { checklistItemRepository } from '@/repositories/checklist-item.repository';
 import { checklistRepository } from '@/repositories/checklist.repository';
+import { checklistItemRepository } from '@/repositories/checklist-item.repository';
 import { channelRepository } from '@/repositories/channel.repository';
 import { taskRepository } from '@/repositories/task.repository';
+import { attachmentRepository } from '@/repositories/attachment.repository';
+import { commentRepository } from '@/repositories/comment.repository';
 
 export class TaskController {
   constructor() {
@@ -353,9 +355,9 @@ export class TaskController {
   // PHASE 4 — Collaboration Features
 
   // 8. Assignments
-  async assignUser(request: FastifyRequest<{ Params: { id: string }; Body: { user_id: string } }>, reply: FastifyReply) {
+  async assignUser(request: FastifyRequest<{ Params: { id: string }; Body: { user_id: string; role?: any } }>, reply: FastifyReply) {
     const { id } = request.params;
-    const { user_id } = request.body;
+    const { user_id, role } = request.body;
     const { userId } = request.user as any;
 
     const task = await taskRepository.getById(id);
@@ -371,7 +373,7 @@ export class TaskController {
     const targetUser = await prisma.user.findUnique({ where: { id: user_id } });
     if (!targetUser) return sendError(reply, HttpStatus.NOT_FOUND, 'Target user not found');
 
-    const assignment = await assignmentService.assignUser(id, user_id);
+    const assignment = await assignmentService.assignUser(id, user_id, role);
     return sendSuccess(reply, assignment, 'CREATE');
   }
 
@@ -460,9 +462,9 @@ export class TaskController {
     return sendSuccess(reply, updatedChecklist, 'UPDATE');
   };
 
-  addChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { title: string; position?: number } }>, reply: FastifyReply) => {
+  addChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { text: string; position?: number } }>, reply: FastifyReply) => {
     const { id: checklistId } = request.params;
-    const { title, position } = request.body;
+    const { text, position } = request.body;
     const { userId } = request.user as any;
 
     // We need to find the task associated with the checklist for permission check
@@ -474,11 +476,11 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to add items');
     }
 
-    const item = await checklistService.addItem(checklistId, title, position);
+    const item = await checklistService.addItem(checklistId, userId, text, position);
     return sendSuccess(reply, item, 'CREATE');
   };
 
-  updateChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { title?: string; is_completed?: boolean; position?: number } }>, reply: FastifyReply) => {
+  updateChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { text?: string; is_completed?: boolean; position?: number } }>, reply: FastifyReply) => {
     const { id: itemId } = request.params;
     const { userId } = request.user as any;
 
@@ -490,7 +492,13 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update items');
     }
 
-    const updatedItem = await checklistService.updateItem(itemId, request.body);
+    const { is_completed, text, position } = request.body;
+    const updateData: any = {};
+    if (is_completed !== undefined) updateData.is_completed = is_completed;
+    if (text !== undefined) updateData.text = text;
+    if (position !== undefined) updateData.position = position;
+
+    const updatedItem = await checklistService.updateItem(itemId, updateData);
     return sendSuccess(reply, updatedItem, 'UPDATE');
   };
 
@@ -573,6 +581,25 @@ export class TaskController {
 
     const attachment = await attachmentService.addAttachment(id, userId, request.body);
     return sendSuccess(reply, attachment, 'CREATE');
+  };
+
+  deleteAttachment = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { id: attachmentId } = request.params;
+    const { userId } = request.user as any;
+
+    const attachment = await attachmentRepository.getById(attachmentId);
+    if (!attachment) return sendError(reply, HttpStatus.NOT_FOUND, 'Attachment not found');
+
+    const task = await taskRepository.getById(attachment.task_id);
+    if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to remove attachments');
+    }
+
+    await attachmentService.deleteAttachment(attachmentId);
+    return sendSuccess(reply, { success: true }, 'DELETE');
   };
 
   // PHASE 5 — Nested Tasks

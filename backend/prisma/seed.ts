@@ -55,7 +55,7 @@ async function main() {
       members: {
         create: [
           { user_id: owner.id, role: 'MANAGER' },
-          { user_id: member.id, role: 'MEMBER' },
+          { user_id: member.id, role: 'CONTRIBUTOR' },
         ],
       },
     },
@@ -69,7 +69,7 @@ async function main() {
       members: {
         create: [
           { user_id: owner.id, role: 'MANAGER' },
-          { user_id: member.id, role: 'MEMBER' },
+          { user_id: member.id, role: 'CONTRIBUTOR' },
         ],
       },
     },
