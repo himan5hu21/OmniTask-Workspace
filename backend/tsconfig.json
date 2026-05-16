@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     /* Core */
-    "target": "ES2023",
-    "module": "ESNext",
+    "target": "esnext",
+    "module": "esnext",
     "moduleResolution": "bundler",
 
     /* Paths */
@@ -19,7 +19,8 @@
       "@/types/*": ["./src/types/*"],
       "@/utils/*": ["./src/utils/*"],
       "@/config/*": ["./src/config/*"],
-      "@/lib/*": ["./src/lib/*"]
+      "@/lib/*": ["./src/lib/*"],
+      "@/generated/*": ["./prisma/generated/*"]
     },
 
     /* Strictness */

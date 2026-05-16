@@ -92,11 +92,9 @@ const socketPlugin: FastifyPluginAsync = async (fastify, options) => {
     }
   });
 
-  // Graceful Shutdown
-  fastify.addHook('onClose', (instance, done) => {
-    instance.log.info('Closing Socket.io connections...');
-    instance.io.close();
-    done();
+  // Graceful Shutdown — must await so port is released before Fastify reports done
+  fastify.addHook('onClose', async () => {
+    await io.close();
   });
 
   // Base connection handling

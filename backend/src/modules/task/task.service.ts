@@ -3,6 +3,81 @@ import { boardListRepository } from '@/repositories/board-list.repository';
 
 
 export class TaskService {
+  private getTaskIncludes() {
+    return {
+      include: {
+        creator: {
+          select: { id: true, name: true, avatar_url: true }
+        },
+        assignments: {
+          include: {
+            user: { select: { id: true, name: true, avatar_url: true } }
+          }
+        },
+        labels: {
+          include: { label: true }
+        },
+        checklists: {
+          include: { 
+            assignee: { select: { id: true, name: true, avatar_url: true } },
+            items: { 
+              orderBy: [
+                { position: 'asc' },
+                { created_at: 'asc' },
+                { id: 'asc' }
+              ],
+              include: {
+                assignee: { select: { id: true, name: true, avatar_url: true } },
+                subtask: {
+                  include: {
+                    assignments: {
+                      include: {
+                        user: { select: { id: true, name: true, avatar_url: true } }
+                      }
+                    }
+                  }
+                }
+              }
+            } 
+          },
+          orderBy: [
+            { position: 'asc' },
+            { created_at: 'asc' },
+            { id: 'asc' }
+          ]
+        },
+        attachments: {
+          include: {
+            user: { select: { id: true, name: true, avatar_url: true } }
+          }
+        },
+        _count: {
+          select: { comments: true }
+        },
+        subtasks: {
+          select: { 
+            id: true, 
+            title: true, 
+            priority: true, 
+            status: true, 
+            position: true, 
+            created_at: true,
+            assignments: {
+              include: {
+                user: { select: { id: true, name: true, avatar_url: true } }
+              }
+            }
+          },
+          orderBy: [
+            { position: 'asc' },
+            { created_at: 'asc' },
+            { id: 'asc' }
+          ]
+        }
+      }
+    };
+  }
+
   async createTask(data: {
     title: string;
     list_id: string;
@@ -18,7 +93,7 @@ export class TaskService {
       );
       data.position = lastTask ? lastTask.position + 1000 : 1000;
     }
-    return taskRepository.create(data);
+    return taskRepository.create(data, this.getTaskIncludes());
   }
 
   async moveTask(taskId: string, targetListId: string, position: number) {
@@ -69,56 +144,11 @@ export class TaskService {
   }
 
   async getTaskById(id: string) {
-    return taskRepository.getById(id, {
-      include: {
-        creator: {
-          select: { id: true, name: true, avatar_url: true }
-        },
-        assignments: {
-          include: {
-            user: { select: { id: true, name: true, avatar_url: true } }
-          }
-        },
-        labels: {
-          include: { label: true }
-        },
-        checklists: {
-          include: { 
-            items: { 
-              orderBy: { position: 'asc' },
-              include: {
-                subtask: {
-                  include: {
-                    assignments: {
-                      include: {
-                        user: { select: { id: true, name: true, avatar_url: true } }
-                      }
-                    }
-                  }
-                }
-              }
-            } 
-          },
-          orderBy: { position: 'asc' }
-        },
-        attachments: {
-          include: {
-            user: { select: { id: true, name: true, avatar_url: true } }
-          }
-        },
-        _count: {
-          select: { comments: true }
-        },
-        subtasks: {
-          select: { id: true, title: true, priority: true, status: true, position: true },
-          orderBy: { position: 'asc' }
-        }
-      }
-    });
+    return taskRepository.getById(id, this.getTaskIncludes());
   }
 
   async updateTask(id: string, data: any) {
-    return taskRepository.update(id, data);
+    return taskRepository.update(id, data, this.getTaskIncludes());
   }
 
   async getBoardData(channelId: string) {
@@ -132,7 +162,11 @@ export class TaskService {
             deleted_at: null,
             parent_task_id: null 
           },
-          orderBy: { position: 'asc' },
+          orderBy: [
+            { position: 'asc' },
+            { created_at: 'asc' },
+            { id: 'asc' }
+          ],
           select: {
             id: true,
             title: true,
@@ -162,12 +196,20 @@ export class TaskService {
     const parent = await taskRepository.getById(parentId);
     if (!parent) throw new Error('Parent task not found');
 
+    // Get last subtask to calculate next position
+    const lastSubtask = await taskRepository.findOne(
+      { parent_task_id: parentId },
+      { orderBy: { position: 'desc' } }
+    );
+    const position = lastSubtask ? lastSubtask.position + 1000 : 1000;
+
     return taskRepository.create({
       ...data,
       parent_task_id: parentId,
       channel_id: parent.channel_id,
       org_id: parent.org_id,
       list_id: parent.list_id,
+      position
     });
   }
 }

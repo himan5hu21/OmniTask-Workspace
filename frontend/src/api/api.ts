@@ -84,29 +84,67 @@ if (authChannel) {
 }
 
 // Add response interceptor for global error handling and automatic token refresh
+// Track retry attempts using a WeakMap to ensure persistence even if Axios clones the config object
+const retryMap = new WeakMap<AxiosRequestConfig, number>();
+
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    if (!originalRequest) return Promise.reject(error);
 
-    // 1. Identify if the failing request is a login or register attempt
+    // 1. Initialize or increment retry count
+    const retryCount = (retryMap.get(originalRequest) || 0) + 1;
+    retryMap.set(originalRequest, retryCount);
+
     const isAuthRoute = 
       originalRequest.url?.includes('/auth/login') || 
       originalRequest.url?.includes('/auth/register');
 
-    // 2. ONLY trigger refresh if it's a 401, hasn't been retried, AND is NOT an auth route
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
-      // 🚨 FIX: Prevent recursive refresh attempts if the refresh call itself fails with 401
+    // 2. 🛑 CONNECTION ERRORS: No response from server (e.g. backend down)
+    if (!error.response) {
+      console.error(`[API] Connection Error on ${originalRequest.url}. Backend might be down.`);
+      return Promise.reject({
+        message: 'Unable to connect to the server. Please check your internet or try again later.',
+        status: 0,
+        data: null,
+      });
+    }
+
+    // 3. 🛑 SERVER ERRORS: 5xx errors should never be retried by the interceptor
+    if (error.response.status >= 500) {
+      console.error(`[API] Server Error (${error.response.status}) on ${originalRequest.url}`);
+      return Promise.reject({
+        message: error.response.data?.message || 'Server encountered an internal error',
+        status: error.response.status,
+        data: error.response.data,
+      });
+    }
+
+    // 4. 🛡️ RETRY LIMIT: Stop if we've tried too many times (Max 2 retries)
+    if (retryCount > 2) {
+      console.error(`[API] Max retries reached for ${originalRequest.url}. Stopping.`);
+      return Promise.reject({
+        message: 'Request failed after multiple attempts',
+        status: error.response.status,
+        data: error.response.data,
+      });
+    }
+
+    // 5. 🔑 AUTH ERRORS: Only trigger refresh if it's a 401 AND NOT an auth route
+    if (error.response.status === 401 && !isAuthRoute) {
+      // Prevent recursive refresh attempts if the refresh call itself fails with 401
       if (originalRequest.url?.includes('/auth/refresh')) {
+        console.warn('[API] Refresh call failed with 401. Logging out.');
+        deleteToken();
+        if (typeof window !== 'undefined') window.location.href = '/login';
         return Promise.reject(error);
       }
 
-      originalRequest._retry = true;
-
       try {
-        // Multi-tab check: If token changed while this request was flying, another tab refreshed it!
+        console.log(`[API] Retrying 401 (Attempt ${retryCount}) for ${originalRequest.url}`);
+
+        // Check if token was refreshed while this request was flying
         const currentToken = getToken();
         const requestToken = 
           typeof originalRequest.headers?.Authorization === 'string'
@@ -114,12 +152,14 @@ api.interceptors.response.use(
             : null;
 
         if (currentToken && requestToken && currentToken !== requestToken) {
+          console.log('[API] Token already updated, retrying with new token.');
           originalRequest.headers.Authorization = `Bearer ${currentToken}`;
           return api(originalRequest);
         }
 
-        // Shared promise pattern: If a refresh is already running in this tab, wait for it.
+        // Shared promise pattern for token refresh
         if (!refreshPromise) {
+          console.log('[API] Starting token refresh...');
           refreshPromise = axios
             .post(`${FASTIFY_API_URL}/auth/refresh`, {}, { withCredentials: true })
             .then((res) => {
@@ -127,17 +167,12 @@ api.interceptors.response.use(
               setToken(newToken);
               api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
               
-              // Notify local listeners (like sockets)
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new Event('token_refreshed'));
               }
 
-              // Broadcast to other tabs
               if (authChannel) {
-                authChannel.postMessage({
-                  type: 'TOKEN_REFRESHED',
-                  token: newToken,
-                });
+                authChannel.postMessage({ type: 'TOKEN_REFRESHED', token: newToken });
               }
               
               return newToken;
@@ -152,10 +187,9 @@ api.interceptors.response.use(
         return api(originalRequest);
 
       } catch (refreshError: unknown) {
-        // If refresh fails, session is completely dead. Log them out.
+        console.error('[API] Token refresh failed:', refreshError);
         deleteToken();
 
-        // Broadcast logout to other tabs
         if (authChannel) {
           authChannel.postMessage({ type: 'LOGOUT' });
         }
@@ -167,15 +201,12 @@ api.interceptors.response.use(
       }
     }
 
-
-    // Standardized error object
-    const apiError = {
-      message: error.response?.data?.message || error.message || 'An unexpected error occurred',
-      status: error.response?.status,
-      data: error.response?.data,
-    };
-
-    return Promise.reject(apiError);
+    // Standardized error object for all other errors (400, 403, 404, etc.)
+    return Promise.reject({
+      message: error.response.data?.message || error.message || 'An unexpected error occurred',
+      status: error.response.status,
+      data: error.response.data,
+    });
   }
 );
 

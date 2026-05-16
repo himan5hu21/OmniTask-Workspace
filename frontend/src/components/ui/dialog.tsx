@@ -65,8 +65,11 @@ function DialogOverlay({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
             data-slot="dialog-overlay"
+            style={{ 
+              isolation: 'isolate',
+            }}
             className={cn(
-              "fixed inset-0 z-50 bg-black/60 backdrop-blur-sm",
+              "fixed inset-0 z-50 bg-black/40",
               className
             )}
           />

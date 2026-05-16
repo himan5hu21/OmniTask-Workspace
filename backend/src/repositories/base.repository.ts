@@ -94,7 +94,7 @@ export class BaseRepository {
   }
 
   // 5. UPDATE
-  async update(idOrIds: string | number | (string | number)[], data: any, tx?: any) {
+  async update(idOrIds: string | number | (string | number)[], data: any, options: { include?: any; select?: any } = {}, tx?: any) {
     const client = this.getClient(tx);
     const where: any = Array.isArray(idOrIds) ? { id: { in: idOrIds } } : { id: idOrIds };
     
@@ -103,7 +103,7 @@ export class BaseRepository {
     if (Array.isArray(idOrIds)) {
       return client.updateMany({ where, data });
     } else {
-      return client.update({ where, data });
+      return client.update({ where, data, ...options });
     }
   }
 

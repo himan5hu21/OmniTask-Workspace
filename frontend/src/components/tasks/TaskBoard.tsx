@@ -698,6 +698,7 @@ export default function TaskBoard() {
     {/* Task Detail Dialog */}
     {taskForDetail && (
       <TaskDetailDialog
+        key={`${taskForDetail.id}-${isDetailModalOpen}`}
         open={isDetailModalOpen}
         onOpenChange={setIsDetailModalOpen}
         taskId={taskForDetail.id}

@@ -302,6 +302,27 @@
   padding-left: 1.5rem;
 }
 
+.ProseMirror {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ProseMirror * {
+  overflow-wrap: anywhere;
+}
+
+.ProseMirror pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ProseMirror pre code {
+  white-space: inherit;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .chat-editor.ProseMirror,
 .chat-editor .ProseMirror {
   min-height: 24px;
@@ -392,4 +413,21 @@
   box-shadow:
     inset 0 1px 0 color-mix(in oklab, white 9%, transparent),
     0 8px 18px color-mix(in oklab, var(--primary) 26%, transparent);
+}
+/* 
+ * 🚀 Ultimate App Blurring Fix (Version 2)
+ * Detects modal by looking for pointer-events: none or data-state="open"
+ */
+body[style*="pointer-events: none"] #app-content,
+body:has([data-state="open"]) #app-content,
+body:has([role="dialog"]) #app-content {
+  filter: blur(6px) saturate(130%);
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#app-content {
+  will-change: filter;
+  transition: filter 0.3s ease;
 }

@@ -35,6 +35,7 @@ export type TaskChecklistItem = {
   text: string;
   is_completed: boolean;
   position: number;
+  assignee?: TaskUser;
   subtask?: Task;
 };
 
@@ -42,6 +43,7 @@ export type TaskChecklist = {
   id: string;
   name: string;
   position: number;
+  assignee?: TaskUser;
   items?: TaskChecklistItem[];
 };
 
@@ -112,11 +114,24 @@ export type MoveTaskInput = { target_list_id: string; position: number };
 export type AssignUserInput = { user_id: string; role?: string };
 export type CreateCommentInput = { content: string };
 export type CreateChecklistInput = { title: string };
-export type AddChecklistItemInput = { text: string; position?: number };
-export type UpdateChecklistItemInput = { text?: string; is_completed?: boolean; position?: number };
+export type UpdateChecklistInput = {
+  title?: string;
+  assignee_id?: string | null;
+};
+
+export type AddChecklistItemInput = {
+  text: string;
+  position?: number;
+};
+
+export type UpdateChecklistItemInput = {
+  text?: string;
+  is_completed?: boolean;
+  position?: number;
+  assignee_id?: string | null;
+};
 export type CreateLabelInput = { org_id: string; name: string; color: string };
 export type AssignLabelInput = { label_id: string };
-export type AddAttachmentInput = { name: string; url: string; file_type: string; file_size: number };
 export type CreateSubtaskInput = { title: string };
 
 // --- KEYS ---
@@ -128,6 +143,7 @@ export const taskKeys = {
   details: () => [...taskKeys.all, "detail"] as const,
   detail: (taskId: string) => [...taskKeys.details(), taskId] as const,
   comments: (taskId: string) => [...taskKeys.detail(taskId), "comments"] as const,
+  labels: (orgId: string) => ["labels", orgId] as const,
 };
 
 // --- SERVICE ---
@@ -185,7 +201,7 @@ export const taskService = {
   createChecklist: async (id: string, data: CreateChecklistInput): Promise<ApiSuccess<TaskChecklist>> => {
     return apiRequest.post<ApiSuccess<TaskChecklist>>(`/tasks/${id}/checklists`, data);
   },
-  updateChecklist: async (id: string, data: { title: string }): Promise<ApiSuccess<TaskChecklist>> => {
+  updateChecklist: async (id: string, data: { title?: string; assignee_id?: string | null }): Promise<ApiSuccess<TaskChecklist>> => {
     return apiRequest.patch<ApiSuccess<TaskChecklist>>(`/checklists/${id}`, data);
   },
   deleteChecklist: async (id: string): Promise<ApiSuccess<{ success: true }>> => {
@@ -194,7 +210,7 @@ export const taskService = {
   addChecklistItem: async (checklistId: string, data: AddChecklistItemInput): Promise<ApiSuccess<TaskChecklistItem>> => {
     return apiRequest.post<ApiSuccess<TaskChecklistItem>>(`/checklists/${checklistId}/items`, data);
   },
-  updateChecklistItem: async (itemId: string, data: UpdateChecklistItemInput): Promise<ApiSuccess<TaskChecklistItem>> => {
+  updateChecklistItem: async (itemId: string, data: UpdateChecklistItemInput & { assignee_id?: string | null }): Promise<ApiSuccess<TaskChecklistItem>> => {
     return apiRequest.patch<ApiSuccess<TaskChecklistItem>>(`/checklist-items/${itemId}`, data);
   },
   deleteChecklistItem: async (itemId: string): Promise<ApiSuccess<{ success: true }>> => {
@@ -205,13 +221,30 @@ export const taskService = {
   createLabel: async (data: CreateLabelInput): Promise<ApiSuccess<TaskLabel>> => {
     return apiRequest.post<ApiSuccess<TaskLabel>>('/labels', data);
   },
+  getOrgLabels: async (orgId: string): Promise<ApiSuccess<TaskLabel[]>> => {
+    return apiRequest.get<ApiSuccess<TaskLabel[]>>(`/labels/${orgId}`);
+  },
+  deleteLabel: async (id: string): Promise<SuccessResponse> => {
+    return apiRequest.delete<SuccessResponse>(`/labels/${id}`);
+  },
   assignLabel: async (id: string, data: AssignLabelInput): Promise<ApiSuccess<unknown>> => {
     return apiRequest.post<ApiSuccess<unknown>>(`/tasks/${id}/labels`, data);
   },
+  unassignLabel: async (id: string, labelId: string): Promise<SuccessResponse> => {
+    return apiRequest.delete<SuccessResponse>(`/tasks/${id}/labels/${labelId}`);
+  },
 
   // Attachments
-  addAttachment: async (id: string, data: AddAttachmentInput): Promise<ApiSuccess<TaskAttachment>> => {
-    return apiRequest.post<ApiSuccess<TaskAttachment>>(`/tasks/${id}/attachments`, data);
+  addAttachment: async (id: string, file: File): Promise<ApiSuccess<TaskAttachment>> => {
+    const formData = new FormData();
+    formData.append("files", file); // Backend expects 'files' or 'file'? 
+    // Wait, in controller I used request.file(). request.file() handles the first file found.
+    // multipart/form-data key doesn't strictly matter for request.file() usually, 
+    // but often it's 'file' or 'files'.
+    
+    return apiRequest.post<ApiSuccess<TaskAttachment>>(`/tasks/${id}/attachments`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
   },
   deleteAttachment: async (id: string): Promise<SuccessResponse> => {
     return apiRequest.delete<SuccessResponse>(`/attachments/${id}`);
@@ -306,12 +339,13 @@ export const useCreateTask = (channelId: string) => {
   });
 };
 
-export const useUpdateTask = (channelId: string) => {
+export const useUpdateTask = (channelId?: string, parentTaskId?: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateTaskInput }) => taskService.updateTask(id, data),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(variables.id) });
+      if (parentTaskId) queryClient.invalidateQueries({ queryKey: taskKeys.detail(parentTaskId) });
       if (channelId) queryClient.invalidateQueries({ queryKey: taskKeys.board(channelId) });
     },
   });
@@ -327,12 +361,13 @@ export const useMoveTask = (channelId: string) => {
   });
 };
 
-export const useDeleteTask = (channelId: string) => {
+export const useDeleteTask = (channelId?: string, parentTaskId?: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: taskService.deleteTask,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.board(channelId) });
+      if (parentTaskId) queryClient.invalidateQueries({ queryKey: taskKeys.detail(parentTaskId) });
+      if (channelId) queryClient.invalidateQueries({ queryKey: taskKeys.board(channelId) });
     },
   });
 };
@@ -376,7 +411,8 @@ export const useCreateChecklist = () => {
 export const useUpdateChecklist = (taskId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { title: string } }) => taskService.updateChecklist(id, data),
+    mutationFn: ({ id, data }: { id: string; data: { title?: string; assignee_id?: string | null } }) => 
+      taskService.updateChecklist(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
     },
@@ -453,6 +489,51 @@ export const useAssignLabel = (taskId: string) => {
   });
 };
 
+export const useUnassignLabel = (taskId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, labelId }: { id: string; labelId: string }) => taskService.unassignLabel(id, labelId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+    },
+  });
+};
+
+export const useLabels = (orgId: string, options?: { enabled?: boolean }) => {
+  const query = useQuery({
+    queryKey: taskKeys.labels(orgId),
+    queryFn: () => taskService.getOrgLabels(orgId),
+    enabled: (options?.enabled ?? true) && !!orgId,
+  });
+
+  const labels = useMemo(() => query.data?.success ? query.data.data : [], [query.data]);
+
+  return {
+    ...query,
+    labels,
+  };
+};
+
+export const useCreateLabel = (orgId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: taskService.createLabel,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.labels(orgId) });
+    },
+  });
+};
+
+export const useDeleteLabel = (orgId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: taskService.deleteLabel,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.labels(orgId) });
+    },
+  });
+};
+
 export const useCreateSubtask = (taskId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -466,7 +547,7 @@ export const useCreateSubtask = (taskId: string) => {
 export const useAddAttachment = (taskId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: AddAttachmentInput }) => taskService.addAttachment(id, data),
+    mutationFn: ({ id, file }: { id: string; file: File }) => taskService.addAttachment(id, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
     },

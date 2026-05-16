@@ -138,9 +138,9 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
         description: z.string().optional(),
         status: z.string().optional(),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).nullable().optional(),
-        start_date: z.date().nullable().optional(),
-        due_date: z.date().nullable().optional(),
-        completed_at: z.date().nullable().optional(),
+        start_date: z.coerce.date().nullable().optional(),
+        due_date: z.coerce.date().nullable().optional(),
+        completed_at: z.coerce.date().nullable().optional(),
         cover_color: z.string().optional(),
       }),
     }),
@@ -218,10 +218,13 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
   app.patch(
     '/checklists/:id',
     createSchema({
-      description: 'Update checklist name',
+      description: 'Update checklist name or assignee',
       tags: ['Tasks'],
       params: z.object({ id: z.string().cuid() }),
-      body: z.object({ title: z.string().min(1) }),
+      body: z.object({ 
+        title: z.string().min(1).optional(),
+        assignee_id: z.string().nullable().optional() 
+      }),
     }),
     taskController.updateChecklist
   );
@@ -240,13 +243,14 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
   app.patch(
     '/checklist-items/:id',
     createSchema({
-      description: 'Update a checklist item (content, completion, position)',
+      description: 'Update a checklist item (content, completion, position, assignee)',
       tags: ['Tasks'],
       params: z.object({ id: z.string().cuid() }),
       body: z.object({
         text: z.string().optional(),
         is_completed: z.boolean().optional(),
         position: z.number().int().max(2147483647).optional(),
+        assignee_id: z.string().nullable().optional()
       }),
     }),
     taskController.updateChecklistItem
@@ -283,6 +287,16 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
     taskController.createLabel
   );
 
+  app.delete(
+    '/labels/:id',
+    createSchema({
+      description: 'Delete a global organization label',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+    }),
+    taskController.deleteLabel
+  );
+
   app.post(
     '/tasks/:id/labels',
     createSchema({
@@ -293,20 +307,35 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }),
     taskController.assignLabel
   );
+  
+  app.delete(
+    '/tasks/:id/labels/:labelId',
+    createSchema({
+      description: 'Remove a label from a task',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid(), labelId: z.string().cuid() }),
+    }),
+    taskController.unassignLabel
+  );
+
+  app.get(
+    '/labels/:orgId',
+    createSchema({
+      description: 'Get all labels for an organization',
+      tags: ['Tasks'],
+      params: z.object({ orgId: z.string().cuid() }),
+    }),
+    taskController.getOrgLabels
+  );
 
   // 11. Attachments
   app.post(
     '/tasks/:id/attachments',
     createSchema({
-      description: 'Add an attachment to a task',
+      description: 'Add an attachment to a task (Uploads file directly)',
       tags: ['Tasks'],
       params: z.object({ id: z.string().cuid() }),
-      body: z.object({
-        name: z.string().min(1),
-        url: z.string().url(),
-        file_type: z.string(),
-        file_size: z.number().int(),
-      }),
+      // Body validation is removed as it will be handled as multipart/form-data
     }),
     taskController.addAttachment
   );

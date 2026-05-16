@@ -14,21 +14,41 @@ import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import process from 'node:process';
 import { setupErrorHandler } from '@/middlewares/errorHandlers';
 import { verifyToken } from '@/middlewares/auth.middleware';
 import attachmentRoutes from '@/modules/attachment/attachment.routes';
 import { prisma } from "@/lib/database";
+import type { Prisma } from '@/generated/prisma/client';
 import swaggerPlugin from '@/plugins/swagger';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
-
 
 // dotenv/config ensures env vars are loaded before any other imports
 
 const isProd = process.env.NODE_ENV === "production";
+const onPrismaEvent = prisma.$on.bind(prisma) as (
+  eventType: 'query' | 'error' | 'warn',
+  handler: (event: Prisma.QueryEvent | Prisma.LogEvent) => void
+) => void;
+
+const isPrismaQueryEvent = (
+  event: Prisma.QueryEvent | Prisma.LogEvent
+): event is Prisma.QueryEvent => {
+  return 'query' in event && 'params' in event && 'duration' in event;
+};
+
+const isPrismaLogEvent = (
+  event: Prisma.QueryEvent | Prisma.LogEvent
+): event is Prisma.LogEvent => {
+  return 'message' in event;
+};
+
+let shuttingDown = false;
 
 const buildServer = async () => {
   const app = Fastify({
     disableRequestLogging: true,
+    forceCloseConnections: true,
     logger: isProd
       ? {
         level: "info"
@@ -138,15 +158,19 @@ const buildServer = async () => {
 
   // 3. Prisma logs ko Fastify logger ke through pass karo
   if (!isProd) {
-    prisma.$on('query', (e) => {
+    onPrismaEvent('query', (event) => {
+      if (!isPrismaQueryEvent(event)) {
+        return;
+      }
+
       // app.log.debug(`DB (${e.duration.toFixed(2)}ms) - ${e.query}`);
 
-      let executableQuery = e.query;
+      let executableQuery = event.query;
       let params: any[] = [];
       try {
         // Parse the query to extract parameters
         // This is a simplified parser - you might need to adjust based on your needs
-        params = typeof e.params === 'string' ? JSON.parse(e.params) : e.params;
+        params = typeof event.params === 'string' ? JSON.parse(event.params) : event.params;
       } catch (error) {
         app.log.warn('Failed to parse query parameters', undefined, error);
       }
@@ -160,16 +184,24 @@ const buildServer = async () => {
           );
         });
       }
-      app.log.debug(`\nDB (${e.duration.toFixed(2)}ms) - ${executableQuery}`);
+      app.log.debug(`\nDB (${event.duration.toFixed(2)}ms) - ${executableQuery}`);
     });
   }
 
-  prisma.$on('error', (e) => {
-    app.log.error(e, 'Prisma Error');
+  onPrismaEvent('error', (event) => {
+    if (!isPrismaLogEvent(event)) {
+      return;
+    }
+
+    app.log.error(event, 'Prisma Error');
   });
 
-  prisma.$on('warn', (e) => {
-    app.log.warn(e, 'Prisma Warning');
+  onPrismaEvent('warn', (event) => {
+    if (!isPrismaLogEvent(event)) {
+      return;
+    }
+
+    app.log.warn(event, 'Prisma Warning');
   });
 
   return app;
@@ -179,58 +211,59 @@ const start = async () => {
   try {
     const app = await buildServer();
     const PORT = Number(process.env.PORT) || 8000;
+    let serverStarted = false;
+
+    const closeApp = async (exitCode = 0) => {
+      if (shuttingDown) {
+        return;
+      }
+
+      shuttingDown = true;
+
+      try {
+        if (serverStarted) {
+          await app.close();
+        }
+      } catch (err) {
+        app.log.error(err, 'Failed to close Fastify cleanly');
+        exitCode = 1;
+      }
+
+      try {
+        await prisma.$disconnect();
+      } catch (err) {
+        app.log.error(err, 'Failed to disconnect Prisma cleanly');
+        exitCode = 1;
+      }
+
+      process.exit(exitCode);
+    };
 
     // Global error handlers
     process.on('uncaughtException', (err) => {
       app.log.fatal(err);
-      process.exit(1);
+      void closeApp(1);
     });
 
     process.on('unhandledRejection', (err) => {
       app.log.fatal(err);
-      process.exit(1);
+      void closeApp(1);
+    });
+
+    process.once('SIGINT', () => {
+      void closeApp(0);
+    });
+    process.once('SIGTERM', () => {
+      void closeApp(0);
+    });
+    process.once('SIGUSR2', () => {
+      void closeApp(0);
     });
 
     // host: '0.0.0.0' rakhvu best chhe Docker ke cloud hosting mate
     await app.listen({ port: PORT, host: '0.0.0.0' });
+    serverStarted = true;
     app.log.info(`omnitask server running on http://localhost:${PORT}`);
-
-    // Graceful shutdown handlers 
-    const gracefulShutdown = async (signal: string) => {
-      app.log.info(`Received ${signal}, shutting down gracefully...`);
-
-      const shutdownTimeout = setTimeout(() => {
-        app.log.error('Graceful shutdown timed out, forcing exit...');
-        process.exit(1);
-      }, 5000);
-
-      try {
-        await app.close();
-
-        // 🔥 Prisma ne disconnect karvu JARURI chhe jethi connection hang na thay
-        await prisma.$disconnect();
-        app.log.info('Prisma disconnected gracefully');
-
-        clearTimeout(shutdownTimeout);
-        app.log.info('Server closed successfully');
-
-        process.removeAllListeners(signal);
-        process.kill(process.pid, signal);
-        process.exit(0);
-      } catch (err) {
-        clearTimeout(shutdownTimeout);
-        app.log.error(err, 'Error during shutdown:');
-        process.exit(1);
-      }
-    };
-
-    // Correctly pass the signal strings
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    // Windows-specific signal
-    process.on('SIGBREAK', () => gracefulShutdown('SIGBREAK'));
-
-    process.once('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
 
   } catch (err) {
     console.error(err);

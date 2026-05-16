@@ -134,7 +134,19 @@ export class ChannelService {
       page, limit, search,
       searchWhere: (term: string) => ({ OR: [{ user: { name: { contains: term, mode: 'insensitive' } } }, { user: { email: { contains: term, mode: 'insensitive' } } }] }),
       where: { channel_id: channelId, ...(role ? { role } : {}) },
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: { 
+        user: { 
+          select: { 
+            id: true, 
+            name: true, 
+            email: true,
+            orgMemberships: {
+              where: { organization_id: channel.org_id },
+              select: { role: true }
+            }
+          } 
+        } 
+      },
       orderBy: [{ role: 'asc' }, { joined_at: 'asc' }]
     });
 
@@ -143,6 +155,7 @@ export class ChannelService {
         id: m.id,
         user_id: m.user_id,
         role: m.role,
+        org_role: m.user.orgMemberships[0]?.role || 'MEMBER',
         joined_at: m.joined_at,
         name: m.user.name,
         email: m.user.email

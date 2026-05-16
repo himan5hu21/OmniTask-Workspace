@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/database';
-import { MessageAttachmentType } from '../../../prisma/generated/prisma/client';
+import { MessageAttachmentType } from '@/generated/prisma/client';
 
 export interface AttachmentData {
   file_name: string;

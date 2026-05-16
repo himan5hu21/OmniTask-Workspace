@@ -72,6 +72,7 @@ export type ChannelMember = {
   name: string;
   avatar_url?: string;
   role: ChannelRole;
+  org_role: string;
   user_id: string;
   joined_at: string;
 };

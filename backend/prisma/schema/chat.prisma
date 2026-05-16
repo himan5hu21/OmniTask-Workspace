@@ -1,7 +1,7 @@
 // Chat system models for channel and direct messaging
 
 model ChannelMessage {
-  id         String @id @default(cuid())
+  id         String  @id @default(cuid())
   channel_id String
   sender_id  String
   text       String?

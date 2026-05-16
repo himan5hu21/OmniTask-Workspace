@@ -28,9 +28,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col overflow-hidden" suppressHydrationWarning>
         <AppQueryProvider>
-          {children}
+          <div id="app-content" className="flex-1 flex flex-col h-full min-h-0 transition-[filter] duration-300">
+            {children}
+            <OfflineOverlay />
+          </div>
           <Toaster position="top-center" />
-          <OfflineOverlay />
         </AppQueryProvider>
       </body>
     </html>

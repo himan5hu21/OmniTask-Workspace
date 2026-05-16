@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -9,9 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-
-
 
 interface TiptapEditorProps {
   content: string;
@@ -30,6 +28,9 @@ export function TiptapEditor({
   className,
   autoFocus = false
 }: TiptapEditorProps) {
+  const [, forceUpdate] = useState({});
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -41,26 +42,67 @@ export function TiptapEditor({
     ],
     content,
     autofocus: autoFocus ? 'end' : false,
-    onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+    onTransaction: () => {
+      forceUpdate({});
     },
-    onBlur: () => {
+    onUpdate: ({ editor }) => {
+      // 🚀 Performance fix: Debounce parent state updates
+      const html = editor.getHTML();
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        onChange(html);
+      }, 200);
+    },
+    onBlur: ({ editor }) => {
+      // Immediate sync when clicking Save or leaving the editor
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      onChange(editor.getHTML());
       onBlur?.();
     },
     editorProps: {
       attributes: {
         class: cn(
-          'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[120px] p-3 text-sm text-foreground custom-scrollbar [&_p]:my-0',
+          'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[120px] p-3 text-sm text-foreground custom-scrollbar [&_p]:my-0 [&_ul]:my-0 [&_ol]:my-0 [&_li::marker]:text-foreground wrap-anywhere [&_p]:wrap-anywhere [&_li]:wrap-anywhere [&_h1]:wrap-anywhere [&_h2]:wrap-anywhere [&_h3]:wrap-anywhere [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:wrap-anywhere [&_pre]:break-words [&_pre_code]:whitespace-pre-wrap [&_pre_code]:wrap-anywhere [&_pre_code]:break-words',
           className
         ),
+      },
+      handleKeyDown: (view, event) => {
+        if (event.key === 'Backspace') {
+          if (editor?.isActive('bulletList') || editor?.isActive('orderedList')) {
+            const { selection } = view.state;
+            const { $from, empty } = selection;
+            if (empty && $from.parent.textContent.length === 0) {
+              event.preventDefault();
+              editor?.commands.liftListItem('listItem');
+              return true;
+            }
+          }
+        }
+        if (event.key === 'Enter' && !event.shiftKey) {
+          if (editor?.isActive('bulletList') || editor?.isActive('orderedList')) {
+            const { $from } = view.state.selection;
+            if ($from.parent.textContent.trim().length === 0) {
+              event.preventDefault();
+              editor?.commands.liftListItem('listItem');
+              return true;
+            }
+          }
+        }
+        return false;
       },
     },
   });
 
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   if (!editor) return null;
 
   return (
-    <div className="border border-border rounded bg-muted/10 overflow-hidden focus-within:border-primary transition-colors">
+    <div className="border border-border rounded-md bg-muted/10 overflow-hidden focus-within:border-primary transition-colors">
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border bg-muted/30 overflow-x-auto no-scrollbar">
         <DropdownMenu>
@@ -110,8 +152,6 @@ export function TiptapEditor({
         </DropdownMenu>
 
         <div className="w-px h-4 bg-border mx-1"></div>
-
-
 
         <button
           type="button"

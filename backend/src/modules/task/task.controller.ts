@@ -19,6 +19,8 @@ import { channelRepository } from '@/repositories/channel.repository';
 import { taskRepository } from '@/repositories/task.repository';
 import { attachmentRepository } from '@/repositories/attachment.repository';
 import { commentRepository } from '@/repositories/comment.repository';
+import { labelRepository } from '@/repositories/label.repository';
+import { StorageService } from '@/lib/storage';
 
 export class TaskController {
   constructor() {
@@ -39,6 +41,7 @@ export class TaskController {
     this.addChecklistItem = this.addChecklistItem.bind(this);
     this.updateChecklistItem = this.updateChecklistItem.bind(this);
     this.createLabel = this.createLabel.bind(this);
+    this.deleteLabel = this.deleteLabel.bind(this);
     this.assignLabel = this.assignLabel.bind(this);
     this.addAttachment = this.addAttachment.bind(this);
     this.createSubtask = this.createSubtask.bind(this);
@@ -295,6 +298,14 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to view task details');
     }
 
+    // Transform attachment URLs
+    if (task.attachments) {
+      task.attachments = task.attachments.map((att: any) => ({
+        ...att,
+        file_url: StorageService.getFileUrl(att.file_url)
+      }));
+    }
+
     return sendSuccess(reply, task, 'FETCH');
   };
 
@@ -305,8 +316,11 @@ export class TaskController {
       Body: {
         title?: string;
         description?: string;
+        status?: string;
         priority?: string;
-        due_date?: string;
+        start_date?: string | Date;
+        due_date?: string | Date;
+        completed_at?: string | Date;
         cover_color?: string;
       };
     }>,
@@ -329,6 +343,15 @@ export class TaskController {
     }
 
     const updatedTask = await taskService.updateTask(id, request.body);
+
+    // Transform attachment URLs in the updated task object
+    if (updatedTask.attachments) {
+      updatedTask.attachments = updatedTask.attachments.map((att: any) => ({
+        ...att,
+        file_url: StorageService.getFileUrl(att.file_url)
+      }));
+    }
+
     return sendSuccess(reply, updatedTask, 'UPDATE');
   };
 
@@ -445,9 +468,9 @@ export class TaskController {
     return sendSuccess(reply, checklist, 'CREATE');
   };
 
-  updateChecklist = async (request: FastifyRequest<{ Params: { id: string }; Body: { title: string } }>, reply: FastifyReply) => {
+  updateChecklist = async (request: FastifyRequest<{ Params: { id: string }; Body: { title?: string; assignee_id?: string | null } }>, reply: FastifyReply) => {
     const { id: checklistId } = request.params;
-    const { title } = request.body;
+    const { title, assignee_id } = request.body;
     const { userId } = request.user as any;
 
     const checklist = await checklistRepository.getById(checklistId, { include: { task: true } });
@@ -458,7 +481,7 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update checklists');
     }
 
-    const updatedChecklist = await checklistService.updateChecklist(checklistId, title);
+    const updatedChecklist = await checklistService.updateChecklist(checklistId, title || (checklist as any).name, assignee_id);
     return sendSuccess(reply, updatedChecklist, 'UPDATE');
   };
 
@@ -480,7 +503,7 @@ export class TaskController {
     return sendSuccess(reply, item, 'CREATE');
   };
 
-  updateChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { text?: string; is_completed?: boolean; position?: number } }>, reply: FastifyReply) => {
+  updateChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { text?: string; is_completed?: boolean; position?: number; assignee_id?: string | null } }>, reply: FastifyReply) => {
     const { id: itemId } = request.params;
     const { userId } = request.user as any;
 
@@ -492,11 +515,12 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update items');
     }
 
-    const { is_completed, text, position } = request.body;
+    const { is_completed, text, position, assignee_id } = request.body;
     const updateData: any = {};
     if (is_completed !== undefined) updateData.is_completed = is_completed;
     if (text !== undefined) updateData.text = text;
     if (position !== undefined) updateData.position = position;
+    if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
 
     const updatedItem = await checklistService.updateItem(itemId, updateData);
     return sendSuccess(reply, updatedItem, 'UPDATE');
@@ -549,6 +573,22 @@ export class TaskController {
     return sendSuccess(reply, label, 'CREATE');
   };
 
+  deleteLabel = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const { id } = request.params;
+    const { userId } = request.user as any;
+
+    const label = await labelRepository.getById(id);
+    if (!label) return sendError(reply, HttpStatus.NOT_FOUND, 'Label not found');
+
+    const orgMembership = await organizationMemberRepository.getMember(label.org_id, userId);
+    if (!PermissionGuard.canOrg(orgMembership?.role, 'label.manage')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete labels');
+    }
+
+    await labelService.deleteLabel(id);
+    return sendSuccess(reply, { success: true }, 'DELETE');
+  };
+
   assignLabel = async (request: FastifyRequest<{ Params: { id: string }; Body: { label_id: string } }>, reply: FastifyReply) => {
     const { id } = request.params;
     const { label_id } = request.body;
@@ -566,11 +606,41 @@ export class TaskController {
     return sendSuccess(reply, assignment, 'CREATE');
   };
 
+  unassignLabel = async (request: FastifyRequest<{ Params: { id: string; labelId: string } }>, reply: FastifyReply) => {
+    const { id, labelId } = request.params;
+    const { userId } = request.user as any;
+
+    const task = await taskRepository.getById(id);
+    if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to unassign labels');
+    }
+
+    await labelService.unassignLabel(id, labelId);
+    return sendSuccess(reply, { success: true }, 'DELETE');
+  };
+
+  getOrgLabels = async (request: FastifyRequest<{ Params: { orgId: string } }>, reply: FastifyReply) => {
+    const { orgId } = request.params;
+    const { userId } = request.user as any;
+
+    const orgMembership = await organizationMemberRepository.getMember(orgId, userId);
+    if (!orgMembership) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'You are not a member of this organization');
+    }
+
+    const labels = await labelService.getOrgLabels(orgId);
+    return sendSuccess(reply, labels, 'FETCH');
+  };
+
   // 11. Attachments
-  addAttachment = async (request: FastifyRequest<{ Params: { id: string }; Body: { name: string; url: string; file_type: string; file_size: number } }>, reply: FastifyReply) => {
+  addAttachment = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const { id } = request.params;
     const { userId } = request.user as any;
 
+    // 1. Get task and check permissions
     const task = await taskRepository.getById(id);
     if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
 
@@ -579,8 +649,33 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to add attachments');
     }
 
-    const attachment = await attachmentService.addAttachment(id, userId, request.body);
-    return sendSuccess(reply, attachment, 'CREATE');
+    // 2. Handle File Upload
+    const data = await request.file();
+    if (!data) return sendError(reply, HttpStatus.BAD_REQUEST, 'No file uploaded');
+
+    try {
+      const buffer = await data.toBuffer();
+      const saved = await StorageService.saveFile({
+        filename: data.filename,
+        buffer,
+        mimetype: data.mimetype
+      }, 'task');
+
+      // 3. Save to Database
+      const attachment = await attachmentService.addAttachment(id, userId, {
+        name: data.filename,
+        url: saved.file_url, // This is the relative path (e.g. task/xyz.png)
+        file_type: data.mimetype,
+        file_size: saved.file_size
+      });
+
+      return sendSuccess(reply, {
+        ...attachment,
+        file_url: StorageService.getFileUrl(attachment.file_url) // Return full URL for frontend
+      }, 'CREATE');
+    } catch (err: any) {
+      return sendError(reply, HttpStatus.BAD_REQUEST, err.message || 'File upload failed');
+    }
   };
 
   deleteAttachment = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {

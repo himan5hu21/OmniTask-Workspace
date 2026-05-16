@@ -50,6 +50,10 @@ const nextConfig: NextConfig = {
         source: '/omni-api/:path*',
         destination: 'http://localhost:8000/api/v1/:path*',
       },
+      {
+        source: '/uploads/:path*',
+        destination: 'http://localhost:8000/uploads/:path*',
+      },
     ];
   },
 };

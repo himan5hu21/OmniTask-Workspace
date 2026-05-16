@@ -1,10 +1,10 @@
 // Base models for User, Organization, and Channel management
 
 model User {
-  id        String  @id @default(cuid())
-  name      String
-  email     String  @unique
-  password  String
+  id            String  @id @default(cuid())
+  name          String
+  email         String  @unique
+  password      String
   is_superadmin Boolean @default(false)
   token_version Int     @default(0)
   is_active     Boolean @default(true)
@@ -17,34 +17,35 @@ model User {
   updated_at DateTime @updatedAt
 
   // Relations
-  ownedOrganizations   Organization[]       @relation("OrganizationOwner")
-  orgMemberships       OrganizationMember[]
-  channelMemberships   ChannelMember[]
-  createdTasks         Task[]               @relation("TaskCreator")
-  taskAssignments      TaskAssignment[]
-  sentChannelMessages  ChannelMessage[]
-  sentDirectMessages   DirectMessage[]
-  directConversations1 DirectConversation[] @relation("User1")
-  directConversations2 DirectConversation[] @relation("User2")
-  refreshTokens        RefreshToken[]
-  createdChannels      Channel[]            @relation("ChannelCreator")
-  taskComments         TaskComment[]
-  taskAttachments      TaskAttachment[]
-  auditLogs            AuditLog[]
-  taskActivities       TaskActivity[]
+  ownedOrganizations     Organization[]       @relation("OrganizationOwner")
+  orgMemberships         OrganizationMember[]
+  channelMemberships     ChannelMember[]
+  createdTasks           Task[]               @relation("TaskCreator")
+  taskAssignments        TaskAssignment[]
+  sentChannelMessages    ChannelMessage[]
+  sentDirectMessages     DirectMessage[]
+  directConversations1   DirectConversation[] @relation("User1")
+  directConversations2   DirectConversation[] @relation("User2")
+  refreshTokens          RefreshToken[]
+  createdChannels        Channel[]            @relation("ChannelCreator")
+  taskComments           TaskComment[]
+  taskAttachments        TaskAttachment[]
+  auditLogs              AuditLog[]
+  taskActivities         TaskActivity[]
+  assignedChecklists     TaskChecklist[]      @relation("ChecklistAssignee")
+  assignedChecklistItems TaskChecklistItem[]  @relation("ChecklistItemAssignee")
 
   @@map("users")
 }
 
-
 model RefreshToken {
-  id           String   @id @default(cuid())
-  hashedToken  String   @unique
-  user_id      String
-  revoked      Boolean  @default(false)
-  replacedBy   String?
-  expires_at   DateTime
-  created_at   DateTime @default(now())
+  id          String   @id @default(cuid())
+  hashedToken String   @unique
+  user_id     String
+  revoked     Boolean  @default(false)
+  replacedBy  String?
+  expires_at  DateTime
+  created_at  DateTime @default(now())
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -65,7 +66,7 @@ model Organization {
   updated_at DateTime @updatedAt
 
   // Relations
-  owner    User                 @relation("OrganizationOwner", fields: [owner_id], references: [id], onDelete: Cascade)
+  owner    User                  @relation("OrganizationOwner", fields: [owner_id], references: [id], onDelete: Cascade)
   channels Channel[]
   members  OrganizationMember[]
   tasks    Task[]
@@ -107,9 +108,9 @@ enum OrgRole {
 // members OrganizationMember[]
 
 model Channel {
-  id        String  @id @default(cuid())
-  name      String
-  org_id    String
+  id         String  @id @default(cuid())
+  name       String
+  org_id     String
   creator_id String?
   isDefault  Boolean @default(false)
   is_private Boolean @default(false)
@@ -170,10 +171,10 @@ model OrganizationSettings {
 model AuditLog {
   id          String   @id @default(cuid())
   user_id     String
-  action      String   // e.g. "member.remove", "channel.delete"
-  entity_type String   // "Organization" | "Channel" | "Task" | "Member"
+  action      String // e.g. "member.remove", "channel.delete"
+  entity_type String // "Organization" | "Channel" | "Task" | "Member"
   entity_id   String
-  metadata    Json?    // { targetUserId, previousRole, newRole, etc. }
+  metadata    Json? // { targetUserId, previousRole, newRole, etc. }
   created_at  DateTime @default(now())
 
   user User @relation(fields: [user_id], references: [id])

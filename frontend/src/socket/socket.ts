@@ -42,43 +42,48 @@ export const getSocket = () => {
       console.error('[Socket] Connection error:', err.message);
       const errMsg = err.message.toLowerCase();
 
-      // Stricter auth error matching to avoid accidental disconnects on generic network errors
+      // Only proceed with auth check if it's likely an authentication failure
       const isAuthError = 
         errMsg.includes('jwt') || 
         errMsg.includes('unauthorized') || 
         errMsg.includes('authentication') || 
-        errMsg.includes('token has expired');
+        errMsg.includes('token has expired') ||
+        errMsg.includes('invalid token');
       
       if (isAuthError) {
         if (socket?.connected) socket.disconnect();
 
-        if (isCheckingAuth) return;
+        if (isCheckingAuth) {
+          console.log('[Socket] Auth check already in progress, skipping duplicate check.');
+          return;
+        }
+        
         isCheckingAuth = true;
 
         try {
-          console.log('[Socket] Auth error. Triggering Axios check...');
+          console.log('[Socket] Auth error detected. Verifying session via API...');
           const { default: api } = await import('@/api/api');
 
           // This triggers the Axios 401 interceptor if the token is truly expired.
-          // The interceptor will fire 'token_refreshed' and handle reconnection automatically!
           await api.get('/auth/profile');
 
-          // 🚨 FIX 2: Only reconnect manually if the socket is STILL disconnected.
-          // This happens if api.get('/auth/profile') succeeds WITHOUT needing a refresh 
-          // (meaning the access token was fine, but the socket had a separate hiccup).
           if (socket && socket.disconnected) {
             const newToken = getToken();
             if (newToken) {
               socket.auth = { token: `Bearer ${newToken}` };
               socket.connect();
-              console.log('[Socket] Reconnected cleanly without refresh.');
+              console.log('[Socket] Session verified. Reconnected socket.');
             }
           }
-        } catch {
-          console.error('[Socket] Session completely expired. Socket will remain disconnected.');
+        } catch (apiErr) {
+          console.error('[Socket] Session check failed. Socket will wait for next manual refresh.', apiErr);
+          // Add a long cooldown before we allow another auth check to prevent loops
+          await new Promise(resolve => setTimeout(resolve, 5000));
         } finally {
           isCheckingAuth = false;
         }
+      } else {
+        console.warn('[Socket] Non-auth error (likely backend down). No API check triggered.');
       }
     });
   } else if (token) {

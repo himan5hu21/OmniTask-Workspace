@@ -33,6 +33,10 @@ export class LabelService {
       }
     });
   }
+
+  async deleteLabel(labelId: string) {
+    return labelRepository.delete(labelId);
+  }
 }
 
 export const labelService = new LabelService();

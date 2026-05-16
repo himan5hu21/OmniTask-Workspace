@@ -1,5 +1,5 @@
 // src/middlewares/errorHandler.ts
-import { Prisma } from '../../prisma/generated/prisma/client';
+import { Prisma } from '@/generated/prisma/client';
 import { FastifyInstance, FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { AppError } from '@/utils/AppError';
 import { ZodError } from 'zod'; // Zod ne ahiya import karo

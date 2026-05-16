@@ -45,7 +45,7 @@ export default function ChatInputBox({
     },
     editorProps: {
       attributes: {
-        class: 'chat-editor relative max-h-40 w-full resize-none bg-transparent px-2 py-1 text-base outline-none overflow-y-auto custom-scrollbar max-w-none focus:outline-none whitespace-pre-wrap wrap-anywhere [&_p]:m-0 [&_ol]:m-0 [&_ul]:m-0',
+        class: 'chat-editor relative max-h-[220px] w-full min-w-0 resize-none bg-transparent px-2 py-1 text-base outline-none overflow-y-auto custom-scrollbar max-w-none focus:outline-none whitespace-pre-wrap wrap-anywhere [&_p]:m-0 [&_p]:wrap-anywhere [&_ol]:m-0 [&_ul]:m-0 [&_li]:wrap-anywhere [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:wrap-anywhere [&_pre]:break-words [&_pre_code]:whitespace-pre-wrap [&_pre_code]:wrap-anywhere [&_pre_code]:break-words',
       },
       handleKeyDown: (view, event) => {
         // 1. ENTER (Without Shift) -> Send Message
