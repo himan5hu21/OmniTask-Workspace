@@ -126,17 +126,43 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
     taskController.getTask
   );
 
-  // 7. Update Task API
+  // 7.1 Update Task Content
   app.patch(
-    '/tasks/:id',
+    '/tasks/:id/content',
     createSchema({
-      description: 'Update core properties of a task',
+      description: 'Update title and description of a task',
       tags: ['Tasks'],
       params: z.object({ id: z.cuid() }),
       body: z.object({
         title: z.string().min(1).optional(),
         description: z.string().optional(),
-        status: z.string().optional(),
+      }),
+    }),
+    taskController.updateTaskContent
+  );
+
+  // 7.2 Update Task Status
+  app.patch(
+    '/tasks/:id/status',
+    createSchema({
+      description: 'Update the status of a task',
+      tags: ['Tasks'],
+      params: z.object({ id: z.cuid() }),
+      body: z.object({
+        status: z.string(),
+      }),
+    }),
+    taskController.updateTaskStatus
+  );
+
+  // 7.3 Update Task Manage
+  app.patch(
+    '/tasks/:id/manage',
+    createSchema({
+      description: 'Update administrative and scheduling properties of a task',
+      tags: ['Tasks'],
+      params: z.object({ id: z.cuid() }),
+      body: z.object({
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).nullable().optional(),
         start_date: z.coerce.date().nullable().optional(),
         due_date: z.coerce.date().nullable().optional(),
@@ -144,7 +170,7 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
         cover_color: z.string().optional(),
       }),
     }),
-    taskController.updateTask
+    taskController.updateTaskManage
   );
   
   app.delete(

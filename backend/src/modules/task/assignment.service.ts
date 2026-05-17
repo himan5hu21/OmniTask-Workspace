@@ -1,12 +1,10 @@
 import { assignmentRepository } from '@/repositories/assignment.repository';
-import { AssignmentRole } from '@/generated/prisma/client';
 
 export class AssignmentService {
-  async assignUser(taskId: string, userId: string, role: AssignmentRole = AssignmentRole.ASSIGNEE) {
+  async assignUser(taskId: string, userId: string) {
     return assignmentRepository.create({
       task_id: taskId,
       user_id: userId,
-      role,
     }, {
       include: {
         user: { select: { id: true, name: true, avatar_url: true } }

@@ -23,12 +23,15 @@ export const ORG_PERMISSIONS = {
 export const CHANNEL_PERMISSIONS = {
   MANAGER: [
     'message.read', 'message.send', 'message.delete.own', 'message.delete.any', 
-    'task.view', 'task.create', 'channel.update', 'channel.member.add', 
+    'task.view', 'task.create', 'task.comment', 'task.attachment', 
+    'task.update-basic', 'task.update-manage', 'task.delete',
+    'channel.update', 'channel.member.add', 
     'channel.member.remove', 'channel.member.promote', 'board.list.create', 
     'board.list.delete', 'board.list.reorder'
   ],
   CONTRIBUTOR: [
-    'message.read', 'message.send', 'message.delete.own', 'task.view', 'task.create'
+    'message.read', 'message.send', 'message.delete.own',
+    'task.view', 'task.create', 'task.comment', 'task.attachment', 'task.update-basic'
   ],
   VIEWER: ['message.read', 'task.view']
 } as const;

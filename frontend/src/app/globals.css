@@ -360,6 +360,8 @@
   padding: 0.9rem 1rem;
   overflow-x: auto;
   box-shadow: none;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .chat-editor.ProseMirror pre code,
@@ -373,6 +375,8 @@
   line-height: 1.65;
   border-radius: 0;
   font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .chat-rich-text a {
@@ -393,7 +397,8 @@
 }
 
 .chat-rich-text--own a {
-  color: var(--primary-foreground);
+  color: var(--primary);
+  text-decoration: underline;
 }
 
 .chat-rich-text--own code {
@@ -419,7 +424,7 @@
  * Detects modal by looking for pointer-events: none or data-state="open"
  */
 body[style*="pointer-events: none"] #app-content,
-body:has([data-state="open"]) #app-content,
+body:has([data-state="open"]:not(.emoji-popover):not([data-slot="dropdown-menu-trigger"]):not([data-slot="dropdown-menu-content"]):not([data-slot="tooltip-content"])) #app-content,
 body:has([role="dialog"]) #app-content {
   filter: blur(6px) saturate(130%);
   pointer-events: none;

@@ -38,9 +38,17 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSyncedState } from "@/hooks/useSyncedState";
-import { useBoard, useMoveTask, useReorderLists, useUpdateTask, useDeleteTask, BoardList, Task } from "@/api/tasks";
+import { useBoard, useMoveTask, useReorderLists, useUpdateTask, BoardList, Task } from "@/api/tasks";
+import { useAbility } from "@casl/react";
+import { AbilityContext } from "@/lib/casl";
 import Spinner from "@/components/Loading";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { CreateListDialog } from "./create-list-dialog";
 import { CreateTaskDialog } from "./create-task-dialog";
@@ -78,13 +86,17 @@ function TaskCard({
   isOverlay, 
   channelId,
   onDeleteRequest,
-  onOpenDetail
+  onOpenDetail,
+  canDeleteTask = true,
+  canUpdateTaskBasic = true
 }: { 
   task: Task; 
   isOverlay?: boolean; 
   channelId: string;
   onDeleteRequest?: (task: Task) => void;
   onOpenDetail?: (task: Task) => void;
+  canDeleteTask?: boolean;
+  canUpdateTaskBasic?: boolean;
 }) {
   const { mutate: updateTask } = useUpdateTask(channelId);
   
@@ -101,7 +113,7 @@ function TaskCard({
       type: "Task",
       task,
     },
-    disabled: isOverlay,
+    disabled: isOverlay || !canUpdateTaskBasic,
   });
 
   const style = {
@@ -135,16 +147,18 @@ function TaskCard({
         >
           <Pencil size={12} />
         </button>
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onDeleteRequest) onDeleteRequest(task);
-          }}
-          className="p-1.5 rounded-md bg-kanban-card border border-kanban-border hover:border-red-500/50 text-kanban-text-secondary hover:text-red-500 transition-all shadow-sm"
-          title="Delete task"
-        >
-          <Trash2 size={12} />
-        </button>
+        {canDeleteTask && (
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onDeleteRequest) onDeleteRequest(task);
+            }}
+            className="p-1.5 rounded-md bg-kanban-card border border-kanban-border hover:border-red-500/50 text-kanban-text-secondary hover:text-red-500 transition-all shadow-sm"
+            title="Delete task"
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
       </div>
 
       <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg opacity-60 group-hover:opacity-100", pStyle.bg)} />
@@ -156,13 +170,16 @@ function TaskCard({
           <button
             onClick={(e) => {
               e.stopPropagation();
+              if (!canUpdateTaskBasic) return;
               updateTask({ 
                 id: task.id, 
                 data: { status: task.status === "COMPLETED" ? "OPEN" : "COMPLETED" } 
               });
             }}
+            disabled={!canUpdateTaskBasic}
             className={cn(
               "absolute left-0 shrink-0 w-4.5 h-4.5 rounded-full border flex items-center justify-center transition-all duration-300 z-10",
+              !canUpdateTaskBasic && "pointer-events-none opacity-60",
               isDone 
                 ? "bg-green-500 border-green-500 text-white opacity-100" 
                 : "border-kanban-border hover:border-primary text-transparent hover:text-primary/50 bg-kanban-card opacity-0 group-hover:opacity-100 transform -translate-x-1 group-hover:translate-x-0"
@@ -219,14 +236,23 @@ function TaskCard({
               )}
             </div>
             <div className="flex -space-x-1.5">
-              {task.assignments?.map((assignment) => (
-                <Avatar key={assignment.user_id} className="w-5.5 h-5.5 border-2 border-kanban-card ring-offset-background">
-                  <AvatarImage src={assignment.user?.avatar_url || ""} />
-                  <AvatarFallback className="text-[8px] font-bold bg-secondary">
-                    {assignment.user?.name?.substring(0, 2).toUpperCase() || "U"}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
+              <TooltipProvider>
+                {task.assignments?.map((assignment) => (
+                  <Tooltip key={assignment.user_id}>
+                    <TooltipTrigger asChild>
+                      <Avatar className="w-5.5 h-5.5 border-2 border-kanban-card ring-offset-background">
+                        <AvatarImage src={assignment.user?.avatar_url || ""} />
+                        <AvatarFallback className="text-[8px] font-bold bg-secondary">
+                          {assignment.user?.name?.substring(0, 2).toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-[10px] font-bold">
+                      {assignment.user?.name}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </TooltipProvider>
             </div>
           </div>
         )}
@@ -251,7 +277,12 @@ function BoardColumn({
   onDeleteTask,
   onOpenTaskDetail,
   onEditList,
-  onDeleteList
+  onDeleteList,
+  canUpdateList = true,
+  canDeleteList = true,
+  canCreateTask = true,
+  canDeleteTask = true,
+  canUpdateTaskBasic = true
 }: { 
   list: BoardList; 
   tasks: Task[]; 
@@ -261,6 +292,11 @@ function BoardColumn({
   onOpenTaskDetail: (task: Task) => void;
   onEditList: (list: BoardList) => void;
   onDeleteList: (list: BoardList) => void;
+  canUpdateList?: boolean;
+  canDeleteList?: boolean;
+  canCreateTask?: boolean;
+  canDeleteTask?: boolean;
+  canUpdateTaskBasic?: boolean;
 }) {
   const {
     setNodeRef,
@@ -275,6 +311,7 @@ function BoardColumn({
       type: "Column",
       list,
     },
+    disabled: !canUpdateList
   });
 
   const style = {
@@ -297,7 +334,10 @@ function BoardColumn({
       <div
         {...attributes}
         {...listeners}
-        className="p-4 flex justify-between items-center border-b border-kanban-border cursor-grab active:cursor-grabbing shrink-0"
+        className={cn(
+          "p-4 flex justify-between items-center border-b border-kanban-border shrink-0",
+          canUpdateList ? "cursor-grab active:cursor-grabbing" : "cursor-default"
+        )}
       >
         <div className="flex items-center gap-2 text-kanban-text-primary">
           <h2 className="text-[14px] font-bold tracking-tight">{list.name}</h2>
@@ -305,29 +345,35 @@ function BoardColumn({
             {tasks.length}
           </span>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="text-kanban-text-secondary hover:text-kanban-text-primary transition-colors focus:outline-none">
-              <MoreHorizontal size={18} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40 rounded-xl bg-card border-border shadow-xl">
-            <DropdownMenuItem 
-              className="flex items-center gap-2 cursor-pointer focus:bg-muted py-2"
-              onClick={() => onEditList(list)}
-            >
-              <Pencil size={14} className="text-muted-foreground" />
-              <span className="text-sm font-medium">Edit List</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              className="flex items-center gap-2 cursor-pointer focus:bg-destructive/10 text-destructive py-2"
-              onClick={() => onDeleteList(list)}
-            >
-              <Trash2 size={14} />
-              <span className="text-sm font-medium">Delete List</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {(canUpdateList || canDeleteList) && (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button className="text-kanban-text-secondary hover:text-kanban-text-primary transition-colors focus:outline-none">
+                <MoreHorizontal size={18} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40 rounded-xl bg-card border-border shadow-xl">
+              {canUpdateList && (
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 cursor-pointer focus:bg-muted py-2"
+                  onClick={() => onEditList(list)}
+                >
+                  <Pencil size={14} className="text-muted-foreground" />
+                  <span className="text-sm font-medium">Edit List</span>
+                </DropdownMenuItem>
+              )}
+              {canDeleteList && (
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 cursor-pointer focus:bg-destructive/10 text-destructive py-2"
+                  onClick={() => onDeleteList(list)}
+                >
+                  <Trash2 size={14} />
+                  <span className="text-sm font-medium">Delete List</span>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {/* Task List with ScrollArea */}
@@ -341,6 +387,8 @@ function BoardColumn({
                 channelId={channelId} 
                 onDeleteRequest={onDeleteTask}
                 onOpenDetail={onOpenTaskDetail}
+                canDeleteTask={canDeleteTask}
+                canUpdateTaskBasic={canUpdateTaskBasic}
               />
             ))}
           </div>
@@ -349,21 +397,23 @@ function BoardColumn({
       </ScrollArea>
 
       {/* Add Card Footer */}
-      <div className="p-3 pt-2 shrink-0 border-t border-kanban-border/50">
-        <CreateTaskDialog
-          orgId={orgId}
-          channelId={channelId}
-          listId={list.id}
-          trigger={
-            <button
-              className="w-full flex items-center gap-2 text-kanban-text-secondary hover:text-kanban-text-primary hover:bg-kanban-card-hover transition-all rounded-md py-2 px-2.5 text-[12px] font-semibold group"
-            >
-              <Plus size={16} className="text-kanban-text-secondary group-hover:text-primary transition-colors" />
-              Add a card
-            </button>
-          }
-        />
-      </div>
+      {canCreateTask && (
+        <div className="p-3 pt-2 shrink-0 border-t border-kanban-border/50">
+          <CreateTaskDialog
+            orgId={orgId}
+            channelId={channelId}
+            listId={list.id}
+            trigger={
+              <button
+                className="w-full flex items-center gap-2 text-kanban-text-secondary hover:text-kanban-text-primary hover:bg-kanban-card-hover transition-all rounded-md py-2 px-2.5 text-[12px] font-semibold group"
+              >
+                <Plus size={16} className="text-kanban-text-secondary group-hover:text-primary transition-colors" />
+                Add a card
+              </button>
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -405,6 +455,14 @@ export default function TaskBoard() {
     setTaskForDetail(task);
     setIsDetailModalOpen(true);
   };
+
+  const ability = useAbility(AbilityContext);
+  const canCreateList = ability.can("create", "Board");
+  const canUpdateList = ability.can("update", "Board");
+  const canDeleteList = ability.can("delete", "Board");
+  const canCreateTask = ability.can("create", "Task");
+  const canDeleteTask = ability.can("delete", "Task");
+  const canUpdateTaskBasic = ability.can("update-basic", "Task");
 
 
   const sensors = useSensors(
@@ -638,23 +696,30 @@ export default function TaskBoard() {
                   setListToDelete(list);
                   setIsDeleteListModalOpen(true);
                 }}
+                canUpdateList={canUpdateList}
+                canDeleteList={canDeleteList}
+                canCreateTask={canCreateTask}
+                canDeleteTask={canDeleteTask}
+                canUpdateTaskBasic={canUpdateTaskBasic}
               />
             ))}
           </SortableContext>
 
           {/* Ghost Column for adding new lists */}
-          <CreateListDialog
-            channelId={channelId}
-            position={localLists.length * 1000}
-            trigger={
-              <button
-                className="bg-kanban-column/50 border border-dashed border-kanban-border rounded-[10px] w-[300px] shrink-0 p-4 flex items-center gap-2 text-kanban-text-secondary hover:text-kanban-text-primary hover:bg-kanban-card-hover/50 hover:border-kanban-border-hover/50 transition-all text-[14px] font-semibold h-fit mt-0"
-              >
-                <Plus size={20} />
-                Add another list
-              </button>
-            }
-          />
+          {canCreateList && (
+            <CreateListDialog
+              channelId={channelId}
+              position={localLists.length * 1000}
+              trigger={
+                <button
+                  className="bg-kanban-column/50 border border-dashed border-kanban-border rounded-[10px] w-[300px] shrink-0 p-4 flex items-center gap-2 text-kanban-text-secondary hover:text-kanban-text-primary hover:bg-kanban-card-hover/50 hover:border-kanban-border-hover/50 transition-all text-[14px] font-semibold h-fit mt-0"
+                >
+                  <Plus size={20} />
+                  Add another list
+                </button>
+              }
+            />
+          )}
         </div>
 
         <DragOverlay dropAnimation={dropAnimation}>

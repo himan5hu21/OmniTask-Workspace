@@ -32,7 +32,9 @@ export class TaskController {
     this.updateBoardList = this.updateBoardList.bind(this);
     this.deleteBoardList = this.deleteBoardList.bind(this);
     this.getTask = this.getTask.bind(this);
-    this.updateTask = this.updateTask.bind(this);
+    this.updateTaskContent = this.updateTaskContent.bind(this);
+    this.updateTaskStatus = this.updateTaskStatus.bind(this);
+    this.updateTaskManage = this.updateTaskManage.bind(this);
     this.assignUser = this.assignUser.bind(this);
     this.unassignUser = this.unassignUser.bind(this);
     this.createComment = this.createComment.bind(this);
@@ -237,7 +239,7 @@ export class TaskController {
     const orgRole = orgMembership?.role;
     const channelRole = channelMembership?.role;
 
-    if (!PermissionGuard.canChannel(orgRole, channelRole, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgRole, channelRole, 'task.update-basic')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to move task');
     }
 
@@ -309,14 +311,84 @@ export class TaskController {
     return sendSuccess(reply, task, 'FETCH');
   };
 
-  // 7. Update Task API
-  updateTask = async (
+  // 7.1 Update Task Content (Title & Description)
+  updateTaskContent = async (
     request: FastifyRequest<{
       Params: { id: string };
       Body: {
         title?: string;
         description?: string;
-        status?: string;
+      };
+    }>,
+    reply: FastifyReply
+  ) => {
+    const { id } = request.params;
+    const userId = (request.user as any).userId;
+
+    const task = await taskRepository.getById(id);
+    if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-basic')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update task content');
+    }
+
+    const updatedTask = await taskService.updateTask(id, {
+      title: request.body.title,
+      description: request.body.description,
+    });
+
+    if (updatedTask.attachments) {
+      updatedTask.attachments = updatedTask.attachments.map((att: any) => ({
+        ...att,
+        file_url: StorageService.getFileUrl(att.file_url)
+      }));
+    }
+
+    return sendSuccess(reply, updatedTask, 'UPDATE');
+  };
+
+  // 7.2 Update Task Status
+  updateTaskStatus = async (
+    request: FastifyRequest<{
+      Params: { id: string };
+      Body: {
+        status: string;
+      };
+    }>,
+    reply: FastifyReply
+  ) => {
+    const { id } = request.params;
+    const userId = (request.user as any).userId;
+
+    const task = await taskRepository.getById(id);
+    if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-basic')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update task status');
+    }
+
+    const updatedTask = await taskService.updateTask(id, {
+      status: request.body.status,
+      completed_at: request.body.status === 'COMPLETED' ? new Date() : null,
+    });
+
+    if (updatedTask.attachments) {
+      updatedTask.attachments = updatedTask.attachments.map((att: any) => ({
+        ...att,
+        file_url: StorageService.getFileUrl(att.file_url)
+      }));
+    }
+
+    return sendSuccess(reply, updatedTask, 'UPDATE');
+  };
+
+  // 7.3 Update Task Manage (Due Date, Priority, Cover Color)
+  updateTaskManage = async (
+    request: FastifyRequest<{
+      Params: { id: string };
+      Body: {
         priority?: string;
         start_date?: string | Date;
         due_date?: string | Date;
@@ -332,19 +404,19 @@ export class TaskController {
     const task = await taskRepository.getById(id);
     if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
 
-    const orgId = task.org_id;
-    const channelId = task.channel_id;
-
-    // Fetch roles
-    const [orgMembership, channelMembership] = await this.getRoles(orgId, channelId, userId);
-
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
-      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update task');
+    const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-manage')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to manage task properties');
     }
 
-    const updatedTask = await taskService.updateTask(id, request.body);
+    const updatedTask = await taskService.updateTask(id, {
+      priority: request.body.priority,
+      start_date: request.body.start_date,
+      due_date: request.body.due_date,
+      completed_at: request.body.completed_at,
+      cover_color: request.body.cover_color,
+    });
 
-    // Transform attachment URLs in the updated task object
     if (updatedTask.attachments) {
       updatedTask.attachments = updatedTask.attachments.map((att: any) => ({
         ...att,
@@ -378,16 +450,16 @@ export class TaskController {
   // PHASE 4 — Collaboration Features
 
   // 8. Assignments
-  async assignUser(request: FastifyRequest<{ Params: { id: string }; Body: { user_id: string; role?: any } }>, reply: FastifyReply) {
+  async assignUser(request: FastifyRequest<{ Params: { id: string }; Body: { user_id: string } }>, reply: FastifyReply) {
     const { id } = request.params;
-    const { user_id, role } = request.body;
+    const { user_id } = request.body;
     const { userId } = request.user as any;
 
     const task = await taskRepository.getById(id);
     if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
 
     const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-manage')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to assign users');
     }
 
@@ -396,7 +468,7 @@ export class TaskController {
     const targetUser = await prisma.user.findUnique({ where: { id: user_id } });
     if (!targetUser) return sendError(reply, HttpStatus.NOT_FOUND, 'Target user not found');
 
-    const assignment = await assignmentService.assignUser(id, user_id, role);
+    const assignment = await assignmentService.assignUser(id, user_id);
     return sendSuccess(reply, assignment, 'CREATE');
   }
 
@@ -408,7 +480,7 @@ export class TaskController {
     if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
 
     const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-manage')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to unassign users');
     }
 
@@ -460,7 +532,7 @@ export class TaskController {
     if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
 
     const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-basic')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to create checklists');
     }
 
@@ -477,7 +549,7 @@ export class TaskController {
     if (!checklist) return sendError(reply, HttpStatus.NOT_FOUND, 'Checklist not found');
 
     const [orgMembership, channelMembership] = await this.getRoles((checklist as any).task.org_id, (checklist as any).task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-basic')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update checklists');
     }
 
@@ -495,7 +567,7 @@ export class TaskController {
     if (!checklist) return sendError(reply, HttpStatus.NOT_FOUND, 'Checklist not found');
 
     const [orgMembership, channelMembership] = await this.getRoles((checklist as any).task.org_id, (checklist as any).task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-basic')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to add items');
     }
 
@@ -511,7 +583,7 @@ export class TaskController {
     if (!item) return sendError(reply, HttpStatus.NOT_FOUND, 'Item not found');
 
     const [orgMembership, channelMembership] = await this.getRoles((item as any).checklist.task.org_id, (item as any).checklist.task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-basic')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update items');
     }
 
@@ -534,7 +606,7 @@ export class TaskController {
     if (!item) return sendError(reply, HttpStatus.NOT_FOUND, 'Item not found');
 
     const [orgMembership, channelMembership] = await this.getRoles((item as any).checklist.task.org_id, (item as any).checklist.task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-basic')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete items');
     }
 
@@ -550,7 +622,7 @@ export class TaskController {
     if (!checklist) return sendError(reply, HttpStatus.NOT_FOUND, 'Checklist not found');
 
     const [orgMembership, channelMembership] = await this.getRoles((checklist as any).task.org_id, (checklist as any).task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-basic')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete checklists');
     }
 
@@ -598,7 +670,7 @@ export class TaskController {
     if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
 
     const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-manage')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to assign labels');
     }
 
@@ -614,7 +686,7 @@ export class TaskController {
     if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
 
     const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-manage')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to unassign labels');
     }
 
@@ -645,7 +717,7 @@ export class TaskController {
     if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
 
     const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.attachment')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to add attachments');
     }
 
@@ -689,7 +761,7 @@ export class TaskController {
     if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
 
     const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.attachment')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to remove attachments');
     }
 
@@ -707,7 +779,7 @@ export class TaskController {
     if (!parentTask) return sendError(reply, HttpStatus.NOT_FOUND, 'Parent task not found');
 
     const [orgMembership, channelMembership] = await this.getRoles(parentTask.org_id, parentTask.channel_id, userId);
-    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.edit')) {
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-basic')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to create subtasks');
     }
 

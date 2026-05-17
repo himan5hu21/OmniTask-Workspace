@@ -71,11 +71,7 @@ enum TaskPriority {
   URGENT
 }
 
-enum AssignmentRole {
-  ASSIGNEE
-  REVIEWER
-  WATCHER
-}
+
 
 model BoardList {
   id         String @id @default(cuid())
@@ -179,8 +175,6 @@ model TaskAttachment {
 model TaskAssignment {
   task_id String
   user_id String
-
-  role AssignmentRole @default(ASSIGNEE)
 
   task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)

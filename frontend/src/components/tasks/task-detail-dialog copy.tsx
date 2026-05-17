@@ -61,8 +61,6 @@ import {
 import { useChannelMembers } from "@/api/channels";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { useAbility } from "@casl/react";
-import { AbilityContext } from "@/lib/casl";
 
 import {
   Dialog,
@@ -129,8 +127,7 @@ function SingleAssigneeSelector({
   onSelect,
   placeholder = "Assign",
   size = "sm",
-  alwaysVisible = false,
-  disabled = false
+  alwaysVisible = false
 }: {
   currentAssignee?: TaskUser | null;
   members: ChannelMember[];
@@ -138,65 +135,55 @@ function SingleAssigneeSelector({
   placeholder?: string;
   size?: "sm" | "xs" | "icon";
   alwaysVisible?: boolean;
-  disabled?: boolean;
 }) {
-  const triggerEl = (
-    <div className={cn(
-      "outline-none transition-all duration-200",
-      disabled ? "cursor-default opacity-80" : "cursor-pointer",
-      (!currentAssignee && !alwaysVisible && !disabled) && "opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
-    )}>
-      {currentAssignee ? (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Avatar className={cn(
-                !disabled && "hover:ring-2 hover:ring-primary transition-all",
-                size === "sm" ? "w-7 h-7" : size === "xs" ? "w-6 h-6" : "w-5 h-5"
-              )}>
-                <AvatarImage src={currentAssignee.avatar_url || ""} />
-                <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary uppercase">
-                  {currentAssignee.name?.substring(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-[10px] font-bold">
-              {currentAssignee.name} {!disabled && "(Click to change)"}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : (
-        !disabled && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "rounded-full border border-dashed border-muted-foreground/30 text-muted-foreground hover:text-primary hover:border-primary",
-                    size === "sm" ? "w-7 h-7" : size === "xs" ? "w-6 h-6" : "w-5 h-5"
-                  )}
-                >
-                  <Plus size={size === "xs" ? 12 : 14} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-[10px] font-bold">
-                {placeholder}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )
-      )}
-    </div>
-  );
-
-  if (disabled) return triggerEl;
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {triggerEl}
+        <div className={cn(
+          "outline-none cursor-pointer transition-all duration-200",
+          (!currentAssignee && !alwaysVisible) && "opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+        )}>
+          {currentAssignee ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Avatar className={cn(
+                    "hover:ring-2 hover:ring-primary transition-all",
+                    size === "sm" ? "w-7 h-7" : size === "xs" ? "w-6 h-6" : "w-5 h-5"
+                  )}>
+                    <AvatarImage src={currentAssignee.avatar_url || ""} />
+                    <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary uppercase">
+                      {currentAssignee.name?.substring(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-[10px] font-bold">
+                  {currentAssignee.name} (Click to change)
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      "rounded-full border border-dashed border-muted-foreground/30 text-muted-foreground hover:text-primary hover:border-primary",
+                      size === "sm" ? "w-7 h-7" : size === "xs" ? "w-6 h-6" : "w-5 h-5"
+                    )}
+                  >
+                    <Plus size={size === "xs" ? 12 : 14} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-[10px] font-bold">
+                  {placeholder}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 rounded-xl bg-card border-border shadow-xl p-1">
         <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">
@@ -624,13 +611,6 @@ export function TaskDetailDialog({
   open,
   onOpenChange
 }: TaskDetailDialogProps) {
-  const ability = useAbility(AbilityContext);
-  const canUpdateBasic = ability.can("update-basic", "Task");
-  const canUpdateManage = ability.can("update-manage", "Task");
-  const canDeleteTask = ability.can("delete", "Task");
-  const canAttachment = ability.can("attachment", "Task");
-  const canComment = ability.can("comment", "Task");
-
   /* 
    * DATA FETCHING & MUTATIONS
    * Hooks for real-time task data and actions to modify task state.
@@ -802,185 +782,167 @@ export function TaskDetailDialog({
                     {(!task.labels || task.labels.length === 0) && (
                       <div className="flex flex-col gap-1.5">
                         <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Labels</span>
-                        {canUpdateManage ? (
-                          <Popover open={isLabelPopoverOpen} onOpenChange={setIsLabelPopoverOpen}>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" size="sm" className="h-7 px-2 border-dashed text-muted-foreground hover:text-primary hover:border-primary text-[11px] font-bold cursor-pointer">
-                                <Plus size={14} className="mr-1" />
-                                Add Label
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent align="start" className="w-64 p-0 bg-card border-border shadow-xl">
-                              <div className="p-3 border-b border-border">
-                                <h4 className="text-xs font-bold uppercase tracking-wider mb-2">Labels</h4>
-                                {!isCreatingLabel ? (
-                                  <div className="space-y-2">
-                                    <div className="max-h-48 overflow-y-auto space-y-1">
-                                      {allOrgLabels?.map((label) => {
-                                        const isAssigned = task.labels?.some(tl => tl.label.id === label.id);
-                                        return (
-                                          <div
-                                            key={label.id}
-                                            role="button"
-                                            tabIndex={0}
-                                            onClick={() => {
+                        <Popover open={isLabelPopoverOpen} onOpenChange={setIsLabelPopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 px-2 border-dashed text-muted-foreground hover:text-primary hover:border-primary text-[11px] font-bold">
+                              <Plus size={14} className="mr-1" />
+                              Add Label
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" className="w-64 p-0 bg-card border-border shadow-xl">
+                            <div className="p-3 border-b border-border">
+                              <h4 className="text-xs font-bold uppercase tracking-wider mb-2">Labels</h4>
+                              {!isCreatingLabel ? (
+                                <div className="space-y-2">
+                                  <div className="max-h-48 overflow-y-auto space-y-1">
+                                    {allOrgLabels?.map((label) => {
+                                      const isAssigned = task.labels?.some(tl => tl.label.id === label.id);
+                                      return (
+                                        <div
+                                          key={label.id}
+                                          role="button"
+                                          tabIndex={0}
+                                          onClick={() => {
+                                            if (isAssigned) {
+                                              unassignLabel({ id: taskId, labelId: label.id });
+                                            } else {
+                                              assignLabel({ id: taskId, data: { label_id: label.id } });
+                                            }
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
                                               if (isAssigned) {
                                                 unassignLabel({ id: taskId, labelId: label.id });
                                               } else {
                                                 assignLabel({ id: taskId, data: { label_id: label.id } });
                                               }
+                                            }
+                                          }}
+                                          className="w-full flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted transition-colors text-left group cursor-pointer"
+                                        >
+                                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: label.color }} />
+                                          <span className="text-xs font-medium flex-1">{label.name}</span>
+                                          {isAssigned && <Check size={14} className="text-primary" />}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (confirm(`Are you sure you want to delete label "${label.name}"? This will remove it from all tasks.`)) {
+                                                deleteLabel(label.id);
+                                              }
                                             }}
-                                            className="w-full flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted transition-colors text-left group cursor-pointer"
+                                            className="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500 rounded-md hover:bg-red-50"
                                           >
-                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: label.color }} />
-                                            <span className="text-xs font-medium flex-1">{label.name}</span>
-                                            {isAssigned && <Check size={14} className="text-primary" />}
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (confirm(`Are you sure you want to delete label "${label.name}"? This will remove it from all tasks.`)) {
-                                                  deleteLabel(label.id);
-                                                }
-                                              }}
-                                              className="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500 rounded-md hover:bg-red-50"
-                                            >
-                                              <Trash2 size={12} />
-                                            </button>
-                                          </div>
-                                        );
-                                      })}
-                                      {(!allOrgLabels || allOrgLabels.length === 0) && (
-                                        <p className="text-[10px] text-muted-foreground text-center py-2 italic">No labels found</p>
-                                      )}
-                                    </div>
-                                    <Button
-                                      variant="ghost"
-                                      className="w-full h-8 text-[11px] font-bold text-primary hover:text-primary/80 hover:bg-primary/5 p-0"
-                                      onClick={() => setIsCreatingLabel(true)}
-                                    >
-                                      <Plus size={12} className="mr-1" />
-                                      Create new label
-                                    </Button>
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                    {(!allOrgLabels || allOrgLabels.length === 0) && (
+                                      <p className="text-[10px] text-muted-foreground text-center py-2 italic">No labels found</p>
+                                    )}
                                   </div>
-                                ) : (
-                                  <CreateLabelForm
-                                    onSubmit={(name, color) => {
-                                      createLabel({ org_id: task.org_id, name, color }, {
-                                        onSuccess: () => {
-                                          setIsCreatingLabel(false);
-                                        }
-                                      });
-                                    }}
-                                    onBack={() => setIsCreatingLabel(false)}
-                                  />
-                                )}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        ) : (
-                          <div className="h-7 px-2 border border-dashed border-border rounded flex items-center gap-1 text-muted-foreground cursor-not-allowed opacity-60 text-[11px] font-bold select-none w-fit">
-                            <Plus size={14} className="mr-1" />
-                            Add Label
-                          </div>
-                        )}
+                                  <Button
+                                    variant="ghost"
+                                    className="w-full h-8 text-[11px] font-bold text-primary hover:text-primary/80 hover:bg-primary/5 p-0"
+                                    onClick={() => setIsCreatingLabel(true)}
+                                  >
+                                    <Plus size={12} className="mr-1" />
+                                    Create new label
+                                  </Button>
+                                </div>
+                              ) : (
+                                <CreateLabelForm
+                                  onSubmit={(name, color) => {
+                                    createLabel({ org_id: task.org_id, name, color }, {
+                                      onSuccess: () => {
+                                        setIsCreatingLabel(false);
+                                      }
+                                    });
+                                  }}
+                                  onBack={() => setIsCreatingLabel(false)}
+                                />
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     )}
 
                     {(!task.assignments || task.assignments.length === 0) && (
                       <div className="flex flex-col gap-1.5">
                         <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Members</span>
-                        {canUpdateManage ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="h-7 px-2 border-dashed text-muted-foreground hover:text-primary hover:border-primary text-[11px] font-bold cursor-pointer">
-                                <Plus size={14} className="mr-1" />
-                                Join
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-56 rounded-xl bg-card border-border shadow-xl p-1">
-                              <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Channel Members</DropdownMenuLabel>
-                              <DropdownMenuSeparator className="bg-border/50" />
-                              <div className="max-h-60 overflow-y-auto">
-                                {channelMembers?.map((member) => {
-                                  const isAssigned = task.assignments?.some(a => a.user_id === member.user_id);
-                                  return (
-                                    <DropdownMenuItem
-                                      key={member.user_id}
-                                      onClick={() => isAssigned
-                                        ? unassignUser({ id: taskId, userId: member.user_id })
-                                        : assignUser({ id: taskId, data: { user_id: member.user_id } })
-                                      }
-                                      className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
-                                    >
-                                      <Avatar className="w-6 h-6">
-                                        <AvatarImage src={member.avatar_url} />
-                                        <AvatarFallback className="text-[10px] font-bold">{member.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                      </Avatar>
-                                      <span className="text-xs font-medium flex-1">{member.name}</span>
-                                      {isAssigned && <Check size={14} className="text-primary" />}
-                                    </DropdownMenuItem>
-                                  );
-                                })}
-                              </div>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : (
-                          <div className="h-7 px-2 border border-dashed border-border rounded flex items-center gap-1 text-muted-foreground cursor-not-allowed opacity-60 text-[11px] font-bold select-none w-fit">
-                            <Plus size={14} className="mr-1" />
-                            Join
-                          </div>
-                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 px-2 border-dashed text-muted-foreground hover:text-primary hover:border-primary text-[11px] font-bold">
+                              <Plus size={14} className="mr-1" />
+                              Join
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-56 rounded-xl bg-card border-border shadow-xl p-1">
+                            <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Channel Members</DropdownMenuLabel>
+                            <DropdownMenuSeparator className="bg-border/50" />
+                            <div className="max-h-60 overflow-y-auto">
+                              {channelMembers?.map((member) => {
+                                const isAssigned = task.assignments?.some(a => a.user_id === member.user_id);
+                                return (
+                                  <DropdownMenuItem
+                                    key={member.user_id}
+                                    onClick={() => isAssigned
+                                      ? unassignUser({ id: taskId, userId: member.user_id })
+                                      : assignUser({ id: taskId, data: { user_id: member.user_id } })
+                                    }
+                                    className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
+                                  >
+                                    <Avatar className="w-6 h-6">
+                                      <AvatarImage src={member.avatar_url} />
+                                      <AvatarFallback className="text-[10px] font-bold">{member.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-xs font-medium flex-1">{member.name}</span>
+                                    {isAssigned && <Check size={14} className="text-primary" />}
+                                  </DropdownMenuItem>
+                                );
+                              })}
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     )}
 
                     <div className="flex flex-col gap-1.5">
                       <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Priority</span>
-                      {canUpdateManage ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Badge variant="outline" className={cn(
-                              "flex items-center gap-1.5 px-2 h-7 rounded transition-colors w-fit text-[11px] font-bold uppercase tracking-wider cursor-pointer",
-                              task.priority === 'URGENT' ? "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500/20" :
-                                task.priority === 'HIGH' ? "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20" :
-                                  task.priority === 'MEDIUM' ? "bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20" :
-                                    task.priority === 'LOW' ? "bg-blue-500/10 border-blue-500/20 text-blue-500 hover:bg-blue-500/20" :
-                                      "bg-transparent border-dashed border-border text-muted-foreground hover:text-primary hover:border-primary"
-                            )}>
-                              {task.priority ? <ChevronsUp size={14} /> : <Plus size={14} />}
-                              <span>{task.priority || 'NONE'}</span>
-                            </Badge>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-40 rounded-xl bg-card border-border shadow-xl">
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'URGENT' } })} className="flex items-center gap-2 cursor-pointer focus:bg-rose-500/10 text-rose-500 py-2">
-                              <span className="text-xs font-bold uppercase tracking-wider">Urgent</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'HIGH' } })} className="flex items-center gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 py-2">
-                              <span className="text-xs font-bold uppercase tracking-wider">High</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'MEDIUM' } })} className="flex items-center gap-2 cursor-pointer focus:bg-amber-500/10 text-amber-500 py-2">
-                              <span className="text-xs font-bold uppercase tracking-wider">Medium</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'LOW' } })} className="flex items-center gap-2 cursor-pointer focus:bg-blue-500/10 text-blue-500 py-2">
-                              <span className="text-xs font-bold uppercase tracking-wider">Low</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: null } })} className="flex items-center gap-2 cursor-pointer focus:bg-muted py-2">
-                              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">None</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (
-                        <Badge variant="outline" className={cn(
-                          "flex items-center gap-1.5 px-2 h-7 rounded transition-colors w-fit text-[11px] font-bold uppercase tracking-wider cursor-not-allowed opacity-60",
-                          task.priority === 'URGENT' ? "bg-rose-500/10 border-rose-500/20 text-rose-500" :
-                            task.priority === 'HIGH' ? "bg-red-500/10 border-red-500/20 text-red-500" :
-                              task.priority === 'MEDIUM' ? "bg-amber-500/10 border-amber-500/20 text-amber-500" :
-                                task.priority === 'LOW' ? "bg-blue-500/10 border-blue-500/20 text-blue-500" :
-                                  "bg-transparent border-dashed border-border text-muted-foreground"
-                        )}>
-                          {task.priority ? <ChevronsUp size={14} /> : <Plus size={14} />}
-                          <span>{task.priority || 'NONE'}</span>
-                        </Badge>
-                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Badge variant="outline" className={cn(
+                            "flex items-center gap-1.5 px-2 h-7 rounded transition-colors w-fit cursor-pointer text-[11px] font-bold uppercase tracking-wider",
+                            task.priority === 'URGENT' ? "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500/20" :
+                              task.priority === 'HIGH' ? "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20" :
+                                task.priority === 'MEDIUM' ? "bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20" :
+                                  task.priority === 'LOW' ? "bg-blue-500/10 border-blue-500/20 text-blue-500 hover:bg-blue-500/20" :
+                                    "bg-transparent border-dashed border-border text-muted-foreground hover:text-primary hover:border-primary"
+                          )}>
+                            {task.priority ? <ChevronsUp size={14} /> : <Plus size={14} />}
+                            <span>{task.priority || 'NONE'}</span>
+                          </Badge>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-40 rounded-xl bg-card border-border shadow-xl">
+                          <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'URGENT' } })} className="flex items-center gap-2 cursor-pointer focus:bg-rose-500/10 text-rose-500 py-2">
+                            <span className="text-xs font-bold uppercase tracking-wider">Urgent</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'HIGH' } })} className="flex items-center gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 py-2">
+                            <span className="text-xs font-bold uppercase tracking-wider">High</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'MEDIUM' } })} className="flex items-center gap-2 cursor-pointer focus:bg-amber-500/10 text-amber-500 py-2">
+                            <span className="text-xs font-bold uppercase tracking-wider">Medium</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'LOW' } })} className="flex items-center gap-2 cursor-pointer focus:bg-blue-500/10 text-blue-500 py-2">
+                            <span className="text-xs font-bold uppercase tracking-wider">Low</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: null } })} className="flex items-center gap-2 cursor-pointer focus:bg-muted py-2">
+                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">None</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
 
 
@@ -991,7 +953,6 @@ export function TaskDetailDialog({
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={!canUpdateBasic}
                         onClick={() => setIsAddChecklistDialogOpen(true)}
                         className="flex items-center gap-2 px-2 h-7 w-fit text-foreground hover:bg-muted border-dashed transition-colors text-[11px] font-bold"
                       >
@@ -1003,55 +964,43 @@ export function TaskDetailDialog({
                     {/* Due Date */}
                     <div className="flex flex-col gap-1.5">
                       <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Due Date</span>
-                      {canUpdateManage ? (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className={cn(
-                                "h-7 text-[11px] font-bold border-dashed flex items-center gap-2 w-fit px-2 cursor-pointer",
-                                task.due_date ? "border-solid bg-blue-500/5 text-blue-600 border-blue-500/30" : "text-muted-foreground hover:text-primary hover:border-primary"
-                              )}
-                            >
-                              <CalendarIcon size={14} className={task.due_date ? "text-blue-600" : ""} />
-                              {task.due_date ? format(new Date(task.due_date), "MMM d, yyyy") : "Due Date"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 z-150" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={task.due_date ? new Date(task.due_date) : undefined}
-                              onSelect={(date) => {
-                                updateTask({ id: taskId, data: { due_date: date ? date.toISOString() : null } });
-                              }}
-                              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                            />
-                            {task.due_date && (
-                              <div className="p-2 border-t border-border flex justify-end">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-[10px] h-6 text-red-500 hover:text-red-600 hover:bg-red-50"
-                                  onClick={() => updateTask({ id: taskId, data: { due_date: null } })}
-                                >
-                                  Clear Date
-                                </Button>
-                              </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              "h-7 text-[11px] font-bold border-dashed flex items-center gap-2 w-fit px-2",
+                              task.due_date ? "border-solid bg-blue-500/5 text-blue-600 border-blue-500/30" : "text-muted-foreground hover:text-primary hover:border-primary"
                             )}
-                          </PopoverContent>
-                        </Popover>
-                      ) : (
-                        <div
-                          className={cn(
-                            "h-7 text-[11px] font-bold border border-dashed flex items-center gap-2 w-fit px-2 rounded-lg cursor-not-allowed opacity-60 select-none",
-                            task.due_date ? "border-solid bg-blue-500/5 text-blue-600 border-blue-500/30" : "text-muted-foreground"
+                          >
+                            <CalendarIcon size={14} className={task.due_date ? "text-blue-600" : ""} />
+                            {task.due_date ? format(new Date(task.due_date), "MMM d, yyyy") : "Due Date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 z-150" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={task.due_date ? new Date(task.due_date) : undefined}
+                            onSelect={(date) => {
+                              updateTask({ id: taskId, data: { due_date: date ? date.toISOString() : null } });
+                            }}
+                            disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          />
+                          {task.due_date && (
+                            <div className="p-2 border-t border-border flex justify-end">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-[10px] h-6 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                onClick={() => updateTask({ id: taskId, data: { due_date: null } })}
+                              >
+                                Clear Date
+                              </Button>
+                            </div>
                           )}
-                        >
-                          <CalendarIcon size={14} className={task.due_date ? "text-blue-600" : ""} />
-                          {task.due_date ? format(new Date(task.due_date), "MMM d, yyyy") : "Due Date"}
-                        </div>
-                      )}
+                        </PopoverContent>
+                      </Popover>
                     </div>
 
                     <div className="flex flex-col gap-1.5">
@@ -1079,7 +1028,7 @@ export function TaskDetailDialog({
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={isAddingAttachment || !canAttachment}
+                        disabled={isAddingAttachment}
                         onClick={() => fileInputRef.current?.click()}
                         className="flex items-center gap-2 px-2 h-7 w-fit text-foreground hover:bg-muted border-dashed transition-colors text-[11px] font-bold"
                       >
@@ -1104,108 +1053,100 @@ export function TaskDetailDialog({
                                 className="px-2 h-7 rounded text-[11px] font-bold uppercase tracking-wider group relative"
                               >
                                 {tl.label.name}
-                                {canUpdateManage && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      unassignLabel({ id: taskId, labelId: tl.label.id });
-                                    }}
-                                    className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500"
-                                  >
-                                    <X size={14} />
-                                  </button>
-                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    unassignLabel({ id: taskId, labelId: tl.label.id });
+                                  }}
+                                  className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500"
+                                >
+                                  <X size={14} />
+                                </button>
                               </Badge>
                             ))}
-                            {canUpdateManage ? (
-                              <Popover open={isLabelPopoverOpen} onOpenChange={setIsLabelPopoverOpen}>
-                                <PopoverTrigger asChild>
-                                  <Button variant="outline" size="icon" className="w-7 h-7 border-dashed text-muted-foreground hover:text-primary hover:border-primary cursor-pointer">
-                                    <Plus size={14} />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent align="start" className="w-64 p-0 bg-card border-border shadow-xl">
-                                  <div className="p-3 border-b border-border">
-                                    <h4 className="text-xs font-bold uppercase tracking-wider mb-2">Labels</h4>
-                                    {!isCreatingLabel ? (
-                                      <div className="space-y-2">
-                                        <div className="max-h-48 overflow-y-auto space-y-1">
-                                          {allOrgLabels?.map((label) => {
-                                            const isAssigned = task.labels?.some(tl => tl.label.id === label.id);
-                                            return (
-                                              <div
-                                                key={label.id}
-                                                role="button"
-                                                tabIndex={0}
-                                                onClick={() => {
+                            <Popover open={isLabelPopoverOpen} onOpenChange={setIsLabelPopoverOpen}>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" size="icon" className="w-7 h-7 border-dashed text-muted-foreground hover:text-primary hover:border-primary">
+                                  <Plus size={14} />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent align="start" className="w-64 p-0 bg-card border-border shadow-xl">
+                                <div className="p-3 border-b border-border">
+                                  <h4 className="text-xs font-bold uppercase tracking-wider mb-2">Labels</h4>
+                                  {!isCreatingLabel ? (
+                                    <div className="space-y-2">
+                                      <div className="max-h-48 overflow-y-auto space-y-1">
+                                        {allOrgLabels?.map((label) => {
+                                          const isAssigned = task.labels?.some(tl => tl.label.id === label.id);
+                                          return (
+                                            <div
+                                              key={label.id}
+                                              role="button"
+                                              tabIndex={0}
+                                              onClick={() => {
+                                                if (isAssigned) {
+                                                  unassignLabel({ id: taskId, labelId: label.id });
+                                                } else {
+                                                  assignLabel({ id: taskId, data: { label_id: label.id } });
+                                                }
+                                              }}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                  e.preventDefault();
                                                   if (isAssigned) {
                                                     unassignLabel({ id: taskId, labelId: label.id });
                                                   } else {
                                                     assignLabel({ id: taskId, data: { label_id: label.id } });
                                                   }
-                                                }}
-                                                onKeyDown={(e) => {
-                                                  if (e.key === 'Enter' || e.key === ' ') {
-                                                    e.preventDefault();
-                                                    if (isAssigned) {
-                                                      unassignLabel({ id: taskId, labelId: label.id });
-                                                    } else {
-                                                      assignLabel({ id: taskId, data: { label_id: label.id } });
-                                                    }
+                                                }
+                                              }}
+                                              className="w-full flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted transition-colors text-left group cursor-pointer"
+                                            >
+                                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: label.color }} />
+                                              <span className="text-xs font-medium flex-1">{label.name}</span>
+                                              {isAssigned && <Check size={14} className="text-primary" />}
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (confirm(`Are you sure you want to delete label "${label.name}"? This will remove it from all tasks.`)) {
+                                                    deleteLabel(label.id);
                                                   }
                                                 }}
-                                                className="w-full flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted transition-colors text-left group cursor-pointer"
+                                                className="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500 rounded-md hover:bg-red-50"
                                               >
-                                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: label.color }} />
-                                                <span className="text-xs font-medium flex-1">{label.name}</span>
-                                                {isAssigned && <Check size={14} className="text-primary" />}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (confirm(`Are you sure you want to delete label "${label.name}"? This will remove it from all tasks.`)) {
-                                                      deleteLabel(label.id);
-                                                    }
-                                                  }}
-                                                  className="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500 rounded-md hover:bg-red-50"
-                                                >
-                                                  <Trash2 size={12} />
-                                                </button>
-                                              </div>
-                                            );
-                                          })}
-                                          {(!allOrgLabels || allOrgLabels.length === 0) && (
-                                            <p className="text-[10px] text-muted-foreground text-center py-2 italic">No labels found</p>
-                                          )}
-                                        </div>
-                                        <Button
-                                          variant="ghost"
-                                          className="w-full h-8 text-[11px] font-bold text-primary hover:text-primary/80 hover:bg-primary/5 p-0"
-                                          onClick={() => setIsCreatingLabel(true)}
-                                        >
-                                          <Plus size={12} className="mr-1" />
-                                          Create new label
-                                        </Button>
+                                                <Trash2 size={12} />
+                                              </button>
+                                            </div>
+                                          );
+                                        })}
+                                        {(!allOrgLabels || allOrgLabels.length === 0) && (
+                                          <p className="text-[10px] text-muted-foreground text-center py-2 italic">No labels found</p>
+                                        )}
                                       </div>
-                                    ) : (
-                                      <CreateLabelForm
-                                        onSubmit={(name, color) => {
-                                          createLabel({ org_id: task.org_id, name, color }, {
-                                            onSuccess: () => {
-                                              setIsCreatingLabel(false);
-                                            }
-                                          });
-                                        }}
-                                        onBack={() => setIsCreatingLabel(false)}
-                                      />
-                                    )}
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            ) : (
-                              <div className="w-7 h-7 border border-dashed border-border rounded flex items-center justify-center text-muted-foreground cursor-not-allowed opacity-60 select-none">
-                                <Plus size={14} />
-                              </div>
-                            )}
+                                      <Button
+                                        variant="ghost"
+                                        className="w-full h-8 text-[11px] font-bold text-primary hover:text-primary/80 hover:bg-primary/5 p-0"
+                                        onClick={() => setIsCreatingLabel(true)}
+                                      >
+                                        <Plus size={12} className="mr-1" />
+                                        Create new label
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <CreateLabelForm
+                                      onSubmit={(name, color) => {
+                                        createLabel({ org_id: task.org_id, name, color }, {
+                                          onSuccess: () => {
+                                            setIsCreatingLabel(false);
+                                          }
+                                        });
+                                      }}
+                                      onBack={() => setIsCreatingLabel(false)}
+                                    />
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           </div>
                         </div>
                       )}
@@ -1216,144 +1157,109 @@ export function TaskDetailDialog({
                           <div className="flex items-center gap-2">
                             <TooltipProvider>
                               <div className="flex items-center -space-x-2">
-                                {task.assignments.map((a) => {
-                                  const avatarEl = (
-                                    <div className={cn(
-                                      "w-7 h-7 rounded-full border-2 border-card bg-muted overflow-hidden z-20 transition-all",
-                                      canUpdateManage ? "cursor-pointer hover:border-red-500" : ""
-                                    )}>
-                                      <Avatar className="w-full h-full">
-                                        <AvatarImage src={a.user?.avatar_url} />
-                                        <AvatarFallback className="text-[10px] font-bold">{a.user?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                      </Avatar>
-                                    </div>
-                                  );
+                                {task.assignments.map((a) => (
+                                  <Popover key={a.user_id}>
+                                    <PopoverTrigger asChild>
+                                      <div className="w-7 h-7 rounded-full border-2 border-card bg-muted overflow-hidden z-20 cursor-pointer hover:border-red-500 transition-colors">
+                                        <Avatar className="w-full h-full">
+                                          <AvatarImage src={a.user?.avatar_url} />
+                                          <AvatarFallback className="text-[10px] font-bold">{a.user?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
+                                      </div>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-48 p-3 bg-card border-border shadow-xl z-150" side="bottom">
+                                      <div className="flex flex-col gap-3">
+                                        <div className="flex items-center gap-2">
+                                          <Avatar className="w-8 h-8">
+                                            <AvatarImage src={a.user?.avatar_url} />
+                                            <AvatarFallback className="text-[10px] font-bold">{a.user?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                          </Avatar>
+                                          <div className="flex flex-col min-w-0">
+                                            <span className="text-xs font-bold truncate">{a.user?.name}</span>
+                                            <span className={cn(
+                                              "text-[10px] uppercase font-bold tracking-tight",
+                                              (() => {
+                                                const memberInfo = channelMembers?.find(m => m.user_id === a.user_id);
+                                                const orgRole = memberInfo?.org_role;
+                                                const channelRole = memberInfo?.role;
 
-                                  if (!canUpdateManage) {
-                                    return (
-                                      <Tooltip key={a.user_id}>
-                                        <TooltipTrigger asChild>
-                                          {avatarEl}
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom" className="text-[10px] font-bold">
-                                          {a.user?.name}
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    );
-                                  }
+                                                if (orgRole === 'OWNER') return "text-amber-500";
+                                                if (orgRole === 'ADMIN' || channelRole === 'MANAGER') return "text-blue-500";
+                                                return "text-muted-foreground";
+                                              })()
+                                            )}>
+                                              {(() => {
+                                                const memberInfo = channelMembers?.find(m => m.user_id === a.user_id);
+                                                const orgRole = memberInfo?.org_role;
+                                                const channelRole = memberInfo?.role;
 
-                                  return (
-                                    <Tooltip key={a.user_id}>
-                                      <Popover>
-                                        <TooltipTrigger asChild>
-                                          <PopoverTrigger asChild>
-                                            {avatarEl}
-                                          </PopoverTrigger>
-                                        </TooltipTrigger>
-                                        <PopoverContent className="w-48 p-3 bg-card border-border shadow-xl z-150" side="bottom">
-                                          <div className="flex flex-col gap-3">
-                                            <div className="flex items-center gap-2">
-                                              <Avatar className="w-8 h-8">
-                                                <AvatarImage src={a.user?.avatar_url} />
-                                                <AvatarFallback className="text-[10px] font-bold">{a.user?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                              </Avatar>
-                                              <div className="flex flex-col min-w-0">
-                                                <span className="text-xs font-bold truncate">{a.user?.name}</span>
-                                                <span className={cn(
-                                                  "text-[10px] uppercase font-bold tracking-tight",
-                                                  (() => {
-                                                    const memberInfo = channelMembers?.find(m => m.user_id === a.user_id);
-                                                    const orgRole = memberInfo?.org_role;
-                                                    const channelRole = memberInfo?.role;
-
-                                                    if (orgRole === 'OWNER') return "text-amber-500";
-                                                    if (orgRole === 'ADMIN' || channelRole === 'MANAGER') return "text-blue-500";
-                                                    return "text-muted-foreground";
-                                                  })()
-                                                )}>
-                                                  {(() => {
-                                                    const memberInfo = channelMembers?.find(m => m.user_id === a.user_id);
-                                                    const orgRole = memberInfo?.org_role;
-                                                    const channelRole = memberInfo?.role;
-
-                                                    if (orgRole === 'OWNER') return "Owner";
-                                                    if (orgRole === 'ADMIN') return "Admin";
-                                                    if (channelRole === 'MANAGER') return "Manager";
-                                                    return channelRole?.toLowerCase() || "Member";
-                                                  })()}
-                                                </span>
-                                              </div>
-                                            </div>
-                                            <p className="text-[11px] text-muted-foreground leading-relaxed">Are you sure you want to remove this member from the task?</p>
-                                            <div className="flex gap-2">
-                                              <Button
-                                                size="sm"
-                                                variant="destructive"
-                                                className="flex-1 h-8 text-[11px] font-bold rounded-md"
-                                                onClick={() => unassignUser({ id: taskId, userId: a.user_id })}
-                                              >
-                                                Remove
-                                              </Button>
-                                              <PopoverClose asChild>
-                                                <Button
-                                                  size="sm"
-                                                  variant="ghost"
-                                                  className="flex-1 h-8 text-[11px] font-bold rounded-md hover:bg-muted"
-                                                >
-                                                  Cancel
-                                                </Button>
-                                              </PopoverClose>
-                                            </div>
+                                                if (orgRole === 'OWNER') return "Owner";
+                                                if (orgRole === 'ADMIN') return "Admin";
+                                                if (channelRole === 'MANAGER') return "Manager";
+                                                return channelRole?.toLowerCase() || "Member";
+                                              })()}
+                                            </span>
                                           </div>
-                                        </PopoverContent>
-                                      </Popover>
-                                      <TooltipContent side="bottom" className="text-[10px] font-bold">
-                                        {a.user?.name} (Click to manage)
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground leading-relaxed">Are you sure you want to remove this member from the task?</p>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            size="sm"
+                                            variant="destructive"
+                                            className="flex-1 h-8 text-[11px] font-bold rounded-md"
+                                            onClick={() => unassignUser({ id: taskId, userId: a.user_id })}
+                                          >
+                                            Remove
+                                          </Button>
+                                          <PopoverClose asChild>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="flex-1 h-8 text-[11px] font-bold rounded-md hover:bg-muted"
+                                            >
+                                              Cancel
+                                            </Button>
+                                          </PopoverClose>
+                                        </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                ))}
                               </div>
                             </TooltipProvider>
-                            {canUpdateManage ? (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="icon" className="w-7 h-7 rounded-full border-dashed text-muted-foreground hover:text-primary hover:border-primary cursor-pointer">
-                                    <Plus size={14} />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-56 rounded-xl bg-card border-border shadow-xl p-1">
-                                  <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Channel Members</DropdownMenuLabel>
-                                  <DropdownMenuSeparator className="bg-border/50" />
-                                  <div className="max-h-60 overflow-y-auto">
-                                    {channelMembers?.map((member) => {
-                                      const isAssigned = task.assignments?.some(a => a.user_id === member.user_id);
-                                      return (
-                                        <DropdownMenuItem
-                                          key={member.user_id}
-                                          onClick={() => isAssigned
-                                            ? unassignUser({ id: taskId, userId: member.user_id })
-                                            : assignUser({ id: taskId, data: { user_id: member.user_id } })
-                                          }
-                                          className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
-                                        >
-                                          <Avatar className="w-6 h-6">
-                                            <AvatarImage src={member.avatar_url} />
-                                            <AvatarFallback className="text-[10px] font-bold">{member.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                          </Avatar>
-                                          <span className="text-xs font-medium flex-1">{member.name}</span>
-                                          {isAssigned && <Check size={14} className="text-primary" />}
-                                        </DropdownMenuItem>
-                                      );
-                                    })}
-                                  </div>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            ) : (
-                              <div className="w-7 h-7 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground cursor-not-allowed opacity-60 select-none">
-                                <Plus size={14} />
-                              </div>
-                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="icon" className="w-7 h-7 rounded-full border-dashed text-muted-foreground hover:text-primary hover:border-primary">
+                                  <Plus size={14} />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className="w-56 rounded-xl bg-card border-border shadow-xl p-1">
+                                <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Channel Members</DropdownMenuLabel>
+                                <DropdownMenuSeparator className="bg-border/50" />
+                                <div className="max-h-60 overflow-y-auto">
+                                  {channelMembers?.map((member) => {
+                                    const isAssigned = task.assignments?.some(a => a.user_id === member.user_id);
+                                    return (
+                                      <DropdownMenuItem
+                                        key={member.user_id}
+                                        onClick={() => isAssigned
+                                          ? unassignUser({ id: taskId, userId: member.user_id })
+                                          : assignUser({ id: taskId, data: { user_id: member.user_id } })
+                                        }
+                                        className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
+                                      >
+                                        <Avatar className="w-6 h-6">
+                                          <AvatarImage src={member.avatar_url} />
+                                          <AvatarFallback className="text-[10px] font-bold">{member.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
+                                        <span className="text-xs font-medium flex-1">{member.name}</span>
+                                        {isAssigned && <Check size={14} className="text-primary" />}
+                                      </DropdownMenuItem>
+                                    );
+                                  })}
+                                </div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       )}
@@ -1401,13 +1307,11 @@ export function TaskDetailDialog({
                     ) : (
                       <div
                         onClick={() => {
-                          if (!canUpdateBasic) return;
                           setDescription(task.description || "");
                           setIsEditingDescription(true);
                         }}
                         className={cn(
-                          "p-3 min-h-[120px] text-sm text-foreground rounded-md border border-transparent transition-all prose prose-sm dark:prose-invert max-w-none [&_p]:my-0 [&_ul]:my-0 [&_ol]:my-0 [&_li::marker]:text-foreground wrap-anywhere [&_p]:wrap-anywhere [&_li]:wrap-anywhere [&_h1]:wrap-anywhere [&_h2]:wrap-anywhere [&_h3]:wrap-anywhere [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:wrap-anywhere [&_pre_code]:whitespace-pre-wrap [&_pre_code]:wrap-anywhere",
-                          canUpdateBasic ? "hover:border-border hover:bg-muted/5 cursor-text" : "cursor-default",
+                          "p-3 min-h-[120px] text-sm text-foreground rounded-md border border-transparent hover:border-border hover:bg-muted/5 transition-all cursor-text prose prose-sm dark:prose-invert max-w-none [&_p]:my-0 [&_ul]:my-0 [&_ol]:my-0 [&_li::marker]:text-foreground wrap-anywhere [&_p]:wrap-anywhere [&_li]:wrap-anywhere [&_h1]:wrap-anywhere [&_h2]:wrap-anywhere [&_h3]:wrap-anywhere [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:wrap-anywhere [&_pre_code]:whitespace-pre-wrap [&_pre_code]:wrap-anywhere",
                           (!task.description || task.description.replace(/<[^>]*>/g, '').trim() === '') && "text-muted-foreground italic"
                         )}
                         dangerouslySetInnerHTML={{
@@ -1463,19 +1367,17 @@ export function TaskDetailDialog({
                                   <span className="text-[9px] font-bold truncate group-hover:text-primary transition-colors">{file.file_name}</span>
                                   <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-tight">{(file.file_size / 1024).toFixed(1)} KB</span>
                                 </div>
-                                {canAttachment && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 rounded-full text-muted-foreground hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deleteAttachment(file.id);
-                                    }}
-                                  >
-                                    <Trash2 size={12} />
-                                  </Button>
-                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 rounded-full text-muted-foreground hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteAttachment(file.id);
+                                  }}
+                                >
+                                  <Trash2 size={12} />
+                                </Button>
                               </div>
                             </div>
                           );
@@ -1597,18 +1499,13 @@ export function TaskDetailDialog({
                         ) : (
                           <div key={subtask.id} className="flex items-center gap-2 py-1.5 px-3 border border-border rounded-lg bg-muted/5 hover:bg-muted/10 hover:border-primary/20 transition-all group">
                             <button
-                              onClick={() => {
-                                if (!canUpdateBasic) return;
-                                updateTask({
-                                  id: subtask.id,
-                                  data: { status: subtask.status === 'COMPLETED' ? 'OPEN' : 'COMPLETED' }
-                                });
-                              }}
+                              onClick={() => updateTask({
+                                id: subtask.id,
+                                data: { status: subtask.status === 'COMPLETED' ? 'OPEN' : 'COMPLETED' }
+                              })}
                               aria-label={subtask.status === 'COMPLETED' ? "Mark incomplete" : "Mark complete"}
-                              disabled={!canUpdateBasic}
                               className={cn(
                                 "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
-                                !canUpdateBasic && "pointer-events-none opacity-60",
                                 subtask.status === 'COMPLETED' ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"
                               )}
                             >
@@ -1617,12 +1514,10 @@ export function TaskDetailDialog({
 
                             <span
                               onClick={() => {
-                                if (!canUpdateManage) return;
                                 setEditingSubtaskId(subtask.id);
                               }}
                               className={cn(
-                                "text-sm font-medium flex-1 whitespace-pre-wrap wrap-break-words transition-all",
-                                canUpdateManage ? "cursor-text" : "cursor-default"
+                                "text-sm font-medium flex-1 whitespace-pre-wrap wrap-break-words transition-all cursor-text",
                               )}
                             >
                               {subtask.title}
@@ -1633,7 +1528,6 @@ export function TaskDetailDialog({
                                 size="xs"
                                 currentAssignee={subtask.assignments?.[0]?.user}
                                 members={channelMembers}
-                                disabled={!canUpdateManage}
                                 onSelect={(userId) => {
                                   const currentAssignment = subtask.assignments?.[0];
                                   if (currentAssignment) {
@@ -1644,40 +1538,36 @@ export function TaskDetailDialog({
                                   }
                                 }}
                               />
-                              {canDeleteTask && (
-                                <div className="overflow-hidden max-w-0 group-hover:max-w-8 transition-all duration-200 ease-in-out">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
-                                    onClick={() => deleteTask(subtask.id)}
-                                  >
-                                    <Trash2 size={16} />
-                                  </Button>
-                                </div>
-                              )}
+                              <div className="overflow-hidden max-w-0 group-hover:max-w-8 transition-all duration-200 ease-in-out">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                                  onClick={() => deleteTask(subtask.id)}
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         )
                       ))}
                     </div>
 
-                    {canUpdateBasic && (
-                      isAddingSubtaskMode ? (
-                        <AddSubtaskForm
-                          onSubmit={handleAddSubtask}
-                          onCancel={() => setIsAddingSubtaskMode(false)}
-                        />
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          onClick={() => setIsAddingSubtaskMode(true)}
-                          className="w-full justify-start gap-2 h-10 px-3 text-muted-foreground hover:text-primary border border-dashed border-border group mt-1 rounded-lg bg-muted/5 hover:bg-muted/10 transition-all"
-                        >
-                          <Plus size={14} className="group-hover:scale-110 transition-transform" />
-                          <span className="text-sm font-medium">Add a subtask</span>
-                        </Button>
-                      )
+                    {isAddingSubtaskMode ? (
+                      <AddSubtaskForm
+                        onSubmit={handleAddSubtask}
+                        onCancel={() => setIsAddingSubtaskMode(false)}
+                      />
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        onClick={() => setIsAddingSubtaskMode(true)}
+                        className="w-full justify-start gap-2 h-10 px-3 text-muted-foreground hover:text-primary border border-dashed border-border group mt-1 rounded-lg bg-muted/5 hover:bg-muted/10 transition-all"
+                      >
+                        <Plus size={14} className="group-hover:scale-110 transition-transform" />
+                        <span className="text-sm font-medium">Add a subtask</span>
+                      </Button>
                     )}
                   </section>
 
@@ -1701,9 +1591,8 @@ export function TaskDetailDialog({
                               />
                             ) : (
                               <h3
-                                className={cn("flex-1 py-1", canUpdateManage ? "cursor-text" : "cursor-default")}
+                                className="cursor-text flex-1 py-1"
                                 onClick={() => {
-                                  if (!canUpdateManage) return;
                                   setEditingChecklistId(checklist.id);
                                 }}
                               >
@@ -1716,56 +1605,53 @@ export function TaskDetailDialog({
                               size="sm"
                               currentAssignee={checklist.assignee}
                               members={channelMembers}
-                              disabled={!canUpdateManage}
                               onSelect={(userId) => updateChecklist({ id: checklist.id, data: { assignee_id: userId } })}
                               alwaysVisible
                             />
                             <motion.div>
-                              <Badge variant="secondary" className="px-1.5 py-0.5 text-[11px] font-bold shrink-0 min-w-[32px] justify-center">{`${completedItems}/${totalItems}`}</Badge>
+                              <Badge variant="secondary" className="px-1.5 py-0.5 text-[11px] font-bold shrink-0 min-w-[32px] justify-center">{completedItems}/{totalItems}</Badge>
                             </motion.div>
-                            {canUpdateManage && (
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                                  >
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-56 p-3 bg-card border border-border shadow-xl z-50 rounded-xl" side="bottom" align="end">
+                                <div className="flex flex-col gap-3">
+                                  <div className="flex items-center gap-2 text-red-500">
                                     <Trash2 size={16} />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-56 p-3 bg-card border border-border shadow-xl z-50 rounded-xl" side="bottom" align="end">
-                                  <div className="flex flex-col gap-3">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <Trash2 size={16} />
-                                      <span className="text-xs font-bold">Delete Checklist</span>
-                                    </div>
-                                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                      Are you sure you want to delete this checklist? This action cannot be undone.
-                                    </p>
-                                    <div className="flex gap-2">
+                                    <span className="text-xs font-bold">Delete Checklist</span>
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                    Are you sure you want to delete this checklist? This action cannot be undone.
+                                  </p>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      className="flex-1 h-8 text-[11px] font-bold rounded-md"
+                                      onClick={() => deleteChecklist(checklist.id)}
+                                    >
+                                      Delete
+                                    </Button>
+                                    <PopoverClose asChild>
                                       <Button
                                         size="sm"
-                                        variant="destructive"
-                                        className="flex-1 h-8 text-[11px] font-bold rounded-md"
-                                        onClick={() => deleteChecklist(checklist.id)}
+                                        variant="ghost"
+                                        className="flex-1 h-8 text-[11px] font-bold rounded-md hover:bg-muted"
                                       >
-                                        Delete
+                                        Cancel
                                       </Button>
-                                      <PopoverClose asChild>
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="flex-1 h-8 text-[11px] font-bold rounded-md hover:bg-muted"
-                                        >
-                                          Cancel
-                                        </Button>
-                                      </PopoverClose>
-                                    </div>
+                                    </PopoverClose>
                                   </div>
-                                </PopoverContent>
-                              </Popover>
-                            )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           </div>
                         </div>
 
@@ -1786,29 +1672,22 @@ export function TaskDetailDialog({
                             ) : (
                               <div key={item.id} className="flex items-center gap-2 py-1.5 px-3 border border-border rounded-lg bg-muted/5 hover:bg-muted/10 hover:border-primary/20 transition-all group">
                                 <button
-                                  onClick={() => {
-                                    if (!canUpdateBasic) return;
-                                    updateChecklistItem({ itemId: item.id, data: { is_completed: !item.is_completed } });
-                                  }}
+                                  onClick={() => updateChecklistItem({ itemId: item.id, data: { is_completed: !item.is_completed } })}
                                   aria-label={item.is_completed ? "Mark incomplete" : "Mark complete"}
-                                  disabled={!canUpdateBasic}
                                   className={cn(
                                     "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
-                                    !canUpdateBasic && "pointer-events-none opacity-60",
                                     item.is_completed ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"
                                   )}
                                 >
                                   {item.is_completed && <Check size={12} strokeWidth={3} />}
                                 </button>
 
-                                 <span
+                                <span
                                   onClick={() => {
-                                    if (!canUpdateManage) return;
                                     setEditingItemId(item.id);
                                   }}
                                   className={cn(
-                                    "text-sm flex-1 whitespace-pre-wrap wrap-break-words transition-all",
-                                    canUpdateManage ? "cursor-text" : "cursor-default",
+                                    "text-sm flex-1 whitespace-pre-wrap wrap-break-words transition-all cursor-text",
                                     item.is_completed ? "text-muted-foreground line-through" : "text-foreground"
                                   )}
                                 >
@@ -1820,43 +1699,38 @@ export function TaskDetailDialog({
                                     size="xs"
                                     currentAssignee={item.assignee}
                                     members={channelMembers}
-                                    disabled={!canUpdateManage}
                                     onSelect={(userId) => updateChecklistItem({ itemId: item.id, data: { assignee_id: userId } })}
                                   />
-                                  {canUpdateManage && (
-                                    <div className="w-0 opacity-0 group-hover:w-8 group-hover:opacity-100 transition-all duration-300 ease-out overflow-hidden flex items-center justify-center shrink-0">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 shrink-0"
-                                        onClick={() => deleteChecklistItem(item.id)}
-                                      >
-                                        <Trash2 size={16} />
-                                      </Button>
-                                    </div>
-                                  )}
+                                  <div className="w-0 opacity-0 group-hover:w-8 group-hover:opacity-100 transition-all duration-300 ease-out overflow-hidden flex items-center justify-center shrink-0">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 shrink-0"
+                                      onClick={() => deleteChecklistItem(item.id)}
+                                    >
+                                      <Trash2 size={16} />
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             )
                           ))}
                         </div>
 
-                        {canUpdateBasic && (
-                          addingChecklistId === checklist.id ? (
-                            <AddChecklistItemForm
-                              onSubmit={(text) => handleAddChecklistItem(checklist.id, text)}
-                              onCancel={() => setAddingChecklistId(null)}
-                            />
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              onClick={() => setAddingChecklistId(checklist.id)}
-                              className="w-full justify-start gap-2 h-10 px-3 text-muted-foreground hover:text-primary border border-dashed border-border group mt-1 rounded-lg bg-muted/5 hover:bg-muted/10 transition-all"
-                            >
-                              <Plus size={14} className="group-hover:scale-110 transition-transform" />
-                              <span className="text-sm font-medium">Add an item</span>
-                            </Button>
-                          )
+                        {addingChecklistId === checklist.id ? (
+                          <AddChecklistItemForm
+                            onSubmit={(text) => handleAddChecklistItem(checklist.id, text)}
+                            onCancel={() => setAddingChecklistId(null)}
+                          />
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            onClick={() => setAddingChecklistId(checklist.id)}
+                            className="w-full justify-start gap-2 h-10 px-3 text-muted-foreground hover:text-primary border border-dashed border-border group mt-1 rounded-lg bg-muted/5 hover:bg-muted/10 transition-all"
+                          >
+                            <Plus size={14} className="group-hover:scale-110 transition-transform" />
+                            <span className="text-sm font-medium">Add an item</span>
+                          </Button>
                         )}
                       </section>
                     );
@@ -1878,13 +1752,11 @@ export function TaskDetailDialog({
               </div>
 
               {/* Comment Input Header */}
-              {canComment && (
-                <div className="p-4 border-b border-border bg-card shrink-0">
-                  <div className="flex flex-col gap-2">
-                    <CommentInput onSubmit={handleAddComment} />
-                  </div>
+              <div className="p-4 border-b border-border bg-card shrink-0">
+                <div className="flex flex-col gap-2">
+                  <CommentInput onSubmit={handleAddComment} />
                 </div>
-              )}
+              </div>
 
               <ScrollArea className="flex-1 p-4">
                 <div className="flex flex-col gap-4 relative pb-4">

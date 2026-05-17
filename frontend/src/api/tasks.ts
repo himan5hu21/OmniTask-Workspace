@@ -174,7 +174,24 @@ export const taskService = {
     return apiRequest.get<TaskResponse>(`/tasks/${id}`);
   },
   updateTask: async (id: string, data: UpdateTaskInput): Promise<TaskResponse> => {
-    return apiRequest.patch<TaskResponse>(`/tasks/${id}`, data);
+    if ('title' in data || 'description' in data) {
+      return apiRequest.patch<TaskResponse>(`/tasks/${id}/content`, {
+        title: data.title,
+        description: data.description,
+      });
+    }
+    if ('status' in data) {
+      return apiRequest.patch<TaskResponse>(`/tasks/${id}/status`, {
+        status: data.status,
+      });
+    }
+    return apiRequest.patch<TaskResponse>(`/tasks/${id}/manage`, {
+      priority: data.priority,
+      start_date: data.start_date,
+      due_date: data.due_date,
+      completed_at: data.completed_at,
+      cover_color: data.cover_color,
+    });
   },
   moveTask: async (id: string, data: MoveTaskInput): Promise<TaskResponse> => {
     return apiRequest.patch<TaskResponse>(`/tasks/${id}/move`, data);

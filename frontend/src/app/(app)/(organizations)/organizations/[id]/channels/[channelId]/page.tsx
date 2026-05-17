@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useRef, useCallback, type SyntheticEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { MessageSquareText, Sparkles, MoreHorizontal, Settings } from "lucide-react";
+import { MessageSquareText, Sparkles, MoreHorizontal, Settings, Pencil, Trash2 } from "lucide-react";
 import Spinner from "@/components/Loading";
 const TaskBoard = dynamic(() => import("@/components/tasks/TaskBoard"), {
   ssr: false,
@@ -132,7 +132,7 @@ function MessageContent({ content, isOwnMessage, attachments }: { content: strin
         }
         className={`chat-rich-text whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed max-w-none transition-[max-height] duration-200
           [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_ul]:ml-5 [&_ol]:ml-5 [&_p]:m-0 [&_blockquote]:pl-4
-          ${isOwnMessage ? "chat-rich-text--own text-primary-foreground" : "text-foreground"}`}
+          text-foreground ${isOwnMessage ? "chat-rich-text--own" : ""}`}
         dangerouslySetInnerHTML={{ __html: content }}
       />
 
@@ -140,9 +140,7 @@ function MessageContent({ content, isOwnMessage, attachments }: { content: strin
         <button
           type="button"
           onClick={() => setIsExpanded((prev) => !prev)}
-          className={`text-xs font-semibold transition-colors hover:opacity-80 ${
-            isOwnMessage ? "text-primary-foreground/85" : "text-primary"
-          }`}
+          className="text-xs font-semibold transition-colors hover:opacity-80 text-primary hover:text-primary/80"
         >
           {isExpanded ? "Read less" : "Read more"}
         </button>
@@ -180,6 +178,112 @@ export default function ChannelDetailPage() {
   } = useMessages(channelId);
   
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState<string>("");
+  const [localOverrides, setLocalOverrides] = useState<Record<string, { content?: string; isDeleted?: boolean; updated_at?: string }>>({});
+  const [menuOpenMessageId, setMenuOpenMessageId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+
+  const handleStartEdit = useCallback((message: Message) => {
+    setEditingMessageId(message.id);
+    const stripHtml = (html: string) => {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      return doc.body.textContent || "";
+    };
+    setEditContent(stripHtml(message.content));
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditContent("");
+  }, []);
+
+  const handleSaveEdit = useCallback((messageId: string) => {
+    if (!editContent.trim()) return;
+
+    setLocalOverrides((prev) => ({
+      ...prev,
+      [messageId]: {
+        content: editContent,
+        updated_at: new Date().toISOString(),
+      },
+    }));
+    setEditingMessageId(null);
+    setEditContent("");
+  }, [editContent]);
+
+  const handleDeleteMessage = useCallback((messageId: string) => {
+    if (confirm("Are you sure you want to delete this message?")) {
+      setLocalOverrides((prev) => ({
+        ...prev,
+        [messageId]: {
+          isDeleted: true,
+        },
+      }));
+    }
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, messageId: string) => {
+    e.preventDefault();
+    setMenuOpenMessageId(messageId);
+    const safeX = Math.max(10, Math.min(e.clientX, window.innerWidth - 170));
+    const safeY = Math.max(10, Math.min(e.clientY, window.innerHeight - 110));
+    setMenuPosition({ x: safeX, y: safeY });
+  }, []);
+
+  const handleThreeDotClick = useCallback((e: React.MouseEvent, messageId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuOpenMessageId(messageId);
+    const safeX = Math.max(10, Math.min(rect.left, window.innerWidth - 170));
+    const safeY = Math.max(10, Math.min(rect.bottom + 4, window.innerHeight - 110));
+    setMenuPosition({ x: safeX, y: safeY });
+  }, []);
+
+  const touchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, messageId: string) => {
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+    if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
+
+    touchTimeoutRef.current = setTimeout(() => {
+      setMenuOpenMessageId(messageId);
+      const safeX = Math.max(10, Math.min(touch.clientX, window.innerWidth - 170));
+      const safeY = Math.max(10, Math.min(touch.clientY, window.innerHeight - 110));
+      setMenuPosition({ x: safeX, y: safeY });
+      
+      if (typeof window !== "undefined" && window.navigator && window.navigator.vibrate) {
+        try {
+          window.navigator.vibrate(40);
+        } catch (_) {}
+      }
+    }, 600);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (touchTimeoutRef.current) {
+      clearTimeout(touchTimeoutRef.current);
+      touchTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartPosRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    
+    if (dx > 10 || dy > 10) {
+      if (touchTimeoutRef.current) {
+        clearTimeout(touchTimeoutRef.current);
+        touchTimeoutRef.current = null;
+      }
+    }
+  }, []);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -229,10 +333,22 @@ export default function ChannelDetailPage() {
     messages?.forEach((msg: Message) => uniqueMessages.set(msg.id, msg));
     socketMessages?.forEach((msg: Message) => uniqueMessages.set(msg.id, msg));
 
-    return Array.from(uniqueMessages.values()).sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
-  }, [messages, socketMessages]);
+    return Array.from(uniqueMessages.values())
+      .map((msg) => {
+        const override = localOverrides[msg.id];
+        if (override) {
+          return {
+            ...msg,
+            content: override.content ?? msg.content,
+            updated_at: override.updated_at ?? msg.updated_at,
+            isDeleted: override.isDeleted ?? false,
+          } as Message;
+        }
+        return msg;
+      })
+      .filter((msg: Message & { isDeleted?: boolean }) => !msg.isDeleted)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }, [messages, socketMessages, localOverrides]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
     const container = scrollContainerRef.current;
@@ -399,34 +515,84 @@ export default function ChannelDetailPage() {
                           className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : ""}`}
                         >
                           <Avatar className="h-9 w-9 shrink-0 border border-border/60">
-                            <AvatarFallback className={isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}>
+                            <AvatarFallback className={isOwnMessage ? "bg-primary/10 text-primary font-bold" : "bg-muted text-foreground"}>
                               {(message.user_name || "User").charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div
-                            className={`min-w-0 max-w-[85%] rounded-2xl px-5 py-3.5 shadow-sm transition-all ${
+                            onContextMenu={(e) => {
+                              if (isOwnMessage) {
+                                handleContextMenu(e, message.id);
+                              }
+                            }}
+                            onTouchStart={(e) => {
+                              if (isOwnMessage) {
+                                handleTouchStart(e, message.id);
+                              }
+                            }}
+                            onTouchEnd={handleTouchEnd}
+                            onTouchMove={handleTouchMove}
+                            className={`min-w-0 max-w-[85%] rounded-2xl px-5 py-3.5 shadow-sm transition-all relative group ${
                               isOwnMessage
-                                ? "bg-primary text-primary-foreground shadow-primary/20"
+                                ? "border border-primary/20 bg-primary/10 text-foreground cursor-context-menu"
                                 : "border border-border bg-muted/30 text-foreground"
                             }`}
                           >
+                            {isOwnMessage && editingMessageId !== message.id && (
+                              <button
+                                onClick={(e) => handleThreeDotClick(e, message.id)}
+                                className="hidden md:flex absolute top-0 left-0 transform -translate-x-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-card border border-border/80 shadow-md backdrop-blur-sm text-muted-foreground hover:text-foreground items-center justify-center hover:bg-muted transition-all duration-150 md:opacity-0 md:group-hover:opacity-100 z-20 cursor-pointer"
+                                title="Message actions"
+                              >
+                                <MoreHorizontal size={13} />
+                              </button>
+                            )}
+
                             <div className={`mb-1.5 flex items-center gap-2 ${isOwnMessage ? "justify-end" : ""}`}>
-                              <span className={`text-[10px] font-bold uppercase tracking-wider ${isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                              <span className={`text-[10px] font-bold uppercase tracking-wider ${isOwnMessage ? "text-primary" : "text-muted-foreground"}`}>
                                 {isOwnMessage ? "You" : message.user_name || "Unknown"}
                               </span>
-                              <span className={`text-[10px] ${isOwnMessage ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+                              <span className={`text-[10px] ${isOwnMessage ? "text-muted-foreground" : "text-muted-foreground/60"} flex items-center gap-1`}>
                                 {new Date(message.created_at).toLocaleTimeString([], {
                                   hour: "2-digit",
                                   minute: "2-digit",
                                 })}
+                                {message.updated_at && new Date(message.updated_at).getTime() > new Date(message.created_at).getTime() + 1000 && (
+                                  <span className="opacity-70">(edited)</span>
+                                )}
                               </span>
                             </div>
                             
-                            <MessageContent 
-                              content={message.content} 
-                              isOwnMessage={isOwnMessage} 
-                              attachments={message.attachments}
-                            />
+                            {editingMessageId === message.id ? (
+                              <div className="mt-2 space-y-2.5">
+                                <textarea
+                                  value={editContent}
+                                  onChange={(e) => setEditContent(e.target.value)}
+                                  className="w-full text-sm bg-background border border-border focus:border-primary/50 focus:ring-1 focus:ring-primary/50 rounded-xl p-3 focus:outline-none text-foreground transition-all duration-200 resize-y min-h-[70px] placeholder-muted-foreground"
+                                  placeholder="Edit message..."
+                                />
+                                <div className="flex items-center gap-2 justify-end">
+                                  <button
+                                    onClick={handleCancelEdit}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted/50 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => handleSaveEdit(message.id)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/95 transition-colors shadow-sm"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <MessageContent 
+                                content={message.content} 
+                                isOwnMessage={isOwnMessage} 
+                                attachments={message.attachments}
+                              />
+                            )}
                           </div>
                         </div>
                       );
@@ -450,6 +616,64 @@ export default function ChannelDetailPage() {
         </>
       ) : (
         <TaskBoard />
+      )}
+      {menuOpenMessageId && menuPosition && (
+        <>
+          <div 
+            className="fixed inset-0 z-50 bg-transparent"
+            onClick={() => {
+              setMenuOpenMessageId(null);
+              setMenuPosition(null);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenuOpenMessageId(null);
+              setMenuPosition(null);
+            }}
+          />
+          <div
+            style={{ 
+              position: "fixed", 
+              left: `${menuPosition.x}px`, 
+              top: `${menuPosition.y}px` 
+            }}
+            className="z-50 min-w-[150px] overflow-hidden rounded-xl border border-border/80 bg-popover/95 p-1 text-popover-foreground shadow-lg backdrop-blur-md animate-in fade-in-50 zoom-in-95 duration-100"
+            onClick={() => {
+              setMenuOpenMessageId(null);
+              setMenuPosition(null);
+            }}
+          >
+            {(() => {
+              const msg = allMessages.find(m => m.id === menuOpenMessageId);
+              if (!msg) return null;
+              const isOwn = msg.user_id === user?.id;
+              const isEditable = isOwn && (new Date().getTime() - new Date(msg.created_at).getTime() < 5 * 60 * 1000);
+
+              return (
+                <div className="flex flex-col gap-0.5">
+                  {isEditable && (
+                    <button
+                      onClick={() => handleStartEdit(msg)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-foreground hover:bg-muted transition-colors text-left font-medium"
+                    >
+                      <Pencil size={13} className="text-muted-foreground" />
+                      Edit Message
+                    </button>
+                  )}
+                  {isOwn && (
+                    <button
+                      onClick={() => handleDeleteMessage(msg.id)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors text-left font-semibold"
+                    >
+                      <Trash2 size={13} />
+                      Delete Message
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </>
       )}
       </div>
     </AbilityProvider>
