@@ -19,6 +19,20 @@ const DISALLOWED_MIME_TYPES = new Set([
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export class StorageService {
+  private static getPublicBaseUrl() {
+    const configuredBaseUrl =
+      process.env.FILE_PUBLIC_BASE_URL ||
+      process.env.PUBLIC_APP_URL ||
+      process.env.BACKEND_PUBLIC_URL;
+
+    if (configuredBaseUrl) {
+      return configuredBaseUrl.replace(/\/+$/, '');
+    }
+
+    const port = process.env.PORT || '8000';
+    return `http://localhost:${port}`;
+  }
+
   static async init(folder?: string) {
     const targetDir = folder ? path.join(UPLOAD_DIR, folder) : UPLOAD_DIR;
     try {
@@ -59,8 +73,17 @@ export class StorageService {
 
   static getFileUrl(relativePath: string) {
     if (!relativePath) return '';
-    if (relativePath.startsWith('http') || relativePath.startsWith('/uploads')) return relativePath;
-    return `/uploads/${relativePath}`;
+    const baseUrl = this.getPublicBaseUrl();
+
+    if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+      return relativePath;
+    }
+
+    const normalizedPath = relativePath.startsWith('/uploads')
+      ? relativePath
+      : `/uploads/${relativePath.replace(/^\/+/, '')}`;
+
+    return `${baseUrl}${normalizedPath}`;
   }
 
   static getUploadPath(relativePath: string) {

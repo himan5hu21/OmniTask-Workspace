@@ -26,6 +26,7 @@ export class TaskController {
   constructor() {
     this.createBoardList = this.createBoardList.bind(this);
     this.getBoard = this.getBoard.bind(this);
+    this.getBoardListTasks = this.getBoardListTasks.bind(this);
     this.createTask = this.createTask.bind(this);
     this.moveTask = this.moveTask.bind(this);
     this.reorderLists = this.reorderLists.bind(this);
@@ -50,13 +51,71 @@ export class TaskController {
     this.deleteTask = this.deleteTask.bind(this);
   }
 
+  private emitTaskRefresh(
+    request: FastifyRequest,
+    channelId: string,
+    payload: {
+      scope: 'board' | 'task' | 'comments' | 'task+comments';
+      taskId?: string;
+      parentTaskId?: string;
+      listId?: string;
+      reason: string;
+    }
+  ) {
+    request.server.io?.to(`channel:${channelId}`).emit('channel:task_refresh', {
+      channelId,
+      ...payload,
+      actorUserId: (request.user as any).userId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  private emitTaskDeleted(
+    request: FastifyRequest,
+    channelId: string,
+    payload: { taskId: string; listId?: string; parentTaskId?: string }
+  ) {
+    request.server.io?.to(`channel:${channelId}`).emit('channel:task_deleted', {
+      channelId,
+      ...payload,
+      actorUserId: (request.user as any).userId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  private emitTaskMoved(
+    request: FastifyRequest,
+    channelId: string,
+    payload: { taskId: string; sourceListId: string; targetListId: string; position: number }
+  ) {
+    request.server.io?.to(`channel:${channelId}`).emit('channel:task_moved', {
+      channelId,
+      ...payload,
+      actorUserId: (request.user as any).userId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  private emitBoardListsReordered(
+    request: FastifyRequest,
+    channelId: string,
+    items: { id: string; position: number }[]
+  ) {
+    request.server.io?.to(`channel:${channelId}`).emit('channel:board_lists_reordered', {
+      channelId,
+      items,
+      actorUserId: (request.user as any).userId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   // 1. Create Board List
   async createBoardList(
     request: FastifyRequest<{ Body: { channel_id: string; name: string; position: number } }>,
     reply: FastifyReply
   ) {
     const { channel_id } = request.body;
-    
+
     // Check if channel exists
     const channel = await channelRepository.getById(channel_id);
     if (!channel) return sendError(reply, HttpStatus.NOT_FOUND, 'Channel not found');
@@ -77,6 +136,11 @@ export class TaskController {
     }
 
     const list = await boardListService.createList(request.body);
+    this.emitTaskRefresh(request, channel_id, {
+      scope: 'board',
+      listId: list.id,
+      reason: 'board_list_created',
+    });
     return sendSuccess(reply, list, 'CREATE');
   }
 
@@ -110,13 +174,41 @@ export class TaskController {
     return sendSuccess(reply, board, 'FETCH');
   }
 
+  async getBoardListTasks(
+    request: FastifyRequest<{ Params: { id: string }; Querystring: { page?: number; limit?: number } }>,
+    reply: FastifyReply
+  ) {
+    const { id } = request.params;
+    const page = Number(request.query.page ?? 1);
+    const limit = Number(request.query.limit ?? 50);
+    const userId = (request.user as any).userId;
+
+    const list = await boardListRepository.getById(id);
+    if (!list) return sendError(reply, HttpStatus.NOT_FOUND, 'List not found');
+
+    const channel = await channelRepository.getById(list.channel_id);
+    if (!channel) return sendError(reply, HttpStatus.NOT_FOUND, 'Channel not found');
+
+    const [orgMembership, channelMembership] = await Promise.all([
+      organizationMemberRepository.getMember(channel.org_id, userId),
+      channelMemberRepository.getMember(list.channel_id, userId)
+    ]);
+
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.view')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to view list tasks');
+    }
+
+    const tasks = await taskService.getTasksByList(id, page, limit);
+    return sendSuccess(reply, tasks, 'FETCH');
+  }
+
   // 2.1 Update Board List
   async updateBoardList(
     request: FastifyRequest<{ Params: { id: string }; Body: { name?: string; position?: number } }>,
     reply: FastifyReply
   ) {
     const { id } = request.params;
-    
+
     const list = await boardListRepository.getById(id);
     if (!list) return sendError(reply, HttpStatus.NOT_FOUND, 'List not found');
 
@@ -134,6 +226,11 @@ export class TaskController {
     }
 
     const updated = await boardListService.updateList(id, request.body);
+    this.emitTaskRefresh(request, list.channel_id, {
+      scope: 'board',
+      listId: id,
+      reason: 'board_list_updated',
+    });
     return sendSuccess(reply, updated, 'UPDATE');
   }
 
@@ -143,7 +240,7 @@ export class TaskController {
     reply: FastifyReply
   ) {
     const { id } = request.params;
-    
+
     const list = await boardListRepository.getById(id);
     if (!list) return sendError(reply, HttpStatus.NOT_FOUND, 'List not found');
 
@@ -161,6 +258,11 @@ export class TaskController {
     }
 
     await boardListService.deleteList(id);
+    this.emitTaskRefresh(request, list.channel_id, {
+      scope: 'board',
+      listId: id,
+      reason: 'board_list_deleted',
+    });
     return sendSuccess(reply, { success: true }, 'DELETE');
   }
 
@@ -208,6 +310,12 @@ export class TaskController {
       ...request.body,
       creator_id: userId,
     });
+    this.emitTaskRefresh(request, channel_id, {
+      scope: 'board',
+      taskId: task.id,
+      listId: list_id,
+      reason: 'task_created',
+    });
     return sendSuccess(reply, task, 'CREATE');
   }
 
@@ -243,7 +351,14 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to move task');
     }
 
+    const sourceListId = task.list_id;
     const updatedTask = await taskService.moveTask(id, target_list_id, position);
+    this.emitTaskMoved(request, channelId, {
+      taskId: id,
+      sourceListId,
+      targetListId: target_list_id,
+      position,
+    });
     return sendSuccess(reply, updatedTask, 'UPDATE');
   }
 
@@ -277,6 +392,7 @@ export class TaskController {
     }
 
     await boardListService.reorderLists(items);
+    this.emitBoardListsReordered(request, channel_id, items);
     return sendSuccess(reply, { success: true }, 'UPDATE');
   }
 
@@ -318,6 +434,7 @@ export class TaskController {
       Body: {
         title?: string;
         description?: string;
+        expectedUpdatedAt?: string;
       };
     }>,
     reply: FastifyReply
@@ -333,6 +450,10 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update task content');
     }
 
+    if (request.body.expectedUpdatedAt && task.updated_at && new Date(task.updated_at).toISOString() !== request.body.expectedUpdatedAt) {
+      return sendError(reply, HttpStatus.CONFLICT, 'Task was updated by someone else');
+    }
+
     const updatedTask = await taskService.updateTask(id, {
       title: request.body.title,
       description: request.body.description,
@@ -344,7 +465,18 @@ export class TaskController {
         file_url: StorageService.getFileUrl(att.file_url)
       }));
     }
-
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'task+comments',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_content_updated',
+    });
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'board',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_content_updated',
+    });
     return sendSuccess(reply, updatedTask, 'UPDATE');
   };
 
@@ -380,7 +512,18 @@ export class TaskController {
         file_url: StorageService.getFileUrl(att.file_url)
       }));
     }
-
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'task',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_status_updated',
+    });
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'board',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_status_updated',
+    });
     return sendSuccess(reply, updatedTask, 'UPDATE');
   };
 
@@ -423,7 +566,18 @@ export class TaskController {
         file_url: StorageService.getFileUrl(att.file_url)
       }));
     }
-
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'task',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_manage_updated',
+    });
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'board',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_manage_updated',
+    });
     return sendSuccess(reply, updatedTask, 'UPDATE');
   };
 
@@ -444,6 +598,11 @@ export class TaskController {
     }
 
     await taskService.deleteTask(id);
+    this.emitTaskDeleted(request, task.channel_id, {
+      taskId: id,
+      listId: task.list_id,
+      parentTaskId: task.parent_task_id || undefined,
+    });
     return sendSuccess(reply, { success: true }, 'DELETE');
   };
 
@@ -469,6 +628,19 @@ export class TaskController {
     if (!targetUser) return sendError(reply, HttpStatus.NOT_FOUND, 'Target user not found');
 
     const assignment = await assignmentService.assignUser(id, user_id);
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'task',
+      taskId: id,
+      listId: task.list_id,
+      parentTaskId: task.parent_task_id || undefined,
+      reason: 'task_assignment_created',
+    });
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'board',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_assignment_created',
+    });
     return sendSuccess(reply, assignment, 'CREATE');
   }
 
@@ -485,6 +657,19 @@ export class TaskController {
     }
 
     await assignmentService.unassignUser(id, targetUserId);
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'task',
+      taskId: id,
+      listId: task.list_id,
+      parentTaskId: task.parent_task_id || undefined,
+      reason: 'task_assignment_deleted',
+    });
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'board',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_assignment_deleted',
+    });
     return sendSuccess(reply, { success: true }, 'DELETE');
   }
 
@@ -503,6 +688,13 @@ export class TaskController {
     }
 
     const comment = await commentService.createComment(id, userId, content);
+    request.server.io?.to(`channel:${task.channel_id}`).emit('channel:task_comment_created', {
+      channelId: task.channel_id,
+      taskId: id,
+      actorUserId: userId,
+      timestamp: new Date().toISOString(),
+      comment,
+    });
     return sendSuccess(reply, comment, 'CREATE');
   }
 
@@ -537,6 +729,12 @@ export class TaskController {
     }
 
     const checklist = await checklistService.createChecklist(id, title);
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'task',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'checklist_created',
+    });
     return sendSuccess(reply, checklist, 'CREATE');
   };
 
@@ -554,6 +752,12 @@ export class TaskController {
     }
 
     const updatedChecklist = await checklistService.updateChecklist(checklistId, title || (checklist as any).name, assignee_id);
+    this.emitTaskRefresh(request, (checklist as any).task.channel_id, {
+      scope: 'task',
+      taskId: (checklist as any).task.id,
+      listId: (checklist as any).task.list_id,
+      reason: 'checklist_updated',
+    });
     return sendSuccess(reply, updatedChecklist, 'UPDATE');
   };
 
@@ -572,6 +776,12 @@ export class TaskController {
     }
 
     const item = await checklistService.addItem(checklistId, userId, text, position);
+    this.emitTaskRefresh(request, (checklist as any).task.channel_id, {
+      scope: 'task',
+      taskId: (checklist as any).task.id,
+      listId: (checklist as any).task.list_id,
+      reason: 'checklist_item_created',
+    });
     return sendSuccess(reply, item, 'CREATE');
   };
 
@@ -595,6 +805,12 @@ export class TaskController {
     if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
 
     const updatedItem = await checklistService.updateItem(itemId, updateData);
+    this.emitTaskRefresh(request, (item as any).checklist.task.channel_id, {
+      scope: 'task',
+      taskId: (item as any).checklist.task.id,
+      listId: (item as any).checklist.task.list_id,
+      reason: 'checklist_item_updated',
+    });
     return sendSuccess(reply, updatedItem, 'UPDATE');
   };
 
@@ -611,6 +827,12 @@ export class TaskController {
     }
 
     await checklistService.deleteItem(itemId);
+    this.emitTaskRefresh(request, (item as any).checklist.task.channel_id, {
+      scope: 'task',
+      taskId: (item as any).checklist.task.id,
+      listId: (item as any).checklist.task.list_id,
+      reason: 'checklist_item_deleted',
+    });
     return sendSuccess(reply, { success: true }, 'DELETE');
   };
 
@@ -627,6 +849,12 @@ export class TaskController {
     }
 
     await checklistService.deleteChecklist(checklistId);
+    this.emitTaskRefresh(request, (checklist as any).task.channel_id, {
+      scope: 'task',
+      taskId: (checklist as any).task.id,
+      listId: (checklist as any).task.list_id,
+      reason: 'checklist_deleted',
+    });
     return sendSuccess(reply, { success: true }, 'DELETE');
   };
 
@@ -675,6 +903,12 @@ export class TaskController {
     }
 
     const assignment = await labelService.assignLabel(id, label_id);
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'task',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_label_created',
+    });
     return sendSuccess(reply, assignment, 'CREATE');
   };
 
@@ -691,6 +925,12 @@ export class TaskController {
     }
 
     await labelService.unassignLabel(id, labelId);
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'task',
+      taskId: id,
+      listId: task.list_id,
+      reason: 'task_label_deleted',
+    });
     return sendSuccess(reply, { success: true }, 'DELETE');
   };
 
@@ -741,6 +981,12 @@ export class TaskController {
         file_size: saved.file_size
       });
 
+      this.emitTaskRefresh(request, task.channel_id, {
+        scope: 'task',
+        taskId: id,
+        listId: task.list_id,
+        reason: 'task_attachment_created',
+      });
       return sendSuccess(reply, {
         ...attachment,
         file_url: StorageService.getFileUrl(attachment.file_url) // Return full URL for frontend
@@ -766,6 +1012,12 @@ export class TaskController {
     }
 
     await attachmentService.deleteAttachment(attachmentId);
+    this.emitTaskRefresh(request, task.channel_id, {
+      scope: 'task',
+      taskId: task.id,
+      listId: task.list_id,
+      reason: 'task_attachment_deleted',
+    });
     return sendSuccess(reply, { success: true }, 'DELETE');
   };
 
@@ -784,6 +1036,19 @@ export class TaskController {
     }
 
     const subtask = await taskService.createSubtask(parentId, { title, creator_id: userId });
+    this.emitTaskRefresh(request, parentTask.channel_id, {
+      scope: 'task',
+      taskId: parentId,
+      parentTaskId: parentId,
+      listId: parentTask.list_id,
+      reason: 'subtask_created',
+    });
+    this.emitTaskRefresh(request, parentTask.channel_id, {
+      scope: 'board',
+      taskId: parentId,
+      listId: parentTask.list_id,
+      reason: 'subtask_created',
+    });
     return sendSuccess(reply, subtask, 'CREATE');
   };
 

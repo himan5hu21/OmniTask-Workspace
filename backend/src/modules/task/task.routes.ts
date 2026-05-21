@@ -37,6 +37,22 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
     taskController.getBoard
   );
 
+  app.get(
+    '/board-lists/:id/tasks',
+    createSchema({
+      description: 'Get paginated task cards for a board list',
+      tags: ['Tasks'],
+      params: z.object({
+        id: z.cuid(),
+      }),
+      querystring: z.object({
+        page: z.coerce.number().int().min(1).optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+      }),
+    }),
+    taskController.getBoardListTasks
+  );
+
   // 3. Create Task
   app.post(
     '/tasks',
@@ -136,6 +152,7 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
       body: z.object({
         title: z.string().min(1).optional(),
         description: z.string().optional(),
+        expectedUpdatedAt: z.string().datetime().optional(),
       }),
     }),
     taskController.updateTaskContent

@@ -25,6 +25,7 @@ import Image from "next/image";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AbilityProvider } from "@/components/providers/AbilityProvider";
 import { getInitials } from "@/lib/utils";
+import { buildAuthenticatedFileUrl } from "@/lib/file-url";
 import { toast } from "sonner";
 import {
   ContextMenu,
@@ -41,30 +42,25 @@ const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g
 
 
 
-function FileAttachment({ 
-  attachment, 
-  isOwnMessage, 
-  onPreviewFile 
-}: { 
-  attachment: Attachment; 
-  isOwnMessage: boolean; 
+function FileAttachment({
+  attachment,
+  isOwnMessage,
+  onPreviewFile
+}: {
+  attachment: Attachment;
+  isOwnMessage: boolean;
   onPreviewFile?: (file: { fileName: string; fileUrl: string; fileSize: number }) => void;
 }) {
   const isImage = attachment.type === "IMAGE";
   const isVideo = attachment.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(attachment.file_name);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-  
-  // Robust URL construction: Strip /api/v1 and ensure we don't have double slashes
-  const baseUrl = apiUrl.replace(/\/api\/v1\/?$/, "");
-  const token = typeof document !== "undefined" ? document.cookie.match(/(?:^|; )token=([^;]*)/)?.[1] || "" : "";
-  const fileUrl = `${baseUrl}${attachment.file_url}${token ? `?token=${token}` : ""}`;
+  const fileUrl = buildAuthenticatedFileUrl(attachment.file_url);
 
   if (isImage) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img 
-        src={fileUrl} 
-        alt={attachment.file_name} 
+      <img
+        src={fileUrl}
+        alt={attachment.file_name}
         loading="lazy"
         onClick={() => {
           if (onPreviewFile) {
@@ -82,7 +78,7 @@ function FileAttachment({
 
   if (isVideo) {
     return (
-      <div 
+      <div
         onClick={() => {
           if (onPreviewFile) {
             onPreviewFile({
@@ -94,8 +90,8 @@ function FileAttachment({
         }}
         className="relative group max-w-[450px] mt-2 rounded-lg overflow-hidden border border-border/50 bg-background/50 cursor-pointer select-none"
       >
-        <video 
-          src={fileUrl} 
+        <video
+          src={fileUrl}
           preload="metadata"
           className="max-h-96 w-full object-contain pointer-events-none"
         />
@@ -116,9 +112,9 @@ function FileAttachment({
   return (
     <div className="mt-2 flex items-center gap-3 rounded-xl border border-border/80 bg-background/60 hover:bg-background/90 p-3 shadow-sm hover:shadow-md transition-all duration-200 min-w-[240px] max-w-[320px] group/file">
       {/* Clickable Card Body for viewing files in new tab */}
-      <a 
-        href={fileUrl} 
-        target="_blank" 
+      <a
+        href={fileUrl}
+        target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => {
           if (onPreviewFile) {
@@ -145,11 +141,11 @@ function FileAttachment({
           </div>
         </div>
       </a>
-      
+
       {/* Download Action */}
       <div className="flex items-center gap-1 shrink-0">
-        <a 
-          href={fileUrl} 
+        <a
+          href={fileUrl}
           download={attachment.file_name}
           className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-all duration-150 cursor-pointer"
           title="Download File"
@@ -164,15 +160,15 @@ function FileAttachment({
   );
 }
 
-function MessageContent({ 
-  content, 
-  isOwnMessage, 
-  attachments, 
-  onPreviewFile 
-}: { 
-  content: string; 
-  isOwnMessage: boolean; 
-  attachments?: Attachment[]; 
+function MessageContent({
+  content,
+  isOwnMessage,
+  attachments,
+  onPreviewFile
+}: {
+  content: string;
+  isOwnMessage: boolean;
+  attachments?: Attachment[];
   onPreviewFile?: (file: { fileName: string; fileUrl: string; fileSize: number }) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -301,11 +297,11 @@ function MessageContent({
         style={
           isCollapsed
             ? {
-                maxHeight: `${COLLAPSED_MAX_HEIGHT}px`,
-                overflow: "hidden",
-                WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 65%, transparent 100%)",
-                maskImage: "linear-gradient(to bottom, black 0%, black 65%, transparent 100%)",
-              }
+              maxHeight: `${COLLAPSED_MAX_HEIGHT}px`,
+              overflow: "hidden",
+              WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 65%, transparent 100%)",
+              maskImage: "linear-gradient(to bottom, black 0%, black 65%, transparent 100%)",
+            }
             : undefined
         }
         className={`chat-rich-text whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed max-w-none transition-[max-height] duration-200
@@ -328,10 +324,10 @@ function MessageContent({
       {attachments && attachments.length > 0 && (
         <div className="mt-1 flex flex-col gap-1">
           {attachments.map((att) => (
-            <FileAttachment 
-              key={att.id} 
-              attachment={att} 
-              isOwnMessage={isOwnMessage} 
+            <FileAttachment
+              key={att.id}
+              attachment={att}
+              isOwnMessage={isOwnMessage}
               onPreviewFile={onPreviewFile}
             />
           ))}
@@ -360,7 +356,7 @@ export default function ChannelDetailPage() {
     fetchNextPage,
     isFetchingNextPage,
   } = useMessages(channelId);
-  
+
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [localOverrides, setLocalOverrides] = useState<Record<string, { content?: string; isDeleted?: boolean; updated_at?: string }>>({});
@@ -561,17 +557,17 @@ export default function ChannelDetailPage() {
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
     const container = scrollContainerRef.current;
     if (!container) return;
- 
+
     const performScroll = () => {
       container.scrollTo({
         top: container.scrollHeight,
         behavior,
       });
     };
- 
+
     // Immediate scroll
     performScroll();
- 
+
     // Reinforce after a short delay for dynamic content/layout shifts
     if (behavior === "auto") {
       setTimeout(performScroll, 50);
@@ -675,7 +671,7 @@ export default function ChannelDetailPage() {
       return true;
     } catch (error) {
       console.error("Failed to send message:", error);
-      
+
       const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
       const errorMsg = axiosError.response?.data?.message || axiosError.message || "An unexpected error occurred while sending the message";
       toast.error("Failed to send message", {
@@ -693,204 +689,201 @@ export default function ChannelDetailPage() {
     <AbilityProvider orgRole={channel?.currentUserOrgRole} channelRole={channel?.currentUserChannelRole}>
       <div className="flex min-h-0 flex-1 overflow-hidden bg-background">
         {activeTab === "chat" ? (
-        <>
-          <section className="flex h-full min-h-0 flex-1 flex-col">
-            <ScrollArea 
-              viewportRef={scrollContainerRef}
-              onScroll={handleScroll}
-              className="h-full flex-1"
-            >
-              <div 
-                onLoadCapture={handleMessageMediaLoad}
-                className="flex min-h-full flex-col justify-end px-6 py-5 lg:px-8"
+          <>
+            <section className="flex h-full min-h-0 flex-1 flex-col">
+              <ScrollArea
+                viewportRef={scrollContainerRef}
+                onScroll={handleScroll}
+                className="h-full flex-1"
               >
-                {allMessages.length === 0 ? (
-                  <div className="my-auto flex flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 p-10 text-center">
-                    <MessageSquareText className="mb-4 h-12 w-12 text-primary/60" />
-                    <h2 className="text-lg font-semibold text-foreground">No conversation yet</h2>
-                    <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                      Start the channel with a quick update, a blocker, or the next action item.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {isFetchingNextPage ? (
-                      <div className="flex items-center justify-center py-2 text-muted-foreground">
-                        <Spinner size="sm" />
-                      </div>
-                    ) : null}
-                    {allMessages.map((message) => {
-                      const isOwnMessage = message.user_id === user?.id;
-                      const isOwn = message.user_id === user?.id;
-                      const isEditable = isOwn && (new Date().getTime() - new Date(message.created_at).getTime() < 5 * 60 * 1000);
-                      const isDeletable = isOwn && (new Date().getTime() - new Date(message.created_at).getTime() < 5 * 60 * 1000);
+                <div
+                  onLoadCapture={handleMessageMediaLoad}
+                  className="flex min-h-full flex-col justify-end px-6 py-5 lg:px-8"
+                >
+                  {allMessages.length === 0 ? (
+                    <div className="my-auto flex flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 p-10 text-center">
+                      <MessageSquareText className="mb-4 h-12 w-12 text-primary/60" />
+                      <h2 className="text-lg font-semibold text-foreground">No conversation yet</h2>
+                      <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                        Start the channel with a quick update, a blocker, or the next action item.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {isFetchingNextPage ? (
+                        <div className="flex items-center justify-center py-2 text-muted-foreground">
+                          <Spinner size="sm" />
+                        </div>
+                      ) : null}
+                      {allMessages.map((message) => {
+                        const isOwnMessage = message.user_id === user?.id;
+                        const isOwn = message.user_id === user?.id;
+                        const isEditable = isOwn && (new Date().getTime() - new Date(message.created_at).getTime() < 5 * 60 * 1000);
+                        const isDeletable = isOwn && (new Date().getTime() - new Date(message.created_at).getTime() < 5 * 60 * 1000);
 
-                      return (
-                        <div
-                          key={message.id}
-                          className={`flex gap-3 items-start ${isOwnMessage ? "flex-row-reverse" : ""}`}
-                        >
-                          <Avatar className="h-9 w-9 shrink-0 border border-border/60 relative -mt-3.5">
-                            <AvatarFallback className={isOwnMessage ? "bg-primary/10 text-primary font-bold" : "bg-muted text-foreground"}>
-                              {getInitials(message.user_name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <ContextMenu
-                            onOpenChange={(open) => {
-                              if (open) {
-                                setMenuOpenMessageId(message.id);
-                              } else if (menuOpenMessageId === message.id) {
-                                setMenuOpenMessageId(null);
-                              }
-                            }}
+                        return (
+                          <div
+                            key={message.id}
+                            className={`flex gap-3 items-start ${isOwnMessage ? "flex-row-reverse" : ""}`}
                           >
-                            <ContextMenuTrigger asChild>
-                              <div
-                                className={`min-w-0 max-w-[85%] px-4 py-2.5 pr-4 transition-all relative group ${
-                                  isOwnMessage
-                                    ? "rounded-2xl rounded-tr-none bg-primary/10 text-foreground cursor-context-menu"
-                                    : "rounded-2xl rounded-tl-none bg-muted/95 text-foreground"
-                                }`}
-                              >
-                                {/* WhatsApp Speech Bubble Tail */}
-                                {isOwnMessage ? (
-                                  <div className="absolute top-0 right-[-8px] text-primary/10 w-2 h-[13px] fill-current pointer-events-none">
-                                    <svg viewBox="0 0 8 13" className="w-full h-full">
-                                      <path d="M5.188 0H0v11.193l6.467-6.467C7.523 3.67 6.947 0 5.188 0z" />
-                                    </svg>
-                                  </div>
-                                ) : (
-                                  <div className="absolute top-0 left-[-8px] text-muted/95 w-2 h-[13px] fill-current pointer-events-none">
-                                    <svg viewBox="0 0 8 13" className="w-full h-full">
-                                      <path d="M2.812 0H8v11.193L1.533 4.726C.477 3.67 1.053 0 2.812 0z" />
-                                    </svg>
-                                  </div>
-                                )}
-
-                                {editingMessageId !== message.id && (
-                                  <button
-                                    onClick={handleThreeDotClick}
-                                    className={`hidden md:flex absolute top-1/2 -translate-y-1/2 h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-150 z-20 cursor-pointer ${
-                                      menuOpenMessageId === message.id
-                                        ? "md:opacity-100 text-foreground bg-black/5 dark:bg-white/10"
-                                        : "md:opacity-0 md:group-hover:opacity-100"
-                                    } ${
-                                      isOwnMessage ? "left-[-36px]" : "right-[-36px]"
+                            <Avatar className="h-9 w-9 shrink-0 border border-border/60 relative -mt-3.5">
+                              <AvatarFallback className={isOwnMessage ? "bg-primary/10 text-primary font-bold" : "bg-muted text-foreground"}>
+                                {getInitials(message.user_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <ContextMenu
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  setMenuOpenMessageId(message.id);
+                                } else if (menuOpenMessageId === message.id) {
+                                  setMenuOpenMessageId(null);
+                                }
+                              }}
+                            >
+                              <ContextMenuTrigger asChild>
+                                <div
+                                  className={`min-w-0 max-w-[85%] px-4 py-2.5 pr-4 transition-all relative group ${isOwnMessage
+                                      ? "rounded-2xl rounded-tr-none bg-primary/10 text-foreground cursor-context-menu"
+                                      : "rounded-2xl rounded-tl-none bg-muted/95 text-foreground"
                                     }`}
-                                    title="Message actions"
-                                  >
-                                    <MoreHorizontal size={14} />
-                                  </button>
-                                )}
-
-                                <div className="flex flex-col">
-                                  {!isOwnMessage && (
-                                    <span className="text-[11px] font-bold text-primary mb-1 select-none block tracking-wide">
-                                      {message.user_name || "Unknown"}
-                                    </span>
+                                >
+                                  {/* WhatsApp Speech Bubble Tail */}
+                                  {isOwnMessage ? (
+                                    <div className="absolute top-0 right-[-8px] text-primary/10 w-2 h-[13px] fill-current pointer-events-none">
+                                      <svg viewBox="0 0 8 13" className="w-full h-full">
+                                        <path d="M5.188 0H0v11.193l6.467-6.467C7.523 3.67 6.947 0 5.188 0z" />
+                                      </svg>
+                                    </div>
+                                  ) : (
+                                    <div className="absolute top-0 left-[-8px] text-muted/95 w-2 h-[13px] fill-current pointer-events-none">
+                                      <svg viewBox="0 0 8 13" className="w-full h-full">
+                                        <path d="M2.812 0H8v11.193L1.533 4.726C.477 3.67 1.053 0 2.812 0z" />
+                                      </svg>
+                                    </div>
                                   )}
-                                  <MessageContent 
-                                    content={message.content} 
-                                    isOwnMessage={isOwnMessage} 
-                                    attachments={message.attachments}
-                                    onPreviewFile={setPreviewFile}
-                                  />
-                                  <div className="flex items-center justify-end gap-1 mt-1.5 self-end select-none">
-                                    <span className="text-[9.5px] text-muted-foreground/80 font-medium">
-                                      {new Date(message.created_at).toLocaleTimeString([], {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </span>
-                                    {message.updated_at && new Date(message.updated_at).getTime() > new Date(message.created_at).getTime() + 1000 && (
-                                      <span className="text-[9.5px] text-muted-foreground/60">(edited)</span>
+
+                                  {editingMessageId !== message.id && (
+                                    <button
+                                      onClick={handleThreeDotClick}
+                                      className={`hidden md:flex absolute top-1/2 -translate-y-1/2 h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-150 z-20 cursor-pointer ${menuOpenMessageId === message.id
+                                          ? "md:opacity-100 text-foreground bg-black/5 dark:bg-white/10"
+                                          : "md:opacity-0 md:group-hover:opacity-100"
+                                        } ${isOwnMessage ? "left-[-36px]" : "right-[-36px]"
+                                        }`}
+                                      title="Message actions"
+                                    >
+                                      <MoreHorizontal size={14} />
+                                    </button>
+                                  )}
+
+                                  <div className="flex flex-col">
+                                    {!isOwnMessage && (
+                                      <span className="text-[11px] font-bold text-primary mb-1 select-none block tracking-wide">
+                                        {message.user_name || "Unknown"}
+                                      </span>
                                     )}
+                                    <MessageContent
+                                      content={message.content}
+                                      isOwnMessage={isOwnMessage}
+                                      attachments={message.attachments}
+                                      onPreviewFile={setPreviewFile}
+                                    />
+                                    <div className="flex items-center justify-end gap-1 mt-1.5 self-end select-none">
+                                      <span className="text-[9.5px] text-muted-foreground/80 font-medium">
+                                        {new Date(message.created_at).toLocaleTimeString([], {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </span>
+                                      {message.updated_at && new Date(message.updated_at).getTime() > new Date(message.created_at).getTime() + 1000 && (
+                                        <span className="text-[9.5px] text-muted-foreground/60">(edited)</span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </ContextMenuTrigger>
-                            <ContextMenuContent className="w-[170px]">
-                              <ContextMenuItem
-                                onClick={() => {
-                                  const parser = new DOMParser();
-                                  const doc = parser.parseFromString(message.content, "text/html");
-                                  const text = doc.body.textContent || "";
-                                  navigator.clipboard.writeText(text);
-                                  toast.success("Message copied to clipboard");
-                                }}
-                              >
-                                <Copy className="mr-2 h-4 w-4 text-muted-foreground" />
-                                <span>Copy Message</span>
-                              </ContextMenuItem>
-                              {message.content.includes("<pre>") && (
+                              </ContextMenuTrigger>
+                              <ContextMenuContent className="w-[170px]">
                                 <ContextMenuItem
                                   onClick={() => {
                                     const parser = new DOMParser();
                                     const doc = parser.parseFromString(message.content, "text/html");
-                                    const codeElements = doc.querySelectorAll("pre code");
-                                    if (codeElements.length > 0) {
-                                      const codeText = Array.from(codeElements).map(el => el.textContent || "").join("\n\n---\n\n");
-                                      navigator.clipboard.writeText(codeText);
-                                    } else {
-                                      const preElements = doc.querySelectorAll("pre");
-                                      const preText = Array.from(preElements).map(el => el.textContent || "").join("\n\n---\n\n");
-                                      navigator.clipboard.writeText(preText);
-                                    }
-                                    toast.success("Code block copied to clipboard");
+                                    const text = doc.body.textContent || "";
+                                    navigator.clipboard.writeText(text);
+                                    toast.success("Message copied to clipboard");
                                   }}
                                 >
                                   <Copy className="mr-2 h-4 w-4 text-muted-foreground" />
-                                  <span>Copy Code Block</span>
+                                  <span>Copy Message</span>
                                 </ContextMenuItem>
-                              )}
-                              {isEditable && (
-                                <ContextMenuItem
-                                  onClick={() => handleStartEdit(message)}
-                                >
-                                  <Pencil className="mr-2 h-4 w-4 text-muted-foreground" />
-                                  <span>Edit Message</span>
-                                </ContextMenuItem>
-                              )}
-                              {isDeletable && (
-                                <>
-                                  <ContextMenuSeparator />
+                                {message.content.includes("<pre>") && (
                                   <ContextMenuItem
-                                    variant="destructive"
-                                    onClick={() => handleDeleteMessage(message.id)}
+                                    onClick={() => {
+                                      const parser = new DOMParser();
+                                      const doc = parser.parseFromString(message.content, "text/html");
+                                      const codeElements = doc.querySelectorAll("pre code");
+                                      if (codeElements.length > 0) {
+                                        const codeText = Array.from(codeElements).map(el => el.textContent || "").join("\n\n---\n\n");
+                                        navigator.clipboard.writeText(codeText);
+                                      } else {
+                                        const preElements = doc.querySelectorAll("pre");
+                                        const preText = Array.from(preElements).map(el => el.textContent || "").join("\n\n---\n\n");
+                                        navigator.clipboard.writeText(preText);
+                                      }
+                                      toast.success("Code block copied to clipboard");
+                                    }}
                                   >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    <span>Delete Message</span>
+                                    <Copy className="mr-2 h-4 w-4 text-muted-foreground" />
+                                    <span>Copy Code Block</span>
                                   </ContextMenuItem>
-                                </>
-                              )}
-                            </ContextMenuContent>
-                          </ContextMenu>
-                        </div>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </div>
-                )}
+                                )}
+                                {isEditable && (
+                                  <ContextMenuItem
+                                    onClick={() => handleStartEdit(message)}
+                                  >
+                                    <Pencil className="mr-2 h-4 w-4 text-muted-foreground" />
+                                    <span>Edit Message</span>
+                                  </ContextMenuItem>
+                                )}
+                                {isDeletable && (
+                                  <>
+                                    <ContextMenuSeparator />
+                                    <ContextMenuItem
+                                      variant="destructive"
+                                      onClick={() => handleDeleteMessage(message.id)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      <span>Delete Message</span>
+                                    </ContextMenuItem>
+                                  </>
+                                )}
+                              </ContextMenuContent>
+                            </ContextMenu>
+                          </div>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+
+              <div className="border-t border-border bg-background/85 px-6 py-4 backdrop-blur-md lg:px-8">
+                {/* Isolated Input Component used here */}
+                <ChatInputBox
+                  channelName={channel?.name || "Channel"}
+                  onSendMessage={handleSendMessage}
+                  isPending={createMessage.isPending}
+                  editingMessage={editingMessage}
+                  onUpdateMessage={handleUpdateMessage}
+                  onCancelEdit={handleCancelEdit}
+                />
               </div>
-            </ScrollArea>
+            </section>
 
-            <div className="border-t border-border bg-background/85 px-6 py-4 backdrop-blur-md lg:px-8">
-              {/* Isolated Input Component used here */}
-              <ChatInputBox 
-                channelName={channel?.name || "Channel"} 
-                onSendMessage={handleSendMessage} 
-                isPending={createMessage.isPending}
-                editingMessage={editingMessage}
-                onUpdateMessage={handleUpdateMessage}
-                onCancelEdit={handleCancelEdit}
-              />
-            </div>
-          </section>
-
-        </>
-      ) : (
-        <TaskBoard />
-      )}
+          </>
+        ) : (
+          <TaskBoard />
+        )}
       </div>
 
       <DeleteMessageDialog

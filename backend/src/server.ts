@@ -110,15 +110,8 @@ const buildServer = async () => {
 
   // Authenticated Secure Serving of Message Attachments
   app.get('/uploads/message/:filename', async (request, reply) => {
-    // 1. Verify token (support headers/cookies via verifyToken or fallback to query parameter token)
     try {
-      const query = request.query as { token?: string };
-      if (query.token) {
-        const payload = app.jwt.verify(query.token);
-        (request as any).user = payload;
-      } else {
-        await verifyToken(request, reply);
-      }
+      await verifyToken(request, reply);
     } catch (err) {
       return reply.code(401).send({ success: false, message: 'Unauthorized. Please login.' });
     }
@@ -166,6 +159,9 @@ const buildServer = async () => {
         }
       }
     }
+    if (!attachment) {
+      return reply.code(404).send({ success: false, message: 'File not found.' });
+    }
 
     // 4. Determine inline vs download based on environment and browser request context
     const isProd = process.env.NODE_ENV === 'production';
@@ -192,6 +188,66 @@ const buildServer = async () => {
     }
 
     return reply.sendFile(`message/${filename}`);
+  });
+
+  app.get('/uploads/task/:filename', async (request, reply) => {
+    try {
+      await verifyToken(request, reply);
+    } catch (err) {
+      return reply.code(401).send({ success: false, message: 'Unauthorized. Please login.' });
+    }
+
+    const { filename } = request.params as { filename: string };
+    const user = (request as any).user;
+
+    if (!user || !user.userId) {
+      return reply.code(401).send({ success: false, message: 'Unauthorized.' });
+    }
+
+    const attachment = await prisma.taskAttachment.findFirst({
+      where: {
+        file_url: {
+          endsWith: `task/${filename}`
+        }
+      },
+      include: {
+        task: true
+      }
+    });
+
+    if (!attachment || !attachment.task) {
+      return reply.code(404).send({ success: false, message: 'File not found.' });
+    }
+
+    const isMember = await prisma.channelMember.findFirst({
+      where: {
+        user_id: user.userId,
+        channel_id: attachment.task.channel_id
+      }
+    });
+
+    if (!isMember) {
+      return reply.code(403).send({ success: false, message: 'Forbidden. You are not a member of this channel.' });
+    }
+
+    const isProd = process.env.NODE_ENV === 'production';
+    const referer = request.headers.referer;
+    const secFetchMode = request.headers['sec-fetch-mode'];
+    const secFetchDest = request.headers['sec-fetch-dest'];
+
+    const isDirectAccess = !referer || secFetchMode === 'navigate' || secFetchDest === 'document';
+    const forceDownload = (request.query as { download?: string }).download === 'true';
+
+    if (forceDownload || (isProd && isDirectAccess)) {
+      reply.header('Content-Disposition', `attachment; filename="${attachment.file_name}"`);
+    } else {
+      const isViewable = /\.(txt|jpg|jpeg|png|gif|webp|pdf|mp4|webm|ogg|mov)$/i.test(attachment.file_name);
+      if (!isViewable) {
+        reply.header('Content-Disposition', `attachment; filename="${attachment.file_name}"`);
+      }
+    }
+
+    return reply.sendFile(`task/${filename}`);
   });
 
   // Register JWT plugin

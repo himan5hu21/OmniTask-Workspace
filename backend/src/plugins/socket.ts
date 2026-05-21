@@ -24,6 +24,46 @@ interface ServerToClientEvents {
   'channel:user_joined': (data: { channelId: string; userId: string; name: string; timestamp: string }) => void;
   'channel:typing': (data: { channelId: string; userId: string; name: string; timestamp: string }) => void;
   'channel:stop_typing': (data: { channelId: string; userId: string; timestamp: string }) => void;
+  'channel:task_refresh': (data: {
+    channelId: string;
+    scope: 'board' | 'task' | 'comments' | 'task+comments';
+    taskId?: string;
+    parentTaskId?: string;
+    listId?: string;
+    reason: string;
+    actorUserId: string;
+    timestamp: string;
+  }) => void;
+  'channel:task_comment_created': (data: {
+    channelId: string;
+    taskId: string;
+    actorUserId: string;
+    timestamp: string;
+    comment: unknown;
+  }) => void;
+  'channel:task_deleted': (data: {
+    channelId: string;
+    taskId: string;
+    listId?: string;
+    parentTaskId?: string;
+    actorUserId: string;
+    timestamp: string;
+  }) => void;
+  'channel:task_moved': (data: {
+    channelId: string;
+    taskId: string;
+    sourceListId: string;
+    targetListId: string;
+    position: number;
+    actorUserId: string;
+    timestamp: string;
+  }) => void;
+  'channel:board_lists_reordered': (data: {
+    channelId: string;
+    actorUserId: string;
+    timestamp: string;
+    items: { id: string; position: number }[];
+  }) => void;
   'error': (data: { message: string }) => void;
 }
 

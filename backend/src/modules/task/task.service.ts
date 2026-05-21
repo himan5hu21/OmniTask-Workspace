@@ -1,8 +1,36 @@
 import { taskRepository } from '@/repositories/task.repository';
 import { boardListRepository } from '@/repositories/board-list.repository';
+import { prisma } from '@/lib/database';
 
 
 export class TaskService {
+  private getBoardTaskSelect() {
+    return {
+      id: true,
+      title: true,
+      status: true,
+      priority: true,
+      position: true,
+      list_id: true,
+      channel_id: true,
+      org_id: true,
+      creator_id: true,
+      created_at: true,
+      updated_at: true,
+      start_date: true,
+      due_date: true,
+      completed_at: true,
+      assignments: {
+        include: {
+          user: { select: { id: true, name: true, avatar_url: true } }
+        }
+      },
+      _count: {
+        select: { comments: true }
+      }
+    };
+  }
+
   private getTaskIncludes() {
     return {
       include: {
@@ -152,44 +180,58 @@ export class TaskService {
   }
 
   async getBoardData(channelId: string) {
-    // Get all lists for the channel
     const lists = await boardListRepository.getAll({
       where: { channel_id: channelId },
       orderBy: { position: 'asc' },
-      include: {
-        tasks: {
-          where: { 
-            deleted_at: null,
-            parent_task_id: null 
-          },
-          orderBy: [
-            { position: 'asc' },
-            { created_at: 'asc' },
-            { id: 'asc' }
-          ],
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            priority: true,
-            position: true,
-            start_date: true,
-            due_date: true,
-            completed_at: true,
-            assignments: {
-              include: {
-                user: { select: { id: true, name: true, avatar_url: true } }
-              }
-            },
-            _count: {
-              select: { comments: true }
-            }
-          }
-        }
-      }
     });
 
-    return { lists };
+    const listIds = lists.map((list: any) => list.id);
+    const groupedCounts = listIds.length > 0
+      ? await prisma.task.groupBy({
+          by: ['list_id'],
+          where: {
+            list_id: { in: listIds },
+            deleted_at: null,
+            parent_task_id: null,
+          },
+          _count: {
+            _all: true,
+          },
+        })
+      : [];
+
+    const taskCountByListId = new Map(
+      groupedCounts.map((item) => [item.list_id, item._count._all])
+    );
+
+    return {
+      lists: lists.map((list: any) => ({
+        ...list,
+        task_count: taskCountByListId.get(list.id) ?? 0,
+      })),
+    };
+  }
+
+  async getTasksByList(listId: string, page = 1, limit = 50) {
+    const result = await taskRepository.getPaginated({
+      page,
+      limit,
+      where: {
+        list_id: listId,
+        parent_task_id: null,
+      },
+      orderBy: [
+        { position: 'asc' },
+        { created_at: 'asc' },
+        { id: 'asc' }
+      ],
+      select: this.getBoardTaskSelect(),
+    });
+
+    return {
+      tasks: result.data,
+      pagination: result.meta,
+    };
   }
 
   async createSubtask(parentId: string, data: { title: string; creator_id: string }) {

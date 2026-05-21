@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import {
@@ -37,11 +37,12 @@ import {
   MoreHorizontal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSyncedState } from "@/hooks/useSyncedState";
-import { useBoard, useMoveTask, useReorderLists, useUpdateTask, BoardList, Task } from "@/api/tasks";
+import { useBoard, useBoardListTasks, useMoveTask, useReorderLists, useUpdateTask, BoardList, Task } from "@/api/tasks";
 import { useAbility } from "@casl/react";
 import { AbilityContext } from "@/lib/casl";
 import Spinner from "@/components/Loading";
+import { useAuthProfile } from "@/api/auth";
+import { useTaskRealtime } from "@/hooks/useTaskRealtime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
@@ -56,12 +57,31 @@ import { DeleteTaskDialog } from "./delete-task-dialog";
 import { TaskDetailDialog } from "./task-detail-dialog";
 import { EditListDialog } from "./edit-list-dialog";
 import { DeleteListDialog } from "./delete-list-dialog";
+import { EditTaskDialog } from "./edit-task-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+const TASKS_PAGE_SIZE = 50;
+
+type BoardPagination = {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
+};
+
+type BoardListState = BoardList & {
+  task_count: number;
+  tasks: Task[];
+  pagination?: BoardPagination;
+  isTasksLoading?: boolean;
+  isTasksFetching?: boolean;
+};
 
 // --- Helper for Priority Colors ---
 const getPriorityStyles = (priority?: string | null) => {
@@ -81,25 +101,29 @@ const getPriorityStyles = (priority?: string | null) => {
 
 // --- Sub-components ---
 
-function TaskCard({ 
-  task, 
-  isOverlay, 
+function TaskCard({
+  task,
+  isOverlay,
   channelId,
   onDeleteRequest,
   onOpenDetail,
+  onEditRequest,
   canDeleteTask = true,
-  canUpdateTaskBasic = true
-}: { 
-  task: Task; 
-  isOverlay?: boolean; 
+  canUpdateTaskBasic = true,
+  canEditTask = true,
+}: {
+  task: Task;
+  isOverlay?: boolean;
   channelId: string;
   onDeleteRequest?: (task: Task) => void;
   onOpenDetail?: (task: Task) => void;
+  onEditRequest?: (task: Task) => void;
   canDeleteTask?: boolean;
   canUpdateTaskBasic?: boolean;
+  canEditTask?: boolean;
 }) {
   const { mutate: updateTask } = useUpdateTask(channelId);
-  
+
   const {
     setNodeRef,
     attributes,
@@ -137,18 +161,20 @@ function TaskCard({
     >
       {/* Top Action Buttons (Edit/Delete) */}
       <div className="absolute top-1.5 right-2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all transform translate-y-[-4px] group-hover:translate-y-0 z-20">
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onOpenDetail) onOpenDetail(task);
-          }}
-          className="p-1.5 rounded-md bg-kanban-card border border-kanban-border hover:border-kanban-border-hover text-kanban-text-secondary hover:text-primary transition-all shadow-sm"
-          title="Edit task"
-        >
-          <Pencil size={12} />
-        </button>
+        {canEditTask && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onEditRequest) onEditRequest(task);
+            }}
+            className="p-1.5 rounded-md bg-kanban-card border border-kanban-border hover:border-kanban-border-hover text-kanban-text-secondary hover:text-primary transition-all shadow-sm"
+            title="Edit task"
+          >
+            <Pencil size={12} />
+          </button>
+        )}
         {canDeleteTask && (
-          <button 
+          <button
             onClick={(e) => {
               e.stopPropagation();
               if (onDeleteRequest) onDeleteRequest(task);
@@ -162,7 +188,7 @@ function TaskCard({
       </div>
 
       <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg opacity-60 group-hover:opacity-100", pStyle.bg)} />
-      
+
       <div className="pl-1 pr-1">
         {/* Top Row: Checkbox and Priority (or Title if no priority) */}
         <div className={cn("flex items-center h-5 relative", (task.priority || hasFooterContent) && "mb-1.5")}>
@@ -171,17 +197,17 @@ function TaskCard({
             onClick={(e) => {
               e.stopPropagation();
               if (!canUpdateTaskBasic) return;
-              updateTask({ 
-                id: task.id, 
-                data: { status: task.status === "COMPLETED" ? "OPEN" : "COMPLETED" } 
+              updateTask({
+                id: task.id,
+                data: { status: task.status === "COMPLETED" ? "OPEN" : "COMPLETED" }
               });
             }}
             disabled={!canUpdateTaskBasic}
             className={cn(
               "absolute left-0 shrink-0 w-4.5 h-4.5 rounded-full border flex items-center justify-center transition-all duration-300 z-10",
               !canUpdateTaskBasic && "pointer-events-none opacity-60",
-              isDone 
-                ? "bg-green-500 border-green-500 text-white opacity-100" 
+              isDone
+                ? "bg-green-500 border-green-500 text-white opacity-100"
                 : "border-kanban-border hover:border-primary text-transparent hover:text-primary/50 bg-kanban-card opacity-0 group-hover:opacity-100 transform -translate-x-1 group-hover:translate-x-0"
             )}
           >
@@ -269,27 +295,35 @@ function TaskCard({
   );
 }
 
-function BoardColumn({ 
-  list, 
-  tasks, 
-  orgId, 
+function BoardColumn({
+  list,
+  tasks,
+  orgId,
   channelId,
   onDeleteTask,
   onOpenTaskDetail,
+  onEditTask,
   onEditList,
   onDeleteList,
   canUpdateList = true,
   canDeleteList = true,
   canCreateTask = true,
   canDeleteTask = true,
-  canUpdateTaskBasic = true
-}: { 
-  list: BoardList; 
-  tasks: Task[]; 
-  orgId: string; 
+  canUpdateTaskBasic = true,
+  canEditTask = true,
+  totalTaskCount = 0,
+  hasMoreTasks = false,
+  isLoadingTasks = false,
+  isFetchingTasks = false,
+  onLoadMore,
+}: {
+  list: BoardListState;
+  tasks: Task[];
+  orgId: string;
   channelId: string;
   onDeleteTask: (task: Task) => void;
   onOpenTaskDetail: (task: Task) => void;
+  onEditTask: (task: Task) => void;
   onEditList: (list: BoardList) => void;
   onDeleteList: (list: BoardList) => void;
   canUpdateList?: boolean;
@@ -297,6 +331,12 @@ function BoardColumn({
   canCreateTask?: boolean;
   canDeleteTask?: boolean;
   canUpdateTaskBasic?: boolean;
+  canEditTask?: boolean;
+  totalTaskCount?: number;
+  hasMoreTasks?: boolean;
+  isLoadingTasks?: boolean;
+  isFetchingTasks?: boolean;
+  onLoadMore?: (listId: string) => void;
 }) {
   const {
     setNodeRef,
@@ -342,7 +382,7 @@ function BoardColumn({
         <div className="flex items-center gap-2 text-kanban-text-primary">
           <h2 className="text-[14px] font-bold tracking-tight">{list.name}</h2>
           <span className="bg-kanban-badge text-kanban-text-tertiary px-2 py-0.5 rounded-full text-[11px] font-bold">
-            {tasks.length}
+            {totalTaskCount}
           </span>
         </div>
         {(canUpdateList || canDeleteList) && (
@@ -354,7 +394,7 @@ function BoardColumn({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40 rounded-xl bg-card border-border shadow-xl">
               {canUpdateList && (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   className="flex items-center gap-2 cursor-pointer focus:bg-muted py-2"
                   onClick={() => onEditList(list)}
                 >
@@ -363,7 +403,7 @@ function BoardColumn({
                 </DropdownMenuItem>
               )}
               {canDeleteList && (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   className="flex items-center gap-2 cursor-pointer focus:bg-destructive/10 text-destructive py-2"
                   onClick={() => onDeleteList(list)}
                 >
@@ -380,17 +420,39 @@ function BoardColumn({
       <ScrollArea className="min-h-0 w-full overflow-hidden">
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           <div className="p-3 flex flex-col gap-2.5 min-h-[100px] pb-4">
+            {isLoadingTasks && tasks.length === 0 ? (
+              <div className="flex items-center justify-center py-8 text-kanban-text-secondary">
+                <Spinner size="sm" />
+              </div>
+            ) : null}
             {tasks.map((task) => (
-              <TaskCard 
-                key={task.id} 
-                task={task} 
-                channelId={channelId} 
+              <TaskCard
+                key={task.id}
+                task={task}
+                channelId={channelId}
                 onDeleteRequest={onDeleteTask}
                 onOpenDetail={onOpenTaskDetail}
+                onEditRequest={onEditTask}
                 canDeleteTask={canDeleteTask}
                 canUpdateTaskBasic={canUpdateTaskBasic}
+                canEditTask={canEditTask}
               />
             ))}
+            {!isLoadingTasks && tasks.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-kanban-border px-3 py-6 text-center text-xs font-medium text-kanban-text-secondary">
+                No cards yet
+              </div>
+            ) : null}
+            {hasMoreTasks ? (
+              <button
+                type="button"
+                onClick={() => onLoadMore?.(list.id)}
+                disabled={isFetchingTasks}
+                className="flex w-full items-center justify-center rounded-md border border-dashed border-kanban-border px-3 py-2 text-[12px] font-semibold text-kanban-text-secondary transition-colors hover:border-kanban-border-hover hover:text-kanban-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isFetchingTasks ? "Loading more..." : `Load more cards (${tasks.length}/${totalTaskCount})`}
+              </button>
+            ) : null}
           </div>
         </SortableContext>
         <ScrollBar orientation="vertical" />
@@ -425,13 +487,56 @@ export default function TaskBoard() {
   const params = useParams();
   const channelId = params.channelId as string;
   const orgId = params.id as string;
+  const { user } = useAuthProfile({ enabled: true });
 
   const { lists, isLoading, isError } = useBoard(channelId);
+  const [taskPageSizes, setTaskPageSizes] = useState<Record<string, number>>({});
   const { mutate: moveTask } = useMoveTask(channelId);
   const { mutate: reorderLists } = useReorderLists();
+  const listTaskQueries = useBoardListTasks(lists, taskPageSizes, { enabled: !!channelId });
 
-  const [localLists, setLocalLists] = useSyncedState<BoardList[]>(lists || []);
-  const [activeColumn, setActiveColumn] = useState<BoardList | null>(null);
+  const mergedLists = useMemo<BoardListState[]>(() => {
+    return lists.map((list, index) => {
+      const query = listTaskQueries[index];
+      const payload = query?.data?.success ? query.data.data : undefined;
+
+      return {
+        ...list,
+        task_count: payload?.pagination.total ?? list.task_count ?? 0,
+        tasks: payload?.tasks ?? [],
+        pagination: payload?.pagination,
+        isTasksLoading: query?.isLoading ?? false,
+        isTasksFetching: query?.isFetching ?? false,
+      };
+    });
+  }, [lists, listTaskQueries]);
+
+  const serverBoardSignature = useMemo(
+    () =>
+      JSON.stringify(
+        mergedLists.map((list) => ({
+          id: list.id,
+          task_count: list.task_count,
+          task_ids: list.tasks.map((task) => task.id),
+          page: list.pagination?.page ?? 1,
+          limit: list.pagination?.limit ?? TASKS_PAGE_SIZE,
+          total: list.pagination?.total ?? list.task_count,
+          isLoading: list.isTasksLoading ?? false,
+          isFetching: list.isTasksFetching ?? false,
+        }))
+      ),
+    [mergedLists]
+  );
+
+  const [prevBoardSignature, setPrevBoardSignature] = useState(serverBoardSignature);
+  const [localLists, setLocalLists] = useState<BoardListState[]>(() =>
+    JSON.parse(JSON.stringify(mergedLists))
+  );
+  if (serverBoardSignature !== prevBoardSignature) {
+    setPrevBoardSignature(serverBoardSignature);
+    setLocalLists(JSON.parse(JSON.stringify(mergedLists)));
+  }
+  const [activeColumn, setActiveColumn] = useState<BoardListState | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
@@ -440,11 +545,17 @@ export default function TaskBoard() {
   const [taskForDetail, setTaskForDetail] = useState<Task | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+  const [isEditTaskModalOpen, setIsEditTaskModalOpen] = useState(false);
+
   const [listToEdit, setListToEdit] = useState<BoardList | null>(null);
   const [isEditListModalOpen, setIsEditListModalOpen] = useState(false);
 
   const [listToDelete, setListToDelete] = useState<BoardList | null>(null);
   const [isDeleteListModalOpen, setIsDeleteListModalOpen] = useState(false);
+  const isDraggingRef = useRef(false);
+  const pendingBoardRefreshRef = useRef(false);
+  const pendingTaskRefreshRef = useRef(new Set<string>());
 
   const handleDeleteRequest = (task: Task) => {
     setTaskToDelete(task);
@@ -456,6 +567,11 @@ export default function TaskBoard() {
     setIsDetailModalOpen(true);
   };
 
+  const handleEditRequest = (task: Task) => {
+    setTaskToEdit(task);
+    setIsEditTaskModalOpen(true);
+  };
+
   const ability = useAbility(AbilityContext);
   const canCreateList = ability.can("create", "Board");
   const canUpdateList = ability.can("update", "Board");
@@ -463,6 +579,7 @@ export default function TaskBoard() {
   const canCreateTask = ability.can("create", "Task");
   const canDeleteTask = ability.can("delete", "Task");
   const canUpdateTaskBasic = ability.can("update-basic", "Task");
+  const canEditTask = ability.can("update-manage", "Task");
 
 
   const sensors = useSensors(
@@ -477,8 +594,22 @@ export default function TaskBoard() {
   );
 
   const listIds = useMemo(() => localLists.map((l) => l.id), [localLists]);
+  const { flushPendingRefreshes } = useTaskRealtime(channelId, {
+    userId: user?.id,
+    isDraggingRef,
+    pendingBoardRefreshRef,
+    pendingTaskRefreshRef,
+  });
+
+  const handleLoadMoreTasks = (listId: string) => {
+    setTaskPageSizes((prev) => ({
+      ...prev,
+      [listId]: (prev[listId] ?? TASKS_PAGE_SIZE) + TASKS_PAGE_SIZE,
+    }));
+  };
 
   const onDragStart = (event: DragStartEvent) => {
+    isDraggingRef.current = true;
     const { active } = event;
     const data = active.data.current;
 
@@ -521,9 +652,9 @@ export default function TaskBoard() {
 
       const activeTaskIndex = activeTasks.findIndex((t) => t.id === activeId);
       const [movedTask] = activeTasks.splice(activeTaskIndex, 1);
-      
+
       // Optimistic reference update
-      movedTask.list_id = newLists[overListIndex].id; 
+      movedTask.list_id = newLists[overListIndex].id;
 
       if (over.data.current?.type === "Task") {
         const overTaskIndex = overTasks.findIndex((t) => t.id === overId);
@@ -543,11 +674,15 @@ export default function TaskBoard() {
   };
 
   const onDragEnd = (event: DragEndEvent) => {
+    isDraggingRef.current = false;
     setActiveColumn(null);
     setActiveTask(null);
 
     const { active, over } = event;
-    if (!over) return;
+    if (!over) {
+      flushPendingRefreshes();
+      return;
+    }
 
     const activeId = String(active.id);
     const overId = String(over.id);
@@ -574,6 +709,7 @@ export default function TaskBoard() {
           return newLists;
         });
       }
+      flushPendingRefreshes();
       return;
     }
 
@@ -593,54 +729,55 @@ export default function TaskBoard() {
 
         let newIndex = oldIndex;
         if (over.data.current?.type === "Task") {
-            newIndex = currentTasks.findIndex((t) => t.id === overId);
+          newIndex = currentTasks.findIndex((t) => t.id === overId);
         } else if (over.data.current?.type === "Column" && overId === targetListId) {
-            newIndex = currentTasks.length - 1; // Dropped on empty space in column, move to bottom
+          newIndex = currentTasks.length - 1; // Dropped on empty space in column, move to bottom
         }
 
         let finalTasks = currentTasks;
         if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-            finalTasks = arrayMove(currentTasks, oldIndex, newIndex);
+          finalTasks = arrayMove(currentTasks, oldIndex, newIndex);
         }
 
         newLists[currentListIndex] = { ...newLists[currentListIndex], tasks: finalTasks };
 
         // Helper for calculating absolute fractional position gaps
         const calculatePosition = (tasks: Task[], idx: number) => {
-            // 1. If it's the only task in the list
-            if (tasks.length <= 1) return 1000;
+          // 1. If it's the only task in the list
+          if (tasks.length <= 1) return 1000;
 
-            // 2. If moved to the very top
-            if (idx === 0) {
-                const nextPos = tasks[1]?.position || 1000;
-                // FIX: Halve the space instead of subtracting 1000.
-                // This prevents the position from ever going negative!
-                return Math.floor(nextPos / 2);
-            }
+          // 2. If moved to the very top
+          if (idx === 0) {
+            const nextPos = tasks[1]?.position || 1000;
+            // FIX: Halve the space instead of subtracting 1000.
+            // This prevents the position from ever going negative!
+            return Math.floor(nextPos / 2);
+          }
 
-            // 3. If moved to the very bottom
-            if (idx === tasks.length - 1) {
-                const prevPos = tasks[idx - 1]?.position || 0;
-                return prevPos + 1000;
-            }
-
-            // 4. If moved right between two existing tasks
+          // 3. If moved to the very bottom
+          if (idx === tasks.length - 1) {
             const prevPos = tasks[idx - 1]?.position || 0;
-            const nextPos = tasks[idx + 1]?.position || 0;
-            return Math.floor((prevPos + nextPos) / 2);
+            return prevPos + 1000;
+          }
+
+          // 4. If moved right between two existing tasks
+          const prevPos = tasks[idx - 1]?.position || 0;
+          const nextPos = tasks[idx + 1]?.position || 0;
+          return Math.floor((prevPos + nextPos) / 2);
         };
 
         const newPos = calculatePosition(finalTasks, newIndex !== -1 ? newIndex : oldIndex);
 
         // Fire the API call
         moveTask({
-            id: activeId,
-            data: { target_list_id: targetListId, position: newPos },
+          id: activeId,
+          data: { target_list_id: targetListId, position: newPos },
         });
 
         return newLists;
       });
     }
+    flushPendingRefreshes();
   };
 
   const dropAnimation: DropAnimation = {
@@ -671,127 +808,157 @@ export default function TaskBoard() {
     <main className="flex-1 h-[calc(100vh-64px)] bg-kanban-board overflow-hidden">
       <ScrollArea className="w-full h-full">
         <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragEnd={onDragEnd}
-      >
-        <div className="flex items-start gap-4 p-6 h-full min-w-max">
-          <SortableContext items={listIds} strategy={horizontalListSortingStrategy}>
-            {localLists.map((list) => (
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDragEnd={onDragEnd}
+        >
+          <div className="flex items-start gap-4 p-6 h-full min-w-max">
+            <SortableContext items={listIds} strategy={horizontalListSortingStrategy}>
+              {localLists.map((list) => (
+                <BoardColumn
+                  key={list.id}
+                  list={list}
+                  tasks={list.tasks || []}
+                  orgId={orgId}
+                  channelId={channelId}
+                  onDeleteTask={handleDeleteRequest}
+                  onOpenTaskDetail={handleOpenDetail}
+                  onEditTask={handleEditRequest}
+                  onEditList={(list) => {
+                    setListToEdit(list);
+                    setIsEditListModalOpen(true);
+                  }}
+                  onDeleteList={(list) => {
+                    setListToDelete(list);
+                    setIsDeleteListModalOpen(true);
+                  }}
+                  canUpdateList={canUpdateList}
+                  canDeleteList={canDeleteList}
+                  canCreateTask={canCreateTask}
+                  canDeleteTask={canDeleteTask}
+                  canUpdateTaskBasic={canUpdateTaskBasic}
+                  canEditTask={canEditTask}
+                  totalTaskCount={list.task_count ?? list.tasks.length}
+                  hasMoreTasks={Boolean(list.pagination?.hasMore)}
+                  isLoadingTasks={Boolean(list.isTasksLoading)}
+                  isFetchingTasks={Boolean(list.isTasksFetching)}
+                  onLoadMore={handleLoadMoreTasks}
+                />
+              ))}
+            </SortableContext>
+
+            {/* Ghost Column for adding new lists */}
+            {canCreateList && (
+              <CreateListDialog
+                channelId={channelId}
+                position={localLists.length * 1000}
+                trigger={
+                  <button
+                    className="bg-kanban-column/50 border border-dashed border-kanban-border rounded-[10px] w-[300px] shrink-0 p-4 flex items-center gap-2 text-kanban-text-secondary hover:text-kanban-text-primary hover:bg-kanban-card-hover/50 hover:border-kanban-border-hover/50 transition-all text-[14px] font-semibold h-fit mt-0"
+                  >
+                    <Plus size={20} />
+                    Add another list
+                  </button>
+                }
+              />
+            )}
+          </div>
+
+          <DragOverlay dropAnimation={dropAnimation}>
+            {activeColumn ? (
               <BoardColumn
-                key={list.id}
-                list={list}
-                tasks={list.tasks || []}
+                list={activeColumn}
+                tasks={activeColumn.tasks || []}
                 orgId={orgId}
                 channelId={channelId}
-                onDeleteTask={handleDeleteRequest}
-                onOpenTaskDetail={handleOpenDetail}
-                onEditList={(list) => {
-                  setListToEdit(list);
-                  setIsEditListModalOpen(true);
-                }}
-                onDeleteList={(list) => {
-                  setListToDelete(list);
-                  setIsDeleteListModalOpen(true);
-                }}
+                onDeleteTask={() => { }}
+                onOpenTaskDetail={() => { }}
+                onEditTask={() => { }}
+                onEditList={() => { }}
+                onDeleteList={() => { }}
                 canUpdateList={canUpdateList}
                 canDeleteList={canDeleteList}
                 canCreateTask={canCreateTask}
                 canDeleteTask={canDeleteTask}
                 canUpdateTaskBasic={canUpdateTaskBasic}
+                canEditTask={canEditTask}
+                totalTaskCount={activeColumn.task_count ?? activeColumn.tasks?.length ?? 0}
               />
-            ))}
-          </SortableContext>
+            ) : null}
+            {activeTask ? (
+              <TaskCard
+                task={activeTask}
+                isOverlay
+                channelId={channelId}
+                onDeleteRequest={() => { }}
+                canDeleteTask={canDeleteTask}
+                canUpdateTaskBasic={canUpdateTaskBasic}
+                canEditTask={canEditTask}
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
 
-          {/* Ghost Column for adding new lists */}
-          {canCreateList && (
-            <CreateListDialog
-              channelId={channelId}
-              position={localLists.length * 1000}
-              trigger={
-                <button
-                  className="bg-kanban-column/50 border border-dashed border-kanban-border rounded-[10px] w-[300px] shrink-0 p-4 flex items-center gap-2 text-kanban-text-secondary hover:text-kanban-text-primary hover:bg-kanban-card-hover/50 hover:border-kanban-border-hover/50 transition-all text-[14px] font-semibold h-fit mt-0"
-                >
-                  <Plus size={20} />
-                  Add another list
-                </button>
-              }
-            />
-          )}
-        </div>
+      {/* Delete Task Dialog */}
+      {taskToDelete && (
+        <DeleteTaskDialog
+          open={isDeleteModalOpen}
+          onOpenChange={setIsDeleteModalOpen}
+          taskId={taskToDelete.id}
+          taskTitle={taskToDelete.title}
+          channelId={channelId}
+          onSuccess={() => setTaskToDelete(null)}
+        />
+      )}
 
-        <DragOverlay dropAnimation={dropAnimation}>
-          {activeColumn ? (
-            <BoardColumn
-              list={activeColumn}
-              tasks={activeColumn.tasks || []}
-              orgId={orgId}
-              channelId={channelId}
-              onDeleteTask={() => {}}
-              onOpenTaskDetail={() => {}}
-              onEditList={() => {}}
-              onDeleteList={() => {}}
-            />
-          ) : null}
-          {activeTask ? (
-            <TaskCard 
-              task={activeTask} 
-              isOverlay 
-              channelId={channelId} 
-              onDeleteRequest={() => {}}
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
+      {/* Edit Task Dialog */}
+      {taskToEdit && (
+        <EditTaskDialog
+          key={`${taskToEdit.id}-${isEditTaskModalOpen}`}
+          channelId={channelId}
+          taskId={taskToEdit.id}
+          initialTitle={taskToEdit.title}
+          open={isEditTaskModalOpen}
+          onOpenChange={setIsEditTaskModalOpen}
+        />
+      )}
 
-    {/* Delete Task Dialog */}
-    {taskToDelete && (
-      <DeleteTaskDialog
-        open={isDeleteModalOpen}
-        onOpenChange={setIsDeleteModalOpen}
-        taskId={taskToDelete.id}
-        taskTitle={taskToDelete.title}
-        channelId={channelId}
-        onSuccess={() => setTaskToDelete(null)}
-      />
-    )}
+      {/* Task Detail Dialog */}
+      {taskForDetail && (
+        <TaskDetailDialog
+          key={`${taskForDetail.id}-${isDetailModalOpen}`}
+          open={isDetailModalOpen}
+          onOpenChange={setIsDetailModalOpen}
+          taskId={taskForDetail.id}
+          channelId={channelId}
+        />
+      )}
 
-    {/* Task Detail Dialog */}
-    {taskForDetail && (
-      <TaskDetailDialog
-        key={`${taskForDetail.id}-${isDetailModalOpen}`}
-        open={isDetailModalOpen}
-        onOpenChange={setIsDetailModalOpen}
-        taskId={taskForDetail.id}
-        channelId={channelId}
-      />
-    )}
+      {listToEdit && (
+        <EditListDialog
+          key={`${listToEdit.id}-${isEditListModalOpen}`}
+          channelId={channelId}
+          listId={listToEdit.id}
+          initialName={listToEdit.name}
+          open={isEditListModalOpen}
+          onOpenChange={setIsEditListModalOpen}
+        />
+      )}
 
-    {listToEdit && (
-      <EditListDialog
-        key={`${listToEdit.id}-${isEditListModalOpen}`}
-        channelId={channelId}
-        listId={listToEdit.id}
-        initialName={listToEdit.name}
-        open={isEditListModalOpen}
-        onOpenChange={setIsEditListModalOpen}
-      />
-    )}
-
-    {listToDelete && (
-      <DeleteListDialog
-        key={listToDelete.id}
-        channelId={channelId}
-        listId={listToDelete.id}
-        listName={listToDelete.name}
-        open={isDeleteListModalOpen}
-        onOpenChange={setIsDeleteListModalOpen}
-      />
-    )}
-  </main>
+      {listToDelete && (
+        <DeleteListDialog
+          key={listToDelete.id}
+          channelId={channelId}
+          listId={listToDelete.id}
+          listName={listToDelete.name}
+          open={isDeleteListModalOpen}
+          onOpenChange={setIsDeleteListModalOpen}
+        />
+      )}
+    </main>
   );
 }

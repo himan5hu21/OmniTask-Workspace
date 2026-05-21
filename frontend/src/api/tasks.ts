@@ -1,6 +1,7 @@
 import {
   useMutation,
   useQuery,
+  useQueries,
   useQueryClient,
 } from "@tanstack/react-query";
 import { apiRequest } from "@/api/api";
@@ -98,10 +99,21 @@ export type BoardList = {
   name: string;
   position: number;
   channel_id: string;
+  task_count?: number;
   tasks?: Task[];
 };
 
 export type BoardResponse = ApiSuccess<{ lists: BoardList[] }>;
+export type BoardListTasksResponse = ApiSuccess<{
+  tasks: Task[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}>;
 export type TaskResponse = ApiSuccess<Task>;
 export type SuccessResponse = ApiSuccess<{ success: boolean }>;
 
@@ -109,7 +121,17 @@ export type SuccessResponse = ApiSuccess<{ success: boolean }>;
 export type CreateBoardListInput = { channel_id: string; name: string; position: number };
 export type ReorderListsInput = { channel_id: string; items: { id: string; position: number }[] };
 export type CreateTaskInput = { title: string; list_id: string; channel_id: string; org_id: string };
-export type UpdateTaskInput = { title?: string; description?: string; status?: TaskStatus; priority?: TaskPriority | null; start_date?: string | null; due_date?: string | null; completed_at?: string | null; cover_color?: string };
+export type UpdateTaskInput = {
+  title?: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority | null;
+  start_date?: string | null;
+  due_date?: string | null;
+  completed_at?: string | null;
+  cover_color?: string;
+  expectedUpdatedAt?: string;
+};
 export type MoveTaskInput = { target_list_id: string; position: number };
 export type AssignUserInput = { user_id: string; role?: string };
 export type CreateCommentInput = { content: string };
@@ -140,6 +162,7 @@ export const taskKeys = {
   all: ["tasks"] as const,
   boards: () => [...taskKeys.all, "boards"] as const,
   board: (channelId: string) => [...taskKeys.boards(), channelId] as const,
+  listTasks: (listId: string, limit: number) => [...taskKeys.all, "list", listId, "tasks", limit] as const,
   details: () => [...taskKeys.all, "detail"] as const,
   detail: (taskId: string) => [...taskKeys.details(), taskId] as const,
   comments: (taskId: string) => [...taskKeys.detail(taskId), "comments"] as const,
@@ -152,6 +175,11 @@ export const taskService = {
   // Board & Lists
   getBoard: async (channelId: string): Promise<BoardResponse> => {
     return apiRequest.get<BoardResponse>(`/boards/${channelId}`);
+  },
+  getBoardListTasks: async (listId: string, page = 1, limit = 50): Promise<BoardListTasksResponse> => {
+    return apiRequest.get<BoardListTasksResponse>(`/board-lists/${listId}/tasks`, {
+      params: { page, limit },
+    });
   },
   createBoardList: async (data: CreateBoardListInput): Promise<ApiSuccess<BoardList>> => {
     return apiRequest.post<ApiSuccess<BoardList>>('/board-lists', data);
@@ -178,6 +206,7 @@ export const taskService = {
       return apiRequest.patch<TaskResponse>(`/tasks/${id}/content`, {
         title: data.title,
         description: data.description,
+        expectedUpdatedAt: data.expectedUpdatedAt,
       });
     }
     if ('status' in data) {
@@ -350,8 +379,9 @@ export const useCreateTask = (channelId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: taskService.createTask,
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.board(channelId) });
+      queryClient.invalidateQueries({ queryKey: [...taskKeys.all, "list", variables.list_id, "tasks"] });
     },
   });
 };
@@ -364,6 +394,7 @@ export const useUpdateTask = (channelId?: string, parentTaskId?: string) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(variables.id) });
       if (parentTaskId) queryClient.invalidateQueries({ queryKey: taskKeys.detail(parentTaskId) });
       if (channelId) queryClient.invalidateQueries({ queryKey: taskKeys.board(channelId) });
+      queryClient.invalidateQueries({ queryKey: [...taskKeys.all, "list"] });
     },
   });
 };
@@ -374,6 +405,7 @@ export const useMoveTask = (channelId: string) => {
     mutationFn: ({ id, data }: { id: string; data: MoveTaskInput }) => taskService.moveTask(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.board(channelId) });
+      queryClient.invalidateQueries({ queryKey: [...taskKeys.all, "list"] });
     },
   });
 };
@@ -385,7 +417,26 @@ export const useDeleteTask = (channelId?: string, parentTaskId?: string) => {
     onSuccess: () => {
       if (parentTaskId) queryClient.invalidateQueries({ queryKey: taskKeys.detail(parentTaskId) });
       if (channelId) queryClient.invalidateQueries({ queryKey: taskKeys.board(channelId) });
+      queryClient.invalidateQueries({ queryKey: [...taskKeys.all, "list"] });
     },
+  });
+};
+
+export const useBoardListTasks = (
+  lists: Pick<BoardList, "id">[],
+  pageSizes: Record<string, number>,
+  options?: { enabled?: boolean }
+) => {
+  return useQueries({
+    queries: lists.map((list) => {
+      const limit = pageSizes[list.id] ?? 50;
+      return {
+        queryKey: taskKeys.listTasks(list.id, limit),
+        queryFn: () => taskService.getBoardListTasks(list.id, 1, limit),
+        enabled: (options?.enabled ?? true) && !!list.id,
+        staleTime: 1000 * 30,
+      };
+    }),
   });
 };
 

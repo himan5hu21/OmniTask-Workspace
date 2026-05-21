@@ -4,7 +4,7 @@
  * UI Component & Icon Imports
  * Includes Lucide icons for visual representation and common utility components.
  */
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Image from "next/image";
 import {
   AlignLeft,
@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { buildAuthenticatedDownloadUrl, buildAuthenticatedFileUrl } from "@/lib/file-url";
 import { TiptapEditor } from "@/components/TiptapEditor";
 
 /* 
@@ -63,6 +64,9 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useAbility } from "@casl/react";
 import { AbilityContext } from "@/lib/casl";
+import { useAuthProfile } from "@/api/auth";
+import { useTaskRealtime } from "@/hooks/useTaskRealtime";
+import { useSyncedState } from "@/hooks/useSyncedState";
 
 import {
   Dialog,
@@ -117,6 +121,45 @@ interface ChannelMember {
   name: string;
   avatar_url?: string | null;
 }
+
+type DraftState = {
+  value: string;
+  lastServerValue: string;
+  baseValue: string;
+  isEditing: boolean;
+  isDirty: boolean;
+  serverVersionAtStart: string | null;
+};
+
+const createDraftState = (value = "", updatedAt: string | null = null): DraftState => ({
+  value,
+  lastServerValue: value,
+  baseValue: value,
+  isEditing: false,
+  isDirty: false,
+  serverVersionAtStart: updatedAt,
+});
+
+const syncDraftState = (previousDraft: DraftState, nextValue: string, nextUpdatedAt: string | null) => {
+  if (!previousDraft.isEditing) {
+    return createDraftState(nextValue, nextUpdatedAt);
+  }
+
+  if (!previousDraft.isDirty) {
+    return {
+      ...previousDraft,
+      value: nextValue,
+      lastServerValue: nextValue,
+      baseValue: nextValue,
+      serverVersionAtStart: nextUpdatedAt,
+    };
+  }
+
+  return {
+    ...previousDraft,
+    lastServerValue: nextValue,
+  };
+};
 
 /**
  * SingleAssigneeSelector Component
@@ -393,22 +436,19 @@ function AddChecklistItemForm({
   );
 }
 
-/**
- * InlineTextareaEditor Component
- * A reusable inline multi-line editor to prevent re-renders on keystrokes.
- */
-function InlineTextareaEditor({
-  initialValue,
+function ControlledInlineTextareaEditor({
+  value,
+  onChange,
   onSubmit,
   onCancel,
   placeholder = "Enter value..."
 }: {
-  initialValue: string;
-  onSubmit: (value: string) => void;
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
   onCancel: () => void;
   placeholder?: string;
 }) {
-  const [value, setValue] = useState(initialValue);
   return (
     <div className="flex flex-col gap-2 p-2 border border-primary/40 rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-200">
       <Textarea
@@ -421,32 +461,20 @@ function InlineTextareaEditor({
           target.style.height = 'auto';
           target.style.height = `${target.scrollHeight}px`;
         }}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (value.trim()) onSubmit(value);
+            if (value.trim()) onSubmit();
           }
           if (e.key === 'Escape') onCancel();
         }}
       />
       <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onCancel}
-          className="h-8 text-xs text-muted-foreground hover:text-foreground"
-        >
+        <Button variant="ghost" size="sm" onClick={onCancel} className="h-8 text-xs text-muted-foreground hover:text-foreground">
           Cancel
         </Button>
-        <Button
-          size="sm"
-          onClick={() => {
-            if (value.trim()) onSubmit(value);
-          }}
-          disabled={!value.trim()}
-          className="h-8 text-xs px-4"
-        >
+        <Button size="sm" onClick={onSubmit} disabled={!value.trim()} className="h-8 text-xs px-4">
           Save
         </Button>
       </div>
@@ -454,36 +482,31 @@ function InlineTextareaEditor({
   );
 }
 
-/**
- * InlineInputEditor Component
- * A reusable inline single-line editor to prevent re-renders on keystrokes.
- */
-function InlineInputEditor({
-  initialValue,
+function ControlledInlineInputEditor({
+  value,
+  onChange,
   onSubmit,
   onCancel,
   className
 }: {
-  initialValue: string;
-  onSubmit: (value: string) => void;
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
   onCancel: () => void;
   className?: string;
 }) {
-  const [value, setValue] = useState(initialValue);
   return (
     <input
       autoFocus
       className={className}
       value={value}
-      onChange={(e) => setValue(e.target.value)}
+      onChange={(e) => onChange(e.target.value)}
       onBlur={() => {
-        if (value.trim()) onSubmit(value);
+        if (value.trim()) onSubmit();
         else onCancel();
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          if (value.trim()) onSubmit(value);
-        }
+        if (e.key === 'Enter' && value.trim()) onSubmit();
         if (e.key === 'Escape') onCancel();
       }}
     />
@@ -625,6 +648,7 @@ export function TaskDetailDialog({
   onOpenChange
 }: TaskDetailDialogProps) {
   const ability = useAbility(AbilityContext);
+  const { user } = useAuthProfile({ enabled: open });
   const canUpdateBasic = ability.can("update-basic", "Task");
   const canUpdateManage = ability.can("update-manage", "Task");
   const canDeleteTask = ability.can("delete", "Task");
@@ -647,6 +671,9 @@ export function TaskDetailDialog({
   const { members: channelMembers } = useChannelMembers(channelId);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const activeTaskIdRef = useRef<string | null>(taskId);
+  const openDialogRef = useRef(open);
+  const dirtyFieldsRef = useRef<Record<string, boolean>>({});
   const { mutate: updateChecklistItem } = useUpdateChecklistItem(taskId);
   const { mutate: deleteChecklistItem } = useDeleteChecklistItem(taskId);
   const { mutate: updateChecklist } = useUpdateChecklist(taskId);
@@ -660,22 +687,128 @@ export function TaskDetailDialog({
   const { mutate: createLabel } = useCreateLabel(task?.org_id || "");
   const { mutate: deleteLabel } = useDeleteLabel(task?.org_id || "");
 
+  const titleServerState = useMemo(
+    () => ({
+      value: task?.title || "",
+      updatedAt: task?.updated_at || null,
+    }),
+    [task?.title, task?.updated_at]
+  );
+
+  const descriptionServerState = useMemo(
+    () => ({
+      value: task?.description || "",
+      updatedAt: task?.updated_at || null,
+    }),
+    [task?.description, task?.updated_at]
+  );
+
+  const checklistServerState = useMemo(
+    () => ({
+      checklists: task?.checklists ?? [],
+      updatedAt: task?.updated_at || null,
+    }),
+    [task?.checklists, task?.updated_at]
+  );
+
+  const subtaskServerState = useMemo(
+    () => ({
+      subtasks: task?.subtasks ?? [],
+      updatedAt: task?.updated_at || null,
+    }),
+    [task?.subtasks, task?.updated_at]
+  );
+
   /* 
    * LOCAL UI STATE
    * Manages inline editing modes, input values, and temporary visibility states.
    */
-  const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [description, setDescription] = useState("");
+  const [titleDraft, setTitleDraft] = useSyncedState(
+    titleServerState,
+    (server) => createDraftState(server.value, server.updatedAt),
+    (previousDraft, server) => syncDraftState(previousDraft, server.value, server.updatedAt)
+  );
+  const [descriptionDraft, setDescriptionDraft] = useSyncedState(
+    descriptionServerState,
+    (server) => createDraftState(server.value, server.updatedAt),
+    (previousDraft, server) => syncDraftState(previousDraft, server.value, server.updatedAt)
+  );
   const [addingChecklistId, setAddingChecklistId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingChecklistId, setEditingChecklistId] = useState<string | null>(null);
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [checklistDrafts, setChecklistDrafts] = useSyncedState(
+    checklistServerState,
+    () => ({} as Record<string, DraftState>),
+    (previousDrafts, server) => {
+      const nextDrafts = { ...previousDrafts };
+      server.checklists.forEach((checklist) => {
+        nextDrafts[checklist.id] = syncDraftState(
+          nextDrafts[checklist.id] ?? createDraftState(checklist.name || "", server.updatedAt),
+          checklist.name || "",
+          server.updatedAt
+        );
+      });
+      return nextDrafts;
+    }
+  );
+  const [subtaskDrafts, setSubtaskDrafts] = useSyncedState(
+    subtaskServerState,
+    () => ({} as Record<string, DraftState>),
+    (previousDrafts, server) => {
+      const nextDrafts = { ...previousDrafts };
+      server.subtasks.forEach((subtask) => {
+        nextDrafts[subtask.id] = syncDraftState(
+          nextDrafts[subtask.id] ?? createDraftState(subtask.title || "", server.updatedAt),
+          subtask.title || "",
+          server.updatedAt
+        );
+      });
+      return nextDrafts;
+    }
+  );
+  const [itemDrafts, setItemDrafts] = useSyncedState(
+    checklistServerState,
+    () => ({} as Record<string, DraftState>),
+    (previousDrafts, server) => {
+      const nextDrafts = { ...previousDrafts };
+      server.checklists.forEach((checklist) => {
+        checklist.items?.forEach((item) => {
+          nextDrafts[item.id] = syncDraftState(
+            nextDrafts[item.id] ?? createDraftState(item.text || "", server.updatedAt),
+            item.text || "",
+            server.updatedAt
+          );
+        });
+      });
+      return nextDrafts;
+    }
+  );
   const [isAddChecklistDialogOpen, setIsAddChecklistDialogOpen] = useState(false);
   const [isAddingSubtaskMode, setIsAddingSubtaskMode] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const [isCreatingLabel, setIsCreatingLabel] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+
+  useEffect(() => {
+    activeTaskIdRef.current = taskId;
+    openDialogRef.current = open;
+  }, [open, taskId]);
+
+  useTaskRealtime(channelId, {
+    userId: user?.id,
+    activeTaskIdRef,
+    openDialogRef,
+    dirtyFieldsRef,
+    onTaskDeleted: (payload) => {
+      if (payload.taskId === taskId) {
+        toast.error("This task was deleted.");
+        onOpenChange(false);
+      }
+    },
+  });
 
   if (!open) return null;
 
@@ -684,10 +817,105 @@ export function TaskDetailDialog({
    * Logic for processing user interactions and calling API mutations.
    */
 
+  const markDirty = (key: string, nextValue: string, previousValue: string) => {
+    const isDirty = nextValue !== previousValue;
+    dirtyFieldsRef.current[key] = isDirty;
+    return isDirty;
+  };
+
+  const beginTitleEdit = () => {
+    setIsEditingTitle(true);
+    setTitleDraft((prev) => ({
+      ...prev,
+      value: prev.lastServerValue,
+      baseValue: prev.lastServerValue,
+      isEditing: true,
+      isDirty: false,
+      serverVersionAtStart: task?.updated_at || null,
+    }));
+  };
+
+  const cancelTitleEdit = () => {
+    setIsEditingTitle(false);
+    dirtyFieldsRef.current.title = false;
+    setTitleDraft((prev) => ({
+      ...prev,
+      value: prev.lastServerValue,
+      baseValue: prev.lastServerValue,
+      isEditing: false,
+      isDirty: false,
+      serverVersionAtStart: task?.updated_at || null,
+    }));
+  };
+
+  const handleUpdateTitle = () => {
+    updateTask(
+      {
+        id: taskId,
+        data: {
+          title: titleDraft.value,
+          expectedUpdatedAt: titleDraft.serverVersionAtStart || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setIsEditingTitle(false);
+          dirtyFieldsRef.current.title = false;
+          setTitleDraft((prev) => ({
+            ...prev,
+            value: prev.value,
+            lastServerValue: prev.value,
+            baseValue: prev.value,
+            isEditing: false,
+            isDirty: false,
+            serverVersionAtStart: null,
+          }));
+        },
+        onError: (error: unknown) => {
+          const err = error as { status?: number; message?: string };
+          if (err.status === 409) {
+            toast.error("Someone else updated this task while you were editing. Your draft was preserved.");
+            return;
+          }
+          toast.error(err.message || "Failed to update task title");
+        },
+      }
+    );
+  };
+
   // Updates the task's rich text description
   const handleUpdateDescription = () => {
-    updateTask({ id: taskId, data: { description } });
-    setIsEditingDescription(false);
+    updateTask(
+      {
+        id: taskId,
+        data: {
+          description: descriptionDraft.value,
+          expectedUpdatedAt: descriptionDraft.serverVersionAtStart || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          dirtyFieldsRef.current.description = false;
+          setDescriptionDraft((prev) => ({
+            ...prev,
+            value: prev.value,
+            lastServerValue: prev.value,
+            baseValue: prev.value,
+            isEditing: false,
+            isDirty: false,
+            serverVersionAtStart: null,
+          }));
+        },
+        onError: (error: unknown) => {
+          const err = error as { status?: number; message?: string };
+          if (err.status === 409) {
+            toast.error("Someone else updated this task while you were editing. Your draft was preserved.");
+            return;
+          }
+          toast.error(err.message || "Failed to update description");
+        },
+      }
+    );
   };
 
   // Submits a new comment to the task activity feed
@@ -739,18 +967,54 @@ export function TaskDetailDialog({
   const handleUpdateChecklistTitle = (checklistId: string, title: string) => {
     updateChecklist({ id: checklistId, data: { title } });
     setEditingChecklistId(null);
+    dirtyFieldsRef.current[`checklist:${checklistId}`] = false;
+    setChecklistDrafts((prev) => ({
+      ...prev,
+      [checklistId]: {
+        ...(prev[checklistId] ?? createDraftState(title)),
+        value: title,
+        lastServerValue: title,
+        baseValue: title,
+        isEditing: false,
+        isDirty: false,
+      },
+    }));
   };
 
   // Updates the title of an existing subtask
   const handleUpdateSubtaskTitle = (subtaskId: string, title: string) => {
     updateTask({ id: subtaskId, data: { title } });
     setEditingSubtaskId(null);
+    dirtyFieldsRef.current[`subtask:${subtaskId}`] = false;
+    setSubtaskDrafts((prev) => ({
+      ...prev,
+      [subtaskId]: {
+        ...(prev[subtaskId] ?? createDraftState(title)),
+        value: title,
+        lastServerValue: title,
+        baseValue: title,
+        isEditing: false,
+        isDirty: false,
+      },
+    }));
   };
 
   // Updates the text of a checklist item
   const handleUpdateItemTitle = (itemId: string, text: string) => {
     updateChecklistItem({ itemId, data: { text } });
     setEditingItemId(null);
+    dirtyFieldsRef.current[`item:${itemId}`] = false;
+    setItemDrafts((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] ?? createDraftState(text)),
+        value: text,
+        lastServerValue: text,
+        baseValue: text,
+        isEditing: false,
+        isDirty: false,
+      },
+    }));
   };
 
   /* 
@@ -779,9 +1043,44 @@ export function TaskDetailDialog({
           <DialogHeader className="px-6 py-4 pr-12 border-b border-border bg-card shrink-0 text-left">
             <DialogTitle className="sr-only">Task: {task.title}</DialogTitle>
             <div className="flex-1">
-              <h2 className="text-xl font-bold text-foreground wrap-break-words">
-                {task.title}
-              </h2>
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={titleDraft.value}
+                    onChange={(e) =>
+                      setTitleDraft((prev) => {
+                        const nextValue = e.target.value;
+                        return {
+                          ...prev,
+                          value: nextValue,
+                          isDirty: markDirty("title", nextValue, prev.baseValue),
+                        };
+                      })
+                    }
+                    className="w-full bg-transparent border border-border rounded-md px-3 py-2 text-xl font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={cancelTitleEdit}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" className="h-8 text-xs" onClick={handleUpdateTitle} disabled={!titleDraft.value.trim()}>
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <h2
+                  className={cn(
+                    "text-xl font-bold text-foreground wrap-break-words",
+                    canUpdateBasic ? "cursor-text" : "cursor-default"
+                  )}
+                  onClick={() => {
+                    if (!canUpdateBasic) return;
+                    beginTitleEdit();
+                  }}
+                >
+                  {titleDraft.lastServerValue || task.title}
+                </h2>
+              )}
             </div>
           </DialogHeader>
 
@@ -1367,15 +1666,22 @@ export function TaskDetailDialog({
                         <AlignLeft className="h-5 w-5 text-primary" />
                         <h3>Description</h3>
                       </div>
-                      {isEditingDescription && (
+                      {descriptionDraft.isEditing && (
                         <div className="flex items-center gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-7 text-xs"
                             onClick={() => {
-                              setIsEditingDescription(false);
-                              setDescription(task.description || "");
+                              dirtyFieldsRef.current.description = false;
+                              setDescriptionDraft((prev) => ({
+                                ...prev,
+                                value: prev.lastServerValue,
+                                baseValue: prev.lastServerValue,
+                                isEditing: false,
+                                isDirty: false,
+                                serverVersionAtStart: task?.updated_at || null,
+                              }));
                             }}
                           >
                             Cancel
@@ -1391,10 +1697,16 @@ export function TaskDetailDialog({
                       )}
                     </div>
 
-                    {isEditingDescription ? (
+                    {descriptionDraft.isEditing ? (
                       <TiptapEditor
-                        content={description || task.description || ""}
-                        onChange={setDescription}
+                        content={descriptionDraft.value}
+                        onChange={(value) =>
+                          setDescriptionDraft((prev) => ({
+                            ...prev,
+                            value,
+                            isDirty: markDirty("description", value, prev.baseValue),
+                          }))
+                        }
                         placeholder="Add a more detailed description..."
                         autoFocus
                       />
@@ -1402,8 +1714,14 @@ export function TaskDetailDialog({
                       <div
                         onClick={() => {
                           if (!canUpdateBasic) return;
-                          setDescription(task.description || "");
-                          setIsEditingDescription(true);
+                          setDescriptionDraft((prev) => ({
+                            ...prev,
+                            value: prev.lastServerValue,
+                            baseValue: prev.lastServerValue,
+                            isEditing: true,
+                            isDirty: false,
+                            serverVersionAtStart: task.updated_at || null,
+                          }));
                         }}
                         className={cn(
                           "p-3 min-h-[120px] text-sm text-foreground rounded-md border border-transparent transition-all prose prose-sm dark:prose-invert max-w-none [&_p]:my-0 [&_ul]:my-0 [&_ol]:my-0 [&_li::marker]:text-foreground wrap-anywhere [&_p]:wrap-anywhere [&_li]:wrap-anywhere [&_h1]:wrap-anywhere [&_h2]:wrap-anywhere [&_h3]:wrap-anywhere [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:wrap-anywhere [&_pre_code]:whitespace-pre-wrap [&_pre_code]:wrap-anywhere",
@@ -1411,8 +1729,8 @@ export function TaskDetailDialog({
                           (!task.description || task.description.replace(/<[^>]*>/g, '').trim() === '') && "text-muted-foreground italic"
                         )}
                         dangerouslySetInnerHTML={{
-                          __html: (task.description && task.description.replace(/<[^>]*>/g, '').trim() !== '')
-                            ? task.description
+                          __html: (descriptionDraft.lastServerValue && descriptionDraft.lastServerValue.replace(/<[^>]*>/g, '').trim() !== '')
+                            ? descriptionDraft.lastServerValue
                             : "Add a more detailed description..."
                         }}
                       />
@@ -1430,17 +1748,18 @@ export function TaskDetailDialog({
                         {task.attachments.map((file) => {
                           const isImage = file.mime_type?.startsWith('image/');
                           const isPdf = file.mime_type === 'application/pdf';
+                          const fileUrl = buildAuthenticatedFileUrl(file.file_url);
 
                           return (
                             <div
                               key={file.id}
-                              onClick={() => isImage ? setSelectedImage(file.file_url) : window.open(file.file_url, '_blank')}
+                              onClick={() => isImage ? setSelectedImage(fileUrl) : window.open(fileUrl, '_blank', 'noopener,noreferrer')}
                               className="flex flex-col rounded-lg border border-border bg-muted/20 overflow-hidden group hover:border-primary/40 transition-all cursor-pointer shadow-sm"
                             >
                               {isImage ? (
                                 <div className="h-16 w-full relative bg-muted overflow-hidden">
                                   <Image
-                                    src={file.file_url}
+                                    src={fileUrl}
                                     alt={file.file_name}
                                     fill
                                     unoptimized
@@ -1538,13 +1857,13 @@ export function TaskDetailDialog({
                             <Button
                               variant="ghost" size="icon"
                               className="h-9 w-9 text-white/70 hover:text-white hover:bg-white/10 rounded-full"
-                              onClick={() => window.open(selectedImage, '_blank')}
+                              onClick={() => window.open(selectedImage, '_blank', 'noopener,noreferrer')}
                               title="Open in New Tab"
                             >
                               <ExternalLink size={18} />
                             </Button>
                             <a
-                              href={selectedImage}
+                              href={buildAuthenticatedDownloadUrl(selectedImage)}
                               download
                               target="_blank"
                               rel="noopener noreferrer"
@@ -1587,11 +1906,38 @@ export function TaskDetailDialog({
                     <div className="flex flex-col gap-2">
                       {task.subtasks?.map((subtask) => (
                         editingSubtaskId === subtask.id ? (
-                          <InlineTextareaEditor
+                          <ControlledInlineTextareaEditor
                             key={subtask.id}
-                            initialValue={subtask.title}
-                            onSubmit={(value) => handleUpdateSubtaskTitle(subtask.id, value)}
-                            onCancel={() => setEditingSubtaskId(null)}
+                            value={subtaskDrafts[subtask.id]?.value ?? subtask.title}
+                            onChange={(value) =>
+                              setSubtaskDrafts((prev) => {
+                                const current = prev[subtask.id] ?? createDraftState(subtask.title, task.updated_at || null);
+                                return {
+                                  ...prev,
+                                  [subtask.id]: {
+                                    ...current,
+                                    value,
+                                    isEditing: true,
+                                    isDirty: markDirty(`subtask:${subtask.id}`, value, current.baseValue),
+                                  },
+                                };
+                              })
+                            }
+                            onSubmit={() => handleUpdateSubtaskTitle(subtask.id, (subtaskDrafts[subtask.id]?.value ?? subtask.title).trim())}
+                            onCancel={() => {
+                              dirtyFieldsRef.current[`subtask:${subtask.id}`] = false;
+                              setEditingSubtaskId(null);
+                              setSubtaskDrafts((prev) => ({
+                                ...prev,
+                                [subtask.id]: {
+                                    ...(prev[subtask.id] ?? createDraftState(subtask.title, task?.updated_at || null)),
+                                  value: prev[subtask.id]?.lastServerValue ?? subtask.title,
+                                  baseValue: prev[subtask.id]?.lastServerValue ?? subtask.title,
+                                  isEditing: false,
+                                  isDirty: false,
+                                },
+                              }));
+                            }}
                             placeholder="What needs to be done?"
                           />
                         ) : (
@@ -1618,6 +1964,19 @@ export function TaskDetailDialog({
                             <span
                               onClick={() => {
                                 if (!canUpdateManage) return;
+                                const serverValue = subtaskDrafts[subtask.id]?.lastServerValue ?? subtask.title;
+                                setSubtaskDrafts((prev) => ({
+                                  ...prev,
+                                  [subtask.id]: {
+                                    ...(prev[subtask.id] ?? createDraftState(serverValue, task?.updated_at || null)),
+                                    value: serverValue,
+                                    baseValue: serverValue,
+                                    lastServerValue: serverValue,
+                                    isEditing: true,
+                                    isDirty: false,
+                                    serverVersionAtStart: task?.updated_at || null,
+                                  },
+                                }));
                                 setEditingSubtaskId(subtask.id);
                               }}
                               className={cn(
@@ -1693,10 +2052,37 @@ export function TaskDetailDialog({
                           <div className="flex items-center gap-2 text-foreground font-bold flex-1">
                             <CheckSquare className="h-5 w-5 text-primary shrink-0" />
                             {editingChecklistId === checklist.id ? (
-                              <InlineInputEditor
-                                initialValue={checklist.name}
-                                onSubmit={(value) => handleUpdateChecklistTitle(checklist.id, value)}
-                                onCancel={() => setEditingChecklistId(null)}
+                              <ControlledInlineInputEditor
+                                value={checklistDrafts[checklist.id]?.value ?? checklist.name}
+                                onChange={(value) =>
+                                  setChecklistDrafts((prev) => {
+                                    const current = prev[checklist.id] ?? createDraftState(checklist.name, task?.updated_at || null);
+                                    return {
+                                      ...prev,
+                                      [checklist.id]: {
+                                        ...current,
+                                        value,
+                                        isEditing: true,
+                                        isDirty: markDirty(`checklist:${checklist.id}`, value, current.baseValue),
+                                      },
+                                    };
+                                  })
+                                }
+                                onSubmit={() => handleUpdateChecklistTitle(checklist.id, (checklistDrafts[checklist.id]?.value ?? checklist.name).trim())}
+                                onCancel={() => {
+                                  dirtyFieldsRef.current[`checklist:${checklist.id}`] = false;
+                                  setEditingChecklistId(null);
+                                  setChecklistDrafts((prev) => ({
+                                    ...prev,
+                                    [checklist.id]: {
+                                      ...(prev[checklist.id] ?? createDraftState(checklist.name, task?.updated_at || null)),
+                                      value: prev[checklist.id]?.lastServerValue ?? checklist.name,
+                                      baseValue: prev[checklist.id]?.lastServerValue ?? checklist.name,
+                                      isEditing: false,
+                                      isDirty: false,
+                                    },
+                                  }));
+                                }}
                                 className="text-sm bg-transparent border-none p-0 focus:ring-0 text-foreground focus:outline-none font-bold flex-1 w-full"
                               />
                             ) : (
@@ -1704,6 +2090,19 @@ export function TaskDetailDialog({
                                 className={cn("flex-1 py-1", canUpdateManage ? "cursor-text" : "cursor-default")}
                                 onClick={() => {
                                   if (!canUpdateManage) return;
+                                  const serverValue = checklistDrafts[checklist.id]?.lastServerValue ?? checklist.name;
+                                  setChecklistDrafts((prev) => ({
+                                    ...prev,
+                                    [checklist.id]: {
+                                      ...(prev[checklist.id] ?? createDraftState(serverValue, task?.updated_at || null)),
+                                      value: serverValue,
+                                      baseValue: serverValue,
+                                      lastServerValue: serverValue,
+                                      isEditing: true,
+                                      isDirty: false,
+                                      serverVersionAtStart: task?.updated_at || null,
+                                    },
+                                  }));
                                   setEditingChecklistId(checklist.id);
                                 }}
                               >
@@ -1776,11 +2175,38 @@ export function TaskDetailDialog({
                         <div className="flex flex-col gap-2">
                           {checklist.items?.map((item) => (
                             editingItemId === item.id ? (
-                              <InlineTextareaEditor
+                              <ControlledInlineTextareaEditor
                                 key={item.id}
-                                initialValue={item.text}
-                                onSubmit={(value) => handleUpdateItemTitle(item.id, value)}
-                                onCancel={() => setEditingItemId(null)}
+                                value={itemDrafts[item.id]?.value ?? item.text}
+                                onChange={(value) =>
+                                  setItemDrafts((prev) => {
+                                    const current = prev[item.id] ?? createDraftState(item.text, task?.updated_at || null);
+                                    return {
+                                      ...prev,
+                                      [item.id]: {
+                                        ...current,
+                                        value,
+                                        isEditing: true,
+                                        isDirty: markDirty(`item:${item.id}`, value, current.baseValue),
+                                      },
+                                    };
+                                  })
+                                }
+                                onSubmit={() => handleUpdateItemTitle(item.id, (itemDrafts[item.id]?.value ?? item.text).trim())}
+                                onCancel={() => {
+                                  dirtyFieldsRef.current[`item:${item.id}`] = false;
+                                  setEditingItemId(null);
+                                  setItemDrafts((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...(prev[item.id] ?? createDraftState(item.text, task?.updated_at || null)),
+                                      value: prev[item.id]?.lastServerValue ?? item.text,
+                                      baseValue: prev[item.id]?.lastServerValue ?? item.text,
+                                      isEditing: false,
+                                      isDirty: false,
+                                    },
+                                  }));
+                                }}
                                 placeholder="What needs to be done?"
                               />
                             ) : (
@@ -1804,6 +2230,19 @@ export function TaskDetailDialog({
                                  <span
                                   onClick={() => {
                                     if (!canUpdateManage) return;
+                                    const serverValue = itemDrafts[item.id]?.lastServerValue ?? item.text;
+                                    setItemDrafts((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                      ...(prev[item.id] ?? createDraftState(serverValue, task?.updated_at || null)),
+                                        value: serverValue,
+                                        baseValue: serverValue,
+                                        lastServerValue: serverValue,
+                                        isEditing: true,
+                                        isDirty: false,
+                                        serverVersionAtStart: task?.updated_at || null,
+                                      },
+                                    }));
                                     setEditingItemId(item.id);
                                   }}
                                   className={cn(
