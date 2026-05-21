@@ -40,3 +40,24 @@ export const createChannelMessage = async (request: FastifyRequest, reply: Fasti
 
   return sendSuccess(reply, { message }, 'CREATE', 'Message sent successfully');
 };
+
+// Edit a message
+export const editMessage = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { messageId } = request.params as { messageId: string };
+  const { content } = z.object({ content: z.string().min(1) }).parse(request.body);
+  const user = (request as any).user;
+
+  const message = await MessageService.editMessage(messageId, content, user.userId, request.server.io);
+
+  return sendSuccess(reply, { message }, 'UPDATE', 'Message updated successfully');
+};
+
+// Delete a message
+export const deleteMessage = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { messageId } = request.params as { messageId: string };
+  const user = (request as any).user;
+
+  const result = await MessageService.deleteMessage(messageId, user.userId, request.server.io);
+
+  return sendSuccess(reply, result, 'DELETE', 'Message deleted successfully');
+};

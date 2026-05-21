@@ -90,7 +90,7 @@ const buildServer = async () => {
   // Register Multipart for file uploads
   await app.register(multipart, {
     limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB
+      fileSize: 50 * 1024 * 1024, // 50MB
     },
   });
   
@@ -98,20 +98,100 @@ const buildServer = async () => {
     secret: process.env.COOKIE_SECRET || 'omnitask-secret',
   });
 
-  // Register Static for serving uploads
+  // Register Static for serving public uploads (like user avatars)
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   await app.register(fastifyStatic, {
     root: path.join(__dirname, '../uploads'),
-    prefix: '/uploads',
-    setHeaders: (res, path) => {
+    prefix: '/uploads/user',
+    setHeaders: (res) => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      
-      // Allow images to be viewed inline, force download for others
-      const isViewable = /\.(jpg|jpeg|png|gif|webp|pdf)$/i.test(path);
-      if (!isViewable) {
-        res.setHeader('Content-Disposition', 'attachment');
+    }
+  });
+
+  // Authenticated Secure Serving of Message Attachments
+  app.get('/uploads/message/:filename', async (request, reply) => {
+    // 1. Verify token (support headers/cookies via verifyToken or fallback to query parameter token)
+    try {
+      const query = request.query as { token?: string };
+      if (query.token) {
+        const payload = app.jwt.verify(query.token);
+        (request as any).user = payload;
+      } else {
+        await verifyToken(request, reply);
+      }
+    } catch (err) {
+      return reply.code(401).send({ success: false, message: 'Unauthorized. Please login.' });
+    }
+
+    const { filename } = request.params as { filename: string };
+    const user = (request as any).user;
+
+    if (!user || !user.userId) {
+      return reply.code(401).send({ success: false, message: 'Unauthorized.' });
+    }
+
+    // 2. Fetch the attachment from the database
+    const attachment = await prisma.messageAttachment.findFirst({
+      where: {
+        file_url: {
+          endsWith: `message/${filename}`
+        }
+      },
+      include: {
+        channel_message: true,
+        direct_message: true
+      }
+    });
+
+    // 3. Perform security check: is the user part of this channel or direct conversation?
+    if (attachment) {
+      if (attachment.channel_message_id && attachment.channel_message) {
+        const isMember = await prisma.channelMember.findFirst({
+          where: {
+            user_id: user.userId,
+            channel_id: attachment.channel_message.channel_id
+          }
+        });
+        if (!isMember) {
+          return reply.code(403).send({ success: false, message: 'Forbidden. You are not a member of this channel.' });
+        }
+      } else if (attachment.direct_message_id && attachment.direct_message) {
+        const conversation = await prisma.directConversation.findFirst({
+          where: {
+            id: attachment.direct_message.conversation_id
+          }
+        });
+        if (conversation && conversation.user1_id !== user.userId && conversation.user2_id !== user.userId) {
+          return reply.code(403).send({ success: false, message: 'Forbidden. You are not part of this conversation.' });
+        }
       }
     }
+
+    // 4. Determine inline vs download based on environment and browser request context
+    const isProd = process.env.NODE_ENV === 'production';
+    const referer = request.headers.referer;
+    const secFetchMode = request.headers['sec-fetch-mode'];
+    const secFetchDest = request.headers['sec-fetch-dest'];
+
+    const isDirectAccess = !referer || secFetchMode === 'navigate' || secFetchDest === 'document';
+
+    // In production, direct browser address bar accesses are forced to download
+    // Support forcing download via query parameter or direct access in production
+    const forceDownload = (request.query as { download?: string }).download === 'true';
+
+    if (forceDownload || (isProd && isDirectAccess)) {
+      const downloadName = attachment ? attachment.file_name : filename;
+      reply.header('Content-Disposition', `attachment; filename="${downloadName}"`);
+    } else {
+      // Inline viewable check
+      const checkName = attachment ? attachment.file_name : filename;
+      const isViewable = /\.(txt|jpg|jpeg|png|gif|webp|pdf|mp4|webm|ogg|mov)$/i.test(checkName);
+      if (!isViewable) {
+        reply.header('Content-Disposition', `attachment; filename="${checkName}"`);
+      }
+    }
+
+    return reply.sendFile(`message/${filename}`);
   });
 
   // Register JWT plugin
@@ -119,7 +199,11 @@ const buildServer = async () => {
     throw new Error("JWT_SECRET is required");
   }
   await app.register(jwt, {
-    secret: process.env.JWT_SECRET
+    secret: process.env.JWT_SECRET,
+    cookie: {
+      cookieName: 'token',
+      signed: false
+    }
   });
 
   app.addHook('preHandler', async (request, reply) => {

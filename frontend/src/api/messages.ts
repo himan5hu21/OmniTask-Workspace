@@ -48,7 +48,7 @@ export type MessagesResponse = ApiSuccess<{
 
 export type CreateMessageInput = {
   content: string;
-  attachmentIds?: string[];
+  attachments?: Attachment[];
 };
 
 // --- KEYS ---
@@ -71,14 +71,22 @@ export const messageService = {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
 
-    const response = await apiRequest.post<ApiSuccess<Attachment[]>>(`/channels/${channelId}/attachments`, formData, {
+    const response = await apiRequest.post<ApiSuccess<{ files: Attachment[] }>>("/upload?folder=message", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
-    return response.data;
+    return response.data.files;
   },
 
   createChannelMessage: async (channelId: string, data: CreateMessageInput): Promise<MessageResponse> => {
     return apiRequest.post<MessageResponse>(`/channels/${channelId}/messages`, data);
+  },
+
+  editMessage: async (messageId: string, content: string): Promise<MessageResponse> => {
+    return apiRequest.put<MessageResponse>(`/messages/${messageId}`, { content });
+  },
+
+  deleteMessage: async (messageId: string): Promise<ApiSuccess<{ id: string }>> => {
+    return apiRequest.delete<ApiSuccess<{ id: string }>>(`/messages/${messageId}`);
   },
 };
 

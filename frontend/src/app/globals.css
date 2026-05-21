@@ -423,8 +423,8 @@
  * 🚀 Ultimate App Blurring Fix (Version 2)
  * Detects modal by looking for pointer-events: none or data-state="open"
  */
-body[style*="pointer-events: none"] #app-content,
-body:has([data-state="open"]:not(.emoji-popover):not([data-slot="dropdown-menu-trigger"]):not([data-slot="dropdown-menu-content"]):not([data-slot="tooltip-content"])) #app-content,
+body[style*="pointer-events: none"]:not(:has([data-slot^="context-menu"])) #app-content,
+body:has([data-state="open"]:not(.emoji-popover):not([data-slot="dropdown-menu-trigger"]):not([data-slot="dropdown-menu-content"]):not([data-slot="tooltip-content"]):not([data-slot^="context-menu"])) #app-content,
 body:has([role="dialog"]) #app-content {
   filter: blur(6px) saturate(130%);
   pointer-events: none;

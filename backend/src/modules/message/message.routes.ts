@@ -25,6 +25,19 @@ const messageRoutes: FastifyPluginAsync = async (fastify) => {
     body: messageController.createMessageSchema,
   }), messageController.createChannelMessage);
 
+  app.put('/messages/:messageId', createSchema({
+    description: 'Edit a message',
+    tags: ['Messages'],
+    params: z.object({ messageId: z.cuid() }),
+    body: z.object({ content: z.string().min(1) }),
+  }), messageController.editMessage);
+
+  app.delete('/messages/:messageId', createSchema({
+    description: 'Delete a message',
+    tags: ['Messages'],
+    params: z.object({ messageId: z.cuid() }),
+  }), messageController.deleteMessage);
+
 };
 
 export default messageRoutes;

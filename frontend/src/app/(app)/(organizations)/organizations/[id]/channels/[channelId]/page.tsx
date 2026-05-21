@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useRef, useCallback, type SyntheticEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { MessageSquareText, Sparkles, MoreHorizontal, Settings, Pencil, Trash2 } from "lucide-react";
+import { MessageSquareText, Sparkles, MoreHorizontal, Settings, Pencil, Trash2, ChevronDown, Copy } from "lucide-react";
 import Spinner from "@/components/Loading";
 const TaskBoard = dynamic(() => import("@/components/tasks/TaskBoard"), {
   ssr: false,
@@ -17,11 +17,22 @@ import { useMessages, useCreateMessage, messageService, type Message, type Attac
 import { useChannel } from "@/api/channels";
 import { joinChannelRoom, leaveChannelRoom } from "@/socket/socket";
 import ChatInputBox from "@/components/ChatInputBox";
+import { DeleteMessageDialog } from "@/components/DeleteMessageDialog";
+import { FilePreviewDialog } from "@/components/FilePreviewDialog";
 import { Button } from "@/components/ui/button";
-import { FileText, ImageIcon } from "lucide-react";
+import { FileText, ImageIcon, Download, ExternalLink, Play } from "lucide-react";
 import Image from "next/image";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AbilityProvider } from "@/components/providers/AbilityProvider";
+import { getInitials } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 const COLLAPSED_MAX_HEIGHT = 320;
 const LONG_MESSAGE_TEXT_LENGTH = 420;
@@ -30,48 +41,140 @@ const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g
 
 
 
-function FileAttachment({ attachment, isOwnMessage }: { attachment: Attachment, isOwnMessage: boolean }) {
+function FileAttachment({ 
+  attachment, 
+  isOwnMessage, 
+  onPreviewFile 
+}: { 
+  attachment: Attachment; 
+  isOwnMessage: boolean; 
+  onPreviewFile?: (file: { fileName: string; fileUrl: string; fileSize: number }) => void;
+}) {
   const isImage = attachment.type === "IMAGE";
+  const isVideo = attachment.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(attachment.file_name);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
   
   // Robust URL construction: Strip /api/v1 and ensure we don't have double slashes
   const baseUrl = apiUrl.replace(/\/api\/v1\/?$/, "");
-  const fileUrl = `${baseUrl}${attachment.file_url}`;
+  const token = typeof document !== "undefined" ? document.cookie.match(/(?:^|; )token=([^;]*)/)?.[1] || "" : "";
+  const fileUrl = `${baseUrl}${attachment.file_url}${token ? `?token=${token}` : ""}`;
 
   if (isImage) {
     return (
-      <Image 
+      // eslint-disable-next-line @next/next/no-img-element
+      <img 
         src={fileUrl} 
         alt={attachment.file_name} 
-        width={500}
-        height={500}
-        className="mt-2 rounded-lg border border-border/50 max-h-96 w-auto object-contain bg-background/50"
-        unoptimized={true}
+        loading="lazy"
+        onClick={() => {
+          if (onPreviewFile) {
+            onPreviewFile({
+              fileName: attachment.file_name,
+              fileUrl: fileUrl,
+              fileSize: attachment.file_size,
+            });
+          }
+        }}
+        className="mt-2 rounded-lg border border-border/50 max-h-96 w-auto object-contain bg-background/50 animate-in fade-in duration-200 cursor-zoom-in"
       />
     );
   }
 
-  return (
-    <a 
-      href={fileUrl} 
-      target="_blank" 
-      rel="noopener noreferrer"
-      className={`mt-2 flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
-        isOwnMessage 
-          ? "border-primary-foreground/20 bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground" 
-          : "border-border bg-background/50 hover:bg-muted text-foreground"
-      }`}
-    >
-      <FileText className="h-4 w-4 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-semibold">{attachment.file_name}</div>
-        <div className="text-[10px] opacity-70">{(attachment.file_size / 1024).toFixed(1)} KB</div>
+  if (isVideo) {
+    return (
+      <div 
+        onClick={() => {
+          if (onPreviewFile) {
+            onPreviewFile({
+              fileName: attachment.file_name,
+              fileUrl: fileUrl,
+              fileSize: attachment.file_size,
+            });
+          }
+        }}
+        className="relative group max-w-[450px] mt-2 rounded-lg overflow-hidden border border-border/50 bg-background/50 cursor-pointer select-none"
+      >
+        <video 
+          src={fileUrl} 
+          preload="metadata"
+          className="max-h-96 w-full object-contain pointer-events-none"
+        />
+        {/* Play Glassmorphic Overlay */}
+        <div className="absolute inset-0 bg-black/30 group-hover:bg-black/45 flex items-center justify-center transition-all duration-200">
+          <div className="h-14 w-14 rounded-full bg-white/20 hover:bg-white/35 backdrop-blur-md flex items-center justify-center text-white shadow-2xl transform group-hover:scale-110 transition-all duration-200 border border-white/30">
+            <Play className="h-6 w-6 fill-current translate-x-0.5" />
+          </div>
+          {/* Info Badge */}
+          <span className="absolute bottom-3 left-3 bg-black/60 text-white text-[10px] px-2.5 py-1 rounded-md font-bold backdrop-blur-sm border border-white/10 select-none">
+            Watch Preview
+          </span>
+        </div>
       </div>
-    </a>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex items-center gap-3 rounded-xl border border-border/80 bg-background/60 hover:bg-background/90 p-3 shadow-sm hover:shadow-md transition-all duration-200 min-w-[240px] max-w-[320px] group/file">
+      {/* Clickable Card Body for viewing files in new tab */}
+      <a 
+        href={fileUrl} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          if (onPreviewFile) {
+            e.preventDefault();
+            onPreviewFile({
+              fileName: attachment.file_name,
+              fileUrl: fileUrl,
+              fileSize: attachment.file_size,
+            });
+          }
+        }}
+        className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer select-none"
+        title="Click to view file"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover/file:bg-primary/20">
+          <FileText className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-semibold text-foreground group-hover/file:text-primary transition-colors" title={attachment.file_name}>
+            {attachment.file_name}
+          </div>
+          <div className="text-[10px] text-muted-foreground/80 mt-0.5">
+            {(attachment.file_size / 1024).toFixed(1)} KB
+          </div>
+        </div>
+      </a>
+      
+      {/* Download Action */}
+      <div className="flex items-center gap-1 shrink-0">
+        <a 
+          href={fileUrl} 
+          download={attachment.file_name}
+          className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-all duration-150 cursor-pointer"
+          title="Download File"
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <Download className="h-4 w-4" />
+        </a>
+      </div>
+    </div>
   );
 }
 
-function MessageContent({ content, isOwnMessage, attachments }: { content: string; isOwnMessage: boolean; attachments?: Attachment[] }) {
+function MessageContent({ 
+  content, 
+  isOwnMessage, 
+  attachments, 
+  onPreviewFile 
+}: { 
+  content: string; 
+  isOwnMessage: boolean; 
+  attachments?: Attachment[]; 
+  onPreviewFile?: (file: { fileName: string; fileUrl: string; fileSize: number }) => void;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLongMessage, setIsLongMessage] = useState(false);
   const isCollapsed = isLongMessage && !isExpanded;
@@ -91,12 +194,83 @@ function MessageContent({ content, isOwnMessage, attachments }: { content: strin
     [textIsLong]
   );
 
+  const setupCodeBlocks = useCallback((element: HTMLDivElement | null) => {
+    if (!element) return;
+
+    const preElements = element.querySelectorAll("pre");
+    preElements.forEach((pre) => {
+      if (pre.dataset.copyCodeReady === "true") return;
+
+      pre.dataset.copyCodeReady = "true";
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "code-block-wrapper relative w-full my-3";
+
+      pre.parentNode?.insertBefore(wrapper, pre);
+      wrapper.appendChild(pre);
+
+      pre.style.margin = "0";
+      pre.style.paddingTop = "3rem";
+      pre.style.paddingRight = "3.25rem";
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.copyCodeButton = "true";
+      button.className = "code-copy-btn absolute top-3 right-3 h-8 w-8 rounded-md transition-all z-30 cursor-pointer flex items-center justify-center shadow-sm";
+      button.title = "Copy code";
+      button.setAttribute("aria-label", "Copy code");
+      button.style.border = "1px solid color-mix(in oklab, var(--code-block-border) 80%, white 10%)";
+      button.style.background = "color-mix(in oklab, var(--code-block-bg) 84%, black 16%)";
+      button.style.color = "var(--code-block-foreground)";
+      button.style.backdropFilter = "blur(8px)";
+      button.style.opacity = "1";
+      button.style.pointerEvents = "auto";
+
+      button.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5">
+          <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+        </svg>
+      `;
+
+      button.addEventListener("mouseenter", () => {
+        button.style.background = "color-mix(in oklab, var(--code-block-bg) 72%, black 28%)";
+      });
+
+      button.addEventListener("mouseleave", () => {
+        button.style.background = "color-mix(in oklab, var(--code-block-bg) 84%, black 16%)";
+      });
+
+      button.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const codeText = pre.querySelector("code")?.innerText || pre.innerText;
+        navigator.clipboard.writeText(codeText).then(() => {
+          button.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5 text-emerald-400">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          `;
+          setTimeout(() => {
+            button.innerHTML = `
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5">
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+              </svg>
+            `;
+          }, 2000);
+        });
+      });
+
+      wrapper.appendChild(button);
+    });
+  }, []);
+
   const setContentRef = useCallback(
     (element: HTMLDivElement | null) => {
       contentRef.current = element;
       updateLongMessageState(element);
+      setupCodeBlocks(element);
     },
-    [updateLongMessageState]
+    [updateLongMessageState, setupCodeBlocks]
   );
 
   useEffect(() => {
@@ -116,6 +290,10 @@ function MessageContent({ content, isOwnMessage, attachments }: { content: strin
     };
   }, [updateLongMessageState]);
 
+  useEffect(() => {
+    setupCodeBlocks(contentRef.current);
+  }, [content, isExpanded, isLongMessage, isCollapsed, attachments, setupCodeBlocks]);
+
   return (
     <div className="space-y-2">
       <div
@@ -125,8 +303,8 @@ function MessageContent({ content, isOwnMessage, attachments }: { content: strin
             ? {
                 maxHeight: `${COLLAPSED_MAX_HEIGHT}px`,
                 overflow: "hidden",
-                WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 84%, transparent 100%)",
-                maskImage: "linear-gradient(to bottom, black 0%, black 84%, transparent 100%)",
+                WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 65%, transparent 100%)",
+                maskImage: "linear-gradient(to bottom, black 0%, black 65%, transparent 100%)",
               }
             : undefined
         }
@@ -140,16 +318,22 @@ function MessageContent({ content, isOwnMessage, attachments }: { content: strin
         <button
           type="button"
           onClick={() => setIsExpanded((prev) => !prev)}
-          className="text-xs font-semibold transition-colors hover:opacity-80 text-primary hover:text-primary/80"
+          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors mt-2 group"
         >
-          {isExpanded ? "Read less" : "Read more"}
+          <span>{isExpanded ? "Read less" : "Read more"}</span>
+          <ChevronDown size={13} className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
         </button>
       ) : null}
 
       {attachments && attachments.length > 0 && (
         <div className="mt-1 flex flex-col gap-1">
           {attachments.map((att) => (
-            <FileAttachment key={att.id} attachment={att} isOwnMessage={isOwnMessage} />
+            <FileAttachment 
+              key={att.id} 
+              attachment={att} 
+              isOwnMessage={isOwnMessage} 
+              onPreviewFile={onPreviewFile}
+            />
           ))}
         </div>
       )}
@@ -179,110 +363,103 @@ export default function ChannelDetailPage() {
   
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState<string>("");
   const [localOverrides, setLocalOverrides] = useState<Record<string, { content?: string; isDeleted?: boolean; updated_at?: string }>>({});
   const [menuOpenMessageId, setMenuOpenMessageId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [messageIdToDelete, setMessageIdToDelete] = useState<string | null>(null);
+
+  // File Preview Modal State
+  const [previewFile, setPreviewFile] = useState<{ fileName: string; fileUrl: string; fileSize: number } | null>(null);
 
   const handleStartEdit = useCallback((message: Message) => {
     setEditingMessageId(message.id);
-    const stripHtml = (html: string) => {
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      return doc.body.textContent || "";
-    };
-    setEditContent(stripHtml(message.content));
   }, []);
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessageId(null);
-    setEditContent("");
   }, []);
 
-  const handleSaveEdit = useCallback((messageId: string) => {
-    if (!editContent.trim()) return;
+  const handleUpdateMessage = useCallback(async (messageId: string, content: string): Promise<boolean> => {
+    if (!content.trim()) return false;
 
+    // Optimistic UI Update
     setLocalOverrides((prev) => ({
       ...prev,
       [messageId]: {
-        content: editContent,
+        content: content,
         updated_at: new Date().toISOString(),
       },
     }));
-    setEditingMessageId(null);
-    setEditContent("");
-  }, [editContent]);
+
+    try {
+      await messageService.editMessage(messageId, content);
+      setEditingMessageId(null);
+      return true;
+    } catch (err: unknown) {
+      console.error("Failed to edit message:", err);
+      const error = err as { response?: { data?: { message?: string } }; message?: string };
+      toast.error("Failed to edit message: " + (error.response?.data?.message || error.message || "Unknown error"));
+      // Rollback optimistic update
+      setLocalOverrides((prev) => {
+        const copy = { ...prev };
+        delete copy[messageId];
+        return copy;
+      });
+      return false;
+    }
+  }, []);
 
   const handleDeleteMessage = useCallback((messageId: string) => {
-    if (confirm("Are you sure you want to delete this message?")) {
-      setLocalOverrides((prev) => ({
-        ...prev,
-        [messageId]: {
-          isDeleted: true,
-        },
-      }));
-    }
+    setMessageIdToDelete(messageId);
+    setDeleteConfirmOpen(true);
   }, []);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, messageId: string) => {
-    e.preventDefault();
-    setMenuOpenMessageId(messageId);
-    const safeX = Math.max(10, Math.min(e.clientX, window.innerWidth - 170));
-    const safeY = Math.max(10, Math.min(e.clientY, window.innerHeight - 110));
-    setMenuPosition({ x: safeX, y: safeY });
-  }, []);
+  const handleDeleteMessageConfirm = useCallback(() => {
+    if (!messageIdToDelete) return;
+    const messageId = messageIdToDelete;
 
-  const handleThreeDotClick = useCallback((e: React.MouseEvent, messageId: string) => {
+    setDeleteConfirmOpen(false);
+    setMessageIdToDelete(null);
+
+    // Optimistic UI Update
+    setLocalOverrides((prev) => ({
+      ...prev,
+      [messageId]: {
+        isDeleted: true,
+      },
+    }));
+
+    // Trigger API call in background
+    messageService.deleteMessage(messageId)
+      .then(() => {
+        toast.success("Message deleted successfully");
+      })
+      .catch((err) => {
+        console.error("Failed to delete message:", err);
+        toast.error("Failed to delete message: " + (err.response?.data?.message || err.message));
+        // Rollback optimistic update
+        setLocalOverrides((prev) => {
+          const copy = { ...prev };
+          delete copy[messageId];
+          return copy;
+        });
+      });
+  }, [messageIdToDelete]);
+
+  const handleThreeDotClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    setMenuOpenMessageId(messageId);
-    const safeX = Math.max(10, Math.min(rect.left, window.innerWidth - 170));
-    const safeY = Math.max(10, Math.min(rect.bottom + 4, window.innerHeight - 110));
-    setMenuPosition({ x: safeX, y: safeY });
-  }, []);
 
-  const touchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+    // Create a synthetic contextmenu event at the click coordinates
+    const customEvent = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: e.clientX,
+      clientY: e.clientY,
+    });
 
-  const handleTouchStart = useCallback((e: React.TouchEvent, messageId: string) => {
-    const touch = e.touches[0];
-    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
-
-    if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
-
-    touchTimeoutRef.current = setTimeout(() => {
-      setMenuOpenMessageId(messageId);
-      const safeX = Math.max(10, Math.min(touch.clientX, window.innerWidth - 170));
-      const safeY = Math.max(10, Math.min(touch.clientY, window.innerHeight - 110));
-      setMenuPosition({ x: safeX, y: safeY });
-      
-      if (typeof window !== "undefined" && window.navigator && window.navigator.vibrate) {
-        try {
-          window.navigator.vibrate(40);
-        } catch (_) {}
-      }
-    }, 600);
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    if (touchTimeoutRef.current) {
-      clearTimeout(touchTimeoutRef.current);
-      touchTimeoutRef.current = null;
-    }
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStartPosRef.current) return;
-    const touch = e.touches[0];
-    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
-    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
-    
-    if (dx > 10 || dy > 10) {
-      if (touchTimeoutRef.current) {
-        clearTimeout(touchTimeoutRef.current);
-        touchTimeoutRef.current = null;
-      }
-    }
+    e.currentTarget.dispatchEvent(customEvent);
   }, []);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -319,10 +496,37 @@ export default function ChannelDetailPage() {
       });
     };
 
+    const handleMessageUpdated = (message: Message) => {
+      setSocketMessages((prev) => {
+        return prev.map(m => m.id === message.id ? message : m);
+      });
+      setLocalOverrides((prev) => ({
+        ...prev,
+        [message.id]: {
+          content: message.content,
+          updated_at: message.updated_at,
+          isDeleted: false
+        }
+      }));
+    };
+
+    const handleMessageDeleted = (data: { id: string }) => {
+      setLocalOverrides((prev) => ({
+        ...prev,
+        [data.id]: {
+          isDeleted: true
+        }
+      }));
+    };
+
     socket.on("channel:message_created", handleMessageCreated);
+    socket.on("channel:message_updated", handleMessageUpdated);
+    socket.on("channel:message_deleted", handleMessageDeleted);
 
     return () => {
       socket.off("channel:message_created", handleMessageCreated);
+      socket.off("channel:message_updated", handleMessageUpdated);
+      socket.off("channel:message_deleted", handleMessageDeleted);
       leaveChannelRoom(channelId, user.id);
     };
   }, [channelId, user?.id]);
@@ -349,6 +553,10 @@ export default function ChannelDetailPage() {
       .filter((msg: Message & { isDeleted?: boolean }) => !msg.isDeleted)
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }, [messages, socketMessages, localOverrides]);
+
+  const editingMessage = useMemo(() => {
+    return allMessages.find((m) => m.id === editingMessageId) || null;
+  }, [editingMessageId, allMessages]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
     const container = scrollContainerRef.current;
@@ -454,21 +662,26 @@ export default function ChannelDetailPage() {
     }
   }, [scrollToBottom]);
 
-  const handleSendMessage = async (content: string, attachments: File[]) => {
+  const handleSendMessage = async (content: string, attachments: File[]): Promise<boolean> => {
     shouldSmoothScrollRef.current = true;
     stickToBottomRef.current = true;
 
     try {
-      let attachmentIds: string[] | undefined = undefined;
+      let uploadedAttachments: Attachment[] | undefined = undefined;
       if (attachments && attachments.length > 0) {
-        const uploadedAttachments = await messageService.uploadFiles(channelId, attachments);
-        attachmentIds = uploadedAttachments.map(a => a.id);
+        uploadedAttachments = await messageService.uploadFiles(channelId, attachments);
       }
-      createMessage.mutate({ content, attachmentIds });
+      await createMessage.mutateAsync({ content, attachments: uploadedAttachments });
+      return true;
     } catch (error) {
-      console.error("Failed to send message with attachments:", error);
-      // Fallback: send message without attachments if upload fails
-      createMessage.mutate({ content });
+      console.error("Failed to send message:", error);
+      
+      const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+      const errorMsg = axiosError.response?.data?.message || axiosError.message || "An unexpected error occurred while sending the message";
+      toast.error("Failed to send message", {
+        description: errorMsg,
+      });
+      return false;
     }
   };
 
@@ -508,92 +721,150 @@ export default function ChannelDetailPage() {
                     ) : null}
                     {allMessages.map((message) => {
                       const isOwnMessage = message.user_id === user?.id;
+                      const isOwn = message.user_id === user?.id;
+                      const isEditable = isOwn && (new Date().getTime() - new Date(message.created_at).getTime() < 5 * 60 * 1000);
+                      const isDeletable = isOwn && (new Date().getTime() - new Date(message.created_at).getTime() < 5 * 60 * 1000);
 
                       return (
                         <div
                           key={message.id}
-                          className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : ""}`}
+                          className={`flex gap-3 items-start ${isOwnMessage ? "flex-row-reverse" : ""}`}
                         >
-                          <Avatar className="h-9 w-9 shrink-0 border border-border/60">
+                          <Avatar className="h-9 w-9 shrink-0 border border-border/60 relative -mt-3.5">
                             <AvatarFallback className={isOwnMessage ? "bg-primary/10 text-primary font-bold" : "bg-muted text-foreground"}>
-                              {(message.user_name || "User").charAt(0).toUpperCase()}
+                              {getInitials(message.user_name)}
                             </AvatarFallback>
                           </Avatar>
-                          <div
-                            onContextMenu={(e) => {
-                              if (isOwnMessage) {
-                                handleContextMenu(e, message.id);
+                          <ContextMenu
+                            onOpenChange={(open) => {
+                              if (open) {
+                                setMenuOpenMessageId(message.id);
+                              } else if (menuOpenMessageId === message.id) {
+                                setMenuOpenMessageId(null);
                               }
                             }}
-                            onTouchStart={(e) => {
-                              if (isOwnMessage) {
-                                handleTouchStart(e, message.id);
-                              }
-                            }}
-                            onTouchEnd={handleTouchEnd}
-                            onTouchMove={handleTouchMove}
-                            className={`min-w-0 max-w-[85%] rounded-2xl px-5 py-3.5 shadow-sm transition-all relative group ${
-                              isOwnMessage
-                                ? "border border-primary/20 bg-primary/10 text-foreground cursor-context-menu"
-                                : "border border-border bg-muted/30 text-foreground"
-                            }`}
                           >
-                            {isOwnMessage && editingMessageId !== message.id && (
-                              <button
-                                onClick={(e) => handleThreeDotClick(e, message.id)}
-                                className="hidden md:flex absolute top-0 left-0 transform -translate-x-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-card border border-border/80 shadow-md backdrop-blur-sm text-muted-foreground hover:text-foreground items-center justify-center hover:bg-muted transition-all duration-150 md:opacity-0 md:group-hover:opacity-100 z-20 cursor-pointer"
-                                title="Message actions"
+                            <ContextMenuTrigger asChild>
+                              <div
+                                className={`min-w-0 max-w-[85%] px-4 py-2.5 pr-4 transition-all relative group ${
+                                  isOwnMessage
+                                    ? "rounded-2xl rounded-tr-none bg-primary/10 text-foreground cursor-context-menu"
+                                    : "rounded-2xl rounded-tl-none bg-muted/95 text-foreground"
+                                }`}
                               >
-                                <MoreHorizontal size={13} />
-                              </button>
-                            )}
-
-                            <div className={`mb-1.5 flex items-center gap-2 ${isOwnMessage ? "justify-end" : ""}`}>
-                              <span className={`text-[10px] font-bold uppercase tracking-wider ${isOwnMessage ? "text-primary" : "text-muted-foreground"}`}>
-                                {isOwnMessage ? "You" : message.user_name || "Unknown"}
-                              </span>
-                              <span className={`text-[10px] ${isOwnMessage ? "text-muted-foreground" : "text-muted-foreground/60"} flex items-center gap-1`}>
-                                {new Date(message.created_at).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                                {message.updated_at && new Date(message.updated_at).getTime() > new Date(message.created_at).getTime() + 1000 && (
-                                  <span className="opacity-70">(edited)</span>
+                                {/* WhatsApp Speech Bubble Tail */}
+                                {isOwnMessage ? (
+                                  <div className="absolute top-0 right-[-8px] text-primary/10 w-2 h-[13px] fill-current pointer-events-none">
+                                    <svg viewBox="0 0 8 13" className="w-full h-full">
+                                      <path d="M5.188 0H0v11.193l6.467-6.467C7.523 3.67 6.947 0 5.188 0z" />
+                                    </svg>
+                                  </div>
+                                ) : (
+                                  <div className="absolute top-0 left-[-8px] text-muted/95 w-2 h-[13px] fill-current pointer-events-none">
+                                    <svg viewBox="0 0 8 13" className="w-full h-full">
+                                      <path d="M2.812 0H8v11.193L1.533 4.726C.477 3.67 1.053 0 2.812 0z" />
+                                    </svg>
+                                  </div>
                                 )}
-                              </span>
-                            </div>
-                            
-                            {editingMessageId === message.id ? (
-                              <div className="mt-2 space-y-2.5">
-                                <textarea
-                                  value={editContent}
-                                  onChange={(e) => setEditContent(e.target.value)}
-                                  className="w-full text-sm bg-background border border-border focus:border-primary/50 focus:ring-1 focus:ring-primary/50 rounded-xl p-3 focus:outline-none text-foreground transition-all duration-200 resize-y min-h-[70px] placeholder-muted-foreground"
-                                  placeholder="Edit message..."
-                                />
-                                <div className="flex items-center gap-2 justify-end">
+
+                                {editingMessageId !== message.id && (
                                   <button
-                                    onClick={handleCancelEdit}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted/50 transition-colors"
+                                    onClick={handleThreeDotClick}
+                                    className={`hidden md:flex absolute top-1/2 -translate-y-1/2 h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-150 z-20 cursor-pointer ${
+                                      menuOpenMessageId === message.id
+                                        ? "md:opacity-100 text-foreground bg-black/5 dark:bg-white/10"
+                                        : "md:opacity-0 md:group-hover:opacity-100"
+                                    } ${
+                                      isOwnMessage ? "left-[-36px]" : "right-[-36px]"
+                                    }`}
+                                    title="Message actions"
                                   >
-                                    Cancel
+                                    <MoreHorizontal size={14} />
                                   </button>
-                                  <button
-                                    onClick={() => handleSaveEdit(message.id)}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/95 transition-colors shadow-sm"
-                                  >
-                                    Save
-                                  </button>
+                                )}
+
+                                <div className="flex flex-col">
+                                  {!isOwnMessage && (
+                                    <span className="text-[11px] font-bold text-primary mb-1 select-none block tracking-wide">
+                                      {message.user_name || "Unknown"}
+                                    </span>
+                                  )}
+                                  <MessageContent 
+                                    content={message.content} 
+                                    isOwnMessage={isOwnMessage} 
+                                    attachments={message.attachments}
+                                    onPreviewFile={setPreviewFile}
+                                  />
+                                  <div className="flex items-center justify-end gap-1 mt-1.5 self-end select-none">
+                                    <span className="text-[9.5px] text-muted-foreground/80 font-medium">
+                                      {new Date(message.created_at).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                    {message.updated_at && new Date(message.updated_at).getTime() > new Date(message.created_at).getTime() + 1000 && (
+                                      <span className="text-[9.5px] text-muted-foreground/60">(edited)</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            ) : (
-                              <MessageContent 
-                                content={message.content} 
-                                isOwnMessage={isOwnMessage} 
-                                attachments={message.attachments}
-                              />
-                            )}
-                          </div>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent className="w-[170px]">
+                              <ContextMenuItem
+                                onClick={() => {
+                                  const parser = new DOMParser();
+                                  const doc = parser.parseFromString(message.content, "text/html");
+                                  const text = doc.body.textContent || "";
+                                  navigator.clipboard.writeText(text);
+                                  toast.success("Message copied to clipboard");
+                                }}
+                              >
+                                <Copy className="mr-2 h-4 w-4 text-muted-foreground" />
+                                <span>Copy Message</span>
+                              </ContextMenuItem>
+                              {message.content.includes("<pre>") && (
+                                <ContextMenuItem
+                                  onClick={() => {
+                                    const parser = new DOMParser();
+                                    const doc = parser.parseFromString(message.content, "text/html");
+                                    const codeElements = doc.querySelectorAll("pre code");
+                                    if (codeElements.length > 0) {
+                                      const codeText = Array.from(codeElements).map(el => el.textContent || "").join("\n\n---\n\n");
+                                      navigator.clipboard.writeText(codeText);
+                                    } else {
+                                      const preElements = doc.querySelectorAll("pre");
+                                      const preText = Array.from(preElements).map(el => el.textContent || "").join("\n\n---\n\n");
+                                      navigator.clipboard.writeText(preText);
+                                    }
+                                    toast.success("Code block copied to clipboard");
+                                  }}
+                                >
+                                  <Copy className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  <span>Copy Code Block</span>
+                                </ContextMenuItem>
+                              )}
+                              {isEditable && (
+                                <ContextMenuItem
+                                  onClick={() => handleStartEdit(message)}
+                                >
+                                  <Pencil className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  <span>Edit Message</span>
+                                </ContextMenuItem>
+                              )}
+                              {isDeletable && (
+                                <>
+                                  <ContextMenuSeparator />
+                                  <ContextMenuItem
+                                    variant="destructive"
+                                    onClick={() => handleDeleteMessage(message.id)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    <span>Delete Message</span>
+                                  </ContextMenuItem>
+                                </>
+                              )}
+                            </ContextMenuContent>
+                          </ContextMenu>
                         </div>
                       );
                     })}
@@ -608,7 +879,10 @@ export default function ChannelDetailPage() {
               <ChatInputBox 
                 channelName={channel?.name || "Channel"} 
                 onSendMessage={handleSendMessage} 
-                isPending={createMessage.isPending} 
+                isPending={createMessage.isPending}
+                editingMessage={editingMessage}
+                onUpdateMessage={handleUpdateMessage}
+                onCancelEdit={handleCancelEdit}
               />
             </div>
           </section>
@@ -617,65 +891,23 @@ export default function ChannelDetailPage() {
       ) : (
         <TaskBoard />
       )}
-      {menuOpenMessageId && menuPosition && (
-        <>
-          <div 
-            className="fixed inset-0 z-50 bg-transparent"
-            onClick={() => {
-              setMenuOpenMessageId(null);
-              setMenuPosition(null);
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setMenuOpenMessageId(null);
-              setMenuPosition(null);
-            }}
-          />
-          <div
-            style={{ 
-              position: "fixed", 
-              left: `${menuPosition.x}px`, 
-              top: `${menuPosition.y}px` 
-            }}
-            className="z-50 min-w-[150px] overflow-hidden rounded-xl border border-border/80 bg-popover/95 p-1 text-popover-foreground shadow-lg backdrop-blur-md animate-in fade-in-50 zoom-in-95 duration-100"
-            onClick={() => {
-              setMenuOpenMessageId(null);
-              setMenuPosition(null);
-            }}
-          >
-            {(() => {
-              const msg = allMessages.find(m => m.id === menuOpenMessageId);
-              if (!msg) return null;
-              const isOwn = msg.user_id === user?.id;
-              const isEditable = isOwn && (new Date().getTime() - new Date(msg.created_at).getTime() < 5 * 60 * 1000);
-
-              return (
-                <div className="flex flex-col gap-0.5">
-                  {isEditable && (
-                    <button
-                      onClick={() => handleStartEdit(msg)}
-                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-foreground hover:bg-muted transition-colors text-left font-medium"
-                    >
-                      <Pencil size={13} className="text-muted-foreground" />
-                      Edit Message
-                    </button>
-                  )}
-                  {isOwn && (
-                    <button
-                      onClick={() => handleDeleteMessage(msg.id)}
-                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors text-left font-semibold"
-                    >
-                      <Trash2 size={13} />
-                      Delete Message
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        </>
-      )}
       </div>
+
+      <DeleteMessageDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        onConfirm={handleDeleteMessageConfirm}
+      />
+
+      <FilePreviewDialog
+        open={!!previewFile}
+        onOpenChange={(open) => {
+          if (!open) setPreviewFile(null);
+        }}
+        fileName={previewFile?.fileName || ""}
+        fileUrl={previewFile?.fileUrl || ""}
+        fileSize={previewFile?.fileSize || 0}
+      />
     </AbilityProvider>
   );
 }

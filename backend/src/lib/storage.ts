@@ -10,16 +10,13 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../../');
 const UPLOAD_DIR = path.join(rootDir, 'uploads');
 
-const ALLOWED_MIME_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'application/pdf',
-  'application/zip',
-  'application/x-zip-compressed',
-  'application/octet-stream', // Often used for binary files
-  'text/plain',
+const DISALLOWED_EXTENSIONS = /\.(exe|bat|cmd|sh|msi|vbs|vbe|wsf|wsh|lnk|com|pif|scr)$/i;
+const DISALLOWED_MIME_TYPES = new Set([
+  'application/x-msdownload', // .exe, .msi, etc.
+  'application/x-sh',
 ]);
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export class StorageService {
   static async init(folder?: string) {
@@ -38,8 +35,8 @@ export class StorageService {
       throw new Error(`File too large. Max size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
     }
 
-    // 2. Validate MIME Type
-    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+    // 2. Validate MIME Type and Extensions for Security
+    if (DISALLOWED_MIME_TYPES.has(file.mimetype) || DISALLOWED_EXTENSIONS.test(file.filename)) {
       throw new Error('File type not allowed');
     }
 
