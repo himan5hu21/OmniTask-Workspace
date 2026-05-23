@@ -5,8 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle, XCircle, Loader2, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
-import { useAcceptInvitation } from "@/api/organizations";
-import { handleApiError } from "@/api/api-errors";
+import { useAcceptInvitation, useVerifyInvitationStatus } from "@/api/organizations";
 import { useLogoutMutation, useAuthProfile } from "@/api/auth";
 import { useIsMounted } from "@/hooks/useIsMounted";
 
@@ -14,8 +13,21 @@ const INVITE_TOKEN_KEY = "pending_invite_token";
 
 function InviteAcceptContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const searchParams = useSearchParams(); // Keeps Suspense boundary active
+  void searchParams;
+
+  // Retrieve token from URL or fall back to localStorage on client mount (lazy initializer)
+  const [token] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      const urlT = new URLSearchParams(window.location.search).get("token");
+      if (urlT) {
+        localStorage.setItem(INVITE_TOKEN_KEY, urlT);
+        return urlT;
+      }
+      return localStorage.getItem(INVITE_TOKEN_KEY);
+    }
+    return null;
+  });
 
   const acceptInvitation = useAcceptInvitation();
   const logoutMutation = useLogoutMutation();
@@ -25,63 +37,99 @@ function InviteAcceptContent() {
   const { data: profileData, isLoading: isProfileLoading } = useAuthProfile();
   const user = profileData?.data;
 
-  const [status, setStatus] = useState<"loading" | "success" | "error" | "email_mismatch">(
-    !token ? "error" : "loading"
-  );
-  const [errorMessage, setErrorMessage] = useState(
-    !token ? "Invalid invitation link. No token found." : ""
-  );
+  // Query status of the invitation token to check if user has an account
+  const { data: statusResponse, isLoading: isStatusLoading, error: statusError } = useVerifyInvitationStatus(token);
+  const statusData = statusResponse?.data;
+
   const [orgName, setOrgName] = useState("");
   const [orgId, setOrgId] = useState("");
 
+  // Determine status and error message dynamically (no duplicate useState/useEffect needed!)
+  let status: "loading" | "success" | "error" | "email_mismatch" = "loading";
+  let errorMessage = "";
+
+  // Show no token error ONLY if component is mounted and no token was resolved from either URL or localStorage
+  if (isMounted && !token) {
+    status = "error";
+    errorMessage = "Invalid invitation link. No token found.";
+  } else if (statusError) {
+    status = "error";
+    errorMessage = "Invalid or expired invitation link.";
+  } else if (acceptInvitation.isError) {
+    const apiError = acceptInvitation.error as unknown as {
+      response?: {
+        status?: number;
+        data?: {
+          message?: string;
+        };
+      };
+      message?: string;
+    };
+
+    const errorMsg = apiError.response?.data?.message || 
+                     apiError.message || 
+                     "Failed to accept the invitation. It may have expired or already been used.";
+                     
+    const isEmailMismatch = apiError.response?.status === 403 || 
+                            errorMsg.toLowerCase().includes("please log in with that email") || 
+                            errorMsg.toLowerCase().includes("sent to");
+                            
+    status = isEmailMismatch ? "email_mismatch" : "error";
+    errorMessage = errorMsg;
+  } else if (acceptInvitation.isSuccess) {
+    status = "success";
+  } else if (isProfileLoading || isStatusLoading || acceptInvitation.isPending) {
+    status = "loading";
+  }
+
   useEffect(() => {
     // Wait until query params are resolved and auth profile is loaded
-    if (!token || isProfileLoading) {
+    if (!token || isProfileLoading || isStatusLoading || !statusData || statusError) {
       return;
     }
 
     if (!user) {
-      // Save the token and redirect to login
+      // Save the token and redirect based on userExists status
       localStorage.setItem(INVITE_TOKEN_KEY, token);
-      router.replace(`/login?redirect=/invite/accept`);
+      
+      const userExists = statusData.userExists;
+      if (userExists) {
+        router.replace(`/login?redirect=/invite/accept`);
+      } else {
+        router.replace(`/signup?redirect=/invite/accept`);
+      }
       return;
     }
 
     // User is authenticated — attempt to accept the invitation
-    acceptInvitation.mutate(token, {
-      onSuccess: (response) => {
-        if (response.success) {
-          setOrgName(response.data.orgName ?? "the organization");
-          setOrgId(response.data.orgId);
-          setStatus("success");
-
-          // Clean up any stored token
-          localStorage.removeItem(INVITE_TOKEN_KEY);
-
-          // Auto redirect after 2.5s
-          setTimeout(() => {
-            router.push(`/organizations/${response.data.orgId}`);
-          }, 2500);
+    if (acceptInvitation.isIdle) {
+      acceptInvitation.mutate(token, {
+        onSuccess: (response) => {
+          if (response.success) {
+            setOrgName(response.data.orgName ?? "the organization");
+            setOrgId(response.data.orgId);
+            // Clean up any stored token
+            localStorage.removeItem(INVITE_TOKEN_KEY);
+            // Auto redirect after 2.5s
+            setTimeout(() => {
+              router.push(`/organizations/${response.data.orgId}`);
+            }, 2500);
+          }
         }
-      },
-      onError: (error) => {
-        handleApiError(error, {
-          accessDenied: (message) => {
-            setStatus("email_mismatch");
-            setErrorMessage(message ?? "This invitation was not sent to your email address.");
-          },
-          onOtherError: (message) => {
-            setStatus("error");
-            setErrorMessage(message ?? "Failed to accept the invitation. It may have expired or already been used.");
-          },
-        });
-      },
-    });
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, user, isProfileLoading]);
+  }, [token, user, isProfileLoading, isStatusLoading, statusData, statusError, acceptInvitation]);
 
-  // Prevent rendering and wait until component has hydrated and auth profile has resolved
-  if (!isMounted || isProfileLoading) {
+  // Clean up any stale invite token from localStorage if acceptance or validation fails with an error
+  useEffect(() => {
+    if (status === "error" && typeof window !== "undefined") {
+      localStorage.removeItem(INVITE_TOKEN_KEY);
+    }
+  }, [status]);
+
+  // Prevent rendering and wait until component has hydrated, and auth profile/status are loaded
+  if (!isMounted || isProfileLoading || (token && isStatusLoading && status !== "error")) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 text-primary animate-spin" />

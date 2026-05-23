@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { Shield, Users, Mail, Copy, Check, Link2, ExternalLink } from "lucide-react";
+import { Shield, Users, Mail, Copy, Check, Link2 } from "lucide-react";
 import { ButtonSpinner } from "@/components/ui/orbital-loader";
 
 import { Button } from "@/components/ui/button";
@@ -280,13 +280,13 @@ export function InviteMemberDialog({
                   </>
                 )}
               </Button>
-              <Button
+              {/* <Button
                 variant="outline"
                 className="h-11 rounded-xl px-4 font-semibold border-border hover:bg-muted/50 transition-all"
                 onClick={() => window.open(generatedLink!, "_blank")}
               >
                 <ExternalLink className="h-4 w-4" />
-              </Button>
+              </Button> */}
             </div>
 
             {/* Footer */}

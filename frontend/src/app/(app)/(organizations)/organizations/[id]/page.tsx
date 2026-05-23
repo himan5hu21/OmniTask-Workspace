@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useIsMounted } from "@/hooks/useIsMounted";
 import {
   Hash,
@@ -31,12 +31,23 @@ const InviteMemberDialog = dynamic(
 export default function OrganizationDetailPage() {
   const isMounted = useIsMounted();
   const params = useParams();
+  const router = useRouter();
   const orgId = params.id as string;
 
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
 
-  const { organization, isLoading: isLoadingOrganization } = useOrganization(orgId);
+  const { organization, isLoading: isLoadingOrganization, isError, error } = useOrganization(orgId);
+
+  // Redirect to dashboard if request fails with Forbidden (403) or Not Found (404)
+  useEffect(() => {
+    if (isError && error) {
+      const status = (error as unknown as { status?: number })?.status;
+      if (status === 403 || status === 404) {
+        router.replace("/dashboard");
+      }
+    }
+  }, [isError, error, router]);
 
   if (!isMounted) return null;
 

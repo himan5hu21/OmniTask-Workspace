@@ -46,12 +46,12 @@ export default function LoginPage() {
   const onSubmit = (data: LoginFormValues) => {
     loginMutation.mutate(data, {
       onSuccess: () => {
-        // If coming from an invite redirect or a pending token exists, go accept the invite
-        const pendingToken = localStorage.getItem(INVITE_TOKEN_KEY);
         const redirectPath = searchParams.get("redirect");
-        if (pendingToken || redirectPath === "/invite/accept") {
+        if (redirectPath === "/invite/accept") {
           router.push("/invite/accept");
         } else {
+          // If logging in normally, ensure any leftover stale token is cleared
+          localStorage.removeItem(INVITE_TOKEN_KEY);
           router.push("/dashboard");
         }
       },

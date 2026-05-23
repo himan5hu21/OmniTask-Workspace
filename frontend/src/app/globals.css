@@ -420,11 +420,11 @@
     0 8px 18px color-mix(in oklab, var(--primary) 26%, transparent);
 }
 /* 
- * 🚀 Ultimate App Blurring Fix (Version 2)
- * Detects modal by looking for pointer-events: none or data-state="open"
+ * 🚀 Ultimate App Blurring Fix (Version 3)
+ * Blurs the background only for actual dialogs/modals, exempting dropdown menus and tooltips.
  */
-body[style*="pointer-events: none"]:not(:has([data-slot^="context-menu"])) #app-content,
-body:has([data-state="open"]:not(.emoji-popover):not([data-slot="dropdown-menu-trigger"]):not([data-slot="dropdown-menu-content"]):not([data-slot="tooltip-content"]):not([data-slot^="context-menu"])) #app-content,
+body[style*="pointer-events: none"]:not(:has([role="menu"])):not(:has([data-slot="dropdown-menu-content"])):not(:has([data-slot^="context-menu"])) #app-content,
+body:has([data-state="open"]:not(.emoji-popover):not([role="menu"]):not([data-slot="dropdown-menu-trigger"]):not([data-slot="dropdown-menu-content"]):not([data-slot="tooltip-content"]):not([data-slot^="context-menu"])) #app-content,
 body:has([role="dialog"]) #app-content {
   filter: blur(6px) saturate(130%);
   pointer-events: none;

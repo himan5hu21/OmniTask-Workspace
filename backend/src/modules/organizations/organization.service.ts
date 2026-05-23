@@ -562,6 +562,36 @@ export class OrganizationService {
     return { orgId, orgName: org?.name, alreadyMember: false };
   }
 
+  // 12. Get Invitation Status (Public)
+  static async getInvitationStatus(token: string, jwt: any) {
+    let payload: { orgId: string; email: string; role: 'ADMIN' | 'MEMBER' | 'GUEST'; type: string };
+
+    try {
+      payload = jwt.verify(token) as any;
+    } catch {
+      throw new AppError('Invalid or expired invitation link', HttpStatus.BAD_REQUEST);
+    }
+
+    if (payload.type !== 'org_invite') {
+      throw new AppError('Invalid invitation token', HttpStatus.BAD_REQUEST);
+    }
+
+    const { orgId, email, role } = payload;
+    const org = await orgRepo.getById(orgId);
+    if (!org) throw new AppError('Organization not found', HttpStatus.NOT_FOUND);
+
+    // Check if the user exists in the database
+    const userExists = await userRepo.findOne({ email: email.toLowerCase() });
+
+    return {
+      valid: true,
+      email,
+      orgName: org.name,
+      role,
+      userExists: !!userExists
+    };
+  }
+
   // 11. Hard Delete organization
   static async hardDeleteOrganization(orgId: string, currentUserId: string, io?: Server) {
     const membership = await orgMemberRepo.findOne({ organization_id: orgId, user_id: currentUserId });

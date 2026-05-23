@@ -78,7 +78,16 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // ==========================================
   // ORGANIZATION INVITATION ROUTES
   // ==========================================
-  // Note: /invitations/accept must be registered BEFORE /:orgId wildcards
+  // Note: /invitations/accept and /invitations/status must be registered BEFORE /:orgId wildcards
+  app.get('/organizations/invitations/status', {
+    ...createSchema({
+      description: 'Verify invitation token status and check if user has an account',
+      tags: ['Organizations'],
+      querystring: orgController.getInvitationStatusSchema,
+    }),
+    config: { isPublic: true }
+  }, orgController.getInvitationStatus);
+
   app.post('/organizations/invitations/accept', createSchema({
     description: 'Accept an organization invitation token',
     tags: ['Organizations'],

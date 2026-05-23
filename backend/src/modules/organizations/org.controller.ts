@@ -186,3 +186,15 @@ export const acceptInvitation = async (request: FastifyRequest, reply: FastifyRe
 
   return sendSuccess(reply, result, 'CREATE', result.alreadyMember ? 'You are already a member of this organization' : 'You have successfully joined the organization');
 };
+
+// 12. Get Invitation Status (Public)
+export const getInvitationStatusSchema = z.object({
+  token: z.string().min(1, 'Invitation token is required')
+});
+
+export const getInvitationStatus = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { token } = getInvitationStatusSchema.parse(request.query);
+  const result = await OrganizationService.getInvitationStatus(token, request.server.jwt);
+
+  return sendSuccess(reply, result, 'FETCH', 'Invitation status retrieved successfully');
+};

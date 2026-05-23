@@ -306,11 +306,23 @@ export type AcceptInvitationResponse = ApiSuccess<{
   alreadyMember: boolean;
 }>;
 
+export type VerifyInvitationStatusResponse = ApiSuccess<{
+  valid: boolean;
+  email: string;
+  orgName: string;
+  role: string;
+  userExists: boolean;
+}>;
+
 // --- INVITATION SERVICE ---
 
 export const invitationService = {
   generateInvitationLink: async (orgId: string, data: GenerateInvitationInput): Promise<GenerateInvitationResponse> => {
     return apiRequest.post<GenerateInvitationResponse>(`/organizations/${orgId}/invitations`, data);
+  },
+
+  verifyInvitationStatus: async (token: string): Promise<VerifyInvitationStatusResponse> => {
+    return apiRequest.get<VerifyInvitationStatusResponse>(`/organizations/invitations/status?token=${encodeURIComponent(token)}`);
   },
 
   acceptInvitation: async (token: string): Promise<AcceptInvitationResponse> => {
@@ -325,6 +337,15 @@ export const useGenerateInvitationLink = () => {
     mutationKey: ['generateInvitationLink'],
     mutationFn: ({ orgId, data }: { orgId: string; data: GenerateInvitationInput }) =>
       invitationService.generateInvitationLink(orgId, data),
+  });
+};
+
+export const useVerifyInvitationStatus = (token: string | null) => {
+  return useQuery({
+    queryKey: ['invitationStatus', token],
+    queryFn: () => invitationService.verifyInvitationStatus(token!),
+    enabled: !!token,
+    retry: false,
   });
 };
 

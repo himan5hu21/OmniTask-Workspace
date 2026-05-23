@@ -906,6 +906,7 @@ export default function TaskBoard() {
       {/* Delete Task Dialog */}
       {taskToDelete && (
         <DeleteTaskDialog
+          key={`delete-task-${taskToDelete.id}`}
           open={isDeleteModalOpen}
           onOpenChange={setIsDeleteModalOpen}
           taskId={taskToDelete.id}
@@ -918,7 +919,7 @@ export default function TaskBoard() {
       {/* Edit Task Dialog */}
       {taskToEdit && (
         <EditTaskDialog
-          key={`${taskToEdit.id}-${isEditTaskModalOpen}`}
+          key={`edit-task-${taskToEdit.id}-${isEditTaskModalOpen}`}
           channelId={channelId}
           taskId={taskToEdit.id}
           initialTitle={taskToEdit.title}
@@ -930,7 +931,7 @@ export default function TaskBoard() {
       {/* Task Detail Dialog */}
       {taskForDetail && (
         <TaskDetailDialog
-          key={`${taskForDetail.id}-${isDetailModalOpen}`}
+          key={`detail-task-${taskForDetail.id}-${isDetailModalOpen}`}
           open={isDetailModalOpen}
           onOpenChange={setIsDetailModalOpen}
           taskId={taskForDetail.id}
@@ -940,7 +941,7 @@ export default function TaskBoard() {
 
       {listToEdit && (
         <EditListDialog
-          key={`${listToEdit.id}-${isEditListModalOpen}`}
+          key={`edit-list-${listToEdit.id}-${isEditListModalOpen}`}
           channelId={channelId}
           listId={listToEdit.id}
           initialName={listToEdit.name}
@@ -951,7 +952,7 @@ export default function TaskBoard() {
 
       {listToDelete && (
         <DeleteListDialog
-          key={listToDelete.id}
+          key={`delete-list-${listToDelete.id}`}
           channelId={channelId}
           listId={listToDelete.id}
           listName={listToDelete.name}

@@ -69,7 +69,12 @@ if (authChannel) {
     } else if (event.data.type === 'LOGOUT') {
       console.log('[API] Logout sync received from another tab');
       deleteToken();
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      const isPublicPage = typeof window !== 'undefined' && (
+        window.location.pathname === '/login' ||
+        window.location.pathname === '/signup' ||
+        window.location.pathname.startsWith('/invite/accept')
+      );
+      if (typeof window !== 'undefined' && !isPublicPage) {
         window.location.href = '/login';
       }
     }
@@ -137,7 +142,14 @@ api.interceptors.response.use(
       if (originalRequest.url?.includes('/auth/refresh')) {
         console.warn('[API] Refresh call failed with 401. Logging out.');
         deleteToken();
-        if (typeof window !== 'undefined') window.location.href = '/login';
+        const isPublicPage = typeof window !== 'undefined' && (
+          window.location.pathname === '/login' ||
+          window.location.pathname === '/signup' ||
+          window.location.pathname.startsWith('/invite/accept')
+        );
+        if (typeof window !== 'undefined' && !isPublicPage) {
+          window.location.href = '/login';
+        }
         return Promise.reject(error);
       }
 
@@ -187,14 +199,27 @@ api.interceptors.response.use(
         return api(originalRequest);
 
       } catch (refreshError: unknown) {
-        console.error('[API] Token refresh failed:', refreshError);
+        const isPublicPage = typeof window !== 'undefined' && (
+          window.location.pathname === '/login' ||
+          window.location.pathname === '/signup' ||
+          window.location.pathname.startsWith('/invite/accept')
+        );
+
+        if (isPublicPage) {
+          console.log('[API] Guest session / public page. Token refresh handled gracefully.');
+        } else {
+          console.error(
+            '[API] Token refresh failed:',
+            refreshError instanceof Error ? refreshError.message : refreshError
+          );
+        }
         deleteToken();
 
         if (authChannel) {
           authChannel.postMessage({ type: 'LOGOUT' });
         }
 
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        if (typeof window !== 'undefined' && !isPublicPage) {
           window.location.href = '/login';
         }
         return Promise.reject(refreshError);
