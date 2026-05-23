@@ -88,6 +88,10 @@ export const messageService = {
   deleteMessage: async (messageId: string): Promise<ApiSuccess<{ id: string }>> => {
     return apiRequest.delete<ApiSuccess<{ id: string }>>(`/messages/${messageId}`);
   },
+
+  deleteAttachment: async (attachmentId: string): Promise<ApiSuccess<{ id: string }>> => {
+    return apiRequest.delete<ApiSuccess<{ id: string }>>(`/messages/attachments/${attachmentId}`);
+  },
 };
 
 // --- HOOKS ---

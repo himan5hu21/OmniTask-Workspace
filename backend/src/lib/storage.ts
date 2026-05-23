@@ -87,7 +87,26 @@ export class StorageService {
   }
 
   static getUploadPath(relativePath: string) {
-    return path.join(UPLOAD_DIR, relativePath);
+    let cleanPath = relativePath;
+
+    // If it's a full URL, parse out the pathname
+    if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+      try {
+        const url = new URL(relativePath);
+        cleanPath = url.pathname; // e.g. "/uploads/message/file.jpg"
+      } catch (e) {
+        // fallback if parsing fails
+      }
+    }
+
+    // Strip "/uploads/" prefix if present
+    if (cleanPath.startsWith('/uploads/')) {
+      cleanPath = cleanPath.slice('/uploads/'.length);
+    } else if (cleanPath.startsWith('uploads/')) {
+      cleanPath = cleanPath.slice('uploads/'.length);
+    }
+
+    return path.join(UPLOAD_DIR, cleanPath);
   }
 
   static async deleteFile(relativePath: string) {

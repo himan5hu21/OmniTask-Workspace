@@ -38,6 +38,12 @@ const messageRoutes: FastifyPluginAsync = async (fastify) => {
     params: z.object({ messageId: z.cuid() }),
   }), messageController.deleteMessage);
 
+  app.delete('/messages/attachments/:attachmentId', createSchema({
+    description: 'Delete a single message attachment',
+    tags: ['Messages'],
+    params: z.object({ attachmentId: z.cuid() }),
+  }), messageController.deleteAttachment);
+
 };
 
 export default messageRoutes;

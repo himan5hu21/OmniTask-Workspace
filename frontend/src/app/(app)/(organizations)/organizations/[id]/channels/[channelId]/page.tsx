@@ -45,11 +45,15 @@ const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g
 function FileAttachment({
   attachment,
   isOwnMessage,
-  onPreviewFile
+  onPreviewFile,
+  onDelete,
+  isDeletable
 }: {
   attachment: Attachment;
   isOwnMessage: boolean;
   onPreviewFile?: (file: { fileName: string; fileUrl: string; fileSize: number }) => void;
+  onDelete?: (attachmentId: string) => void;
+  isDeletable?: boolean;
 }) {
   const isImage = attachment.type === "IMAGE";
   const isVideo = attachment.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(attachment.file_name);
@@ -57,54 +61,84 @@ function FileAttachment({
 
   if (isImage) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={fileUrl}
-        alt={attachment.file_name}
-        loading="lazy"
-        onClick={() => {
-          if (onPreviewFile) {
-            onPreviewFile({
-              fileName: attachment.file_name,
-              fileUrl: fileUrl,
-              fileSize: attachment.file_size,
-            });
-          }
-        }}
-        className="mt-2 rounded-lg border border-border/50 max-h-96 w-auto object-contain bg-background/50 animate-in fade-in duration-200 cursor-zoom-in"
-      />
+      <div className="relative group w-fit max-w-full select-none">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={fileUrl}
+          alt={attachment.file_name}
+          loading="lazy"
+          onClick={() => {
+            if (onPreviewFile) {
+              onPreviewFile({
+                fileName: attachment.file_name,
+                fileUrl: fileUrl,
+                fileSize: attachment.file_size,
+              });
+            }
+          }}
+          className="mt-2 rounded-lg border border-border/50 max-h-96 w-auto object-contain bg-background/50 animate-in fade-in duration-200 cursor-zoom-in"
+        />
+        {isOwnMessage && isDeletable && onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(attachment.id);
+            }}
+            className="absolute top-4 right-2 h-7 w-7 rounded-full bg-black/60 hover:bg-destructive text-white backdrop-blur-md flex items-center justify-center shadow-lg transition-all duration-200 border border-white/20 hover:scale-110 opacity-0 group-hover:opacity-100 z-20 cursor-pointer"
+            title="Delete Image"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
     );
   }
 
   if (isVideo) {
     return (
-      <div
-        onClick={() => {
-          if (onPreviewFile) {
-            onPreviewFile({
-              fileName: attachment.file_name,
-              fileUrl: fileUrl,
-              fileSize: attachment.file_size,
-            });
-          }
-        }}
-        className="relative group max-w-[450px] mt-2 rounded-lg overflow-hidden border border-border/50 bg-background/50 cursor-pointer select-none"
-      >
-        <video
-          src={fileUrl}
-          preload="metadata"
-          className="max-h-96 w-full object-contain pointer-events-none"
-        />
-        {/* Play Glassmorphic Overlay */}
-        <div className="absolute inset-0 bg-black/30 group-hover:bg-black/45 flex items-center justify-center transition-all duration-200">
-          <div className="h-14 w-14 rounded-full bg-white/20 hover:bg-white/35 backdrop-blur-md flex items-center justify-center text-white shadow-2xl transform group-hover:scale-110 transition-all duration-200 border border-white/30">
-            <Play className="h-6 w-6 fill-current translate-x-0.5" />
+      <div className="relative group max-w-[450px] mt-2 rounded-lg overflow-hidden border border-border/50 bg-background/50 select-none">
+        <div
+          onClick={() => {
+            if (onPreviewFile) {
+              onPreviewFile({
+                fileName: attachment.file_name,
+                fileUrl: fileUrl,
+                fileSize: attachment.file_size,
+              });
+            }
+          }}
+          className="cursor-pointer"
+        >
+          <video
+            src={fileUrl}
+            preload="metadata"
+            className="max-h-96 w-full object-contain pointer-events-none"
+          />
+          {/* Play Glassmorphic Overlay */}
+          <div className="absolute inset-0 bg-black/30 group-hover:bg-black/45 flex items-center justify-center transition-all duration-200">
+            <div className="h-14 w-14 rounded-full bg-white/20 hover:bg-white/35 backdrop-blur-md flex items-center justify-center text-white shadow-2xl transform group-hover:scale-110 transition-all duration-200 border border-white/30">
+              <Play className="h-6 w-6 fill-current translate-x-0.5" />
+            </div>
+            {/* Info Badge */}
+            <span className="absolute bottom-3 left-3 bg-black/60 text-white text-[10px] px-2.5 py-1 rounded-md font-bold backdrop-blur-sm border border-white/10 select-none">
+              Watch Preview
+            </span>
           </div>
-          {/* Info Badge */}
-          <span className="absolute bottom-3 left-3 bg-black/60 text-white text-[10px] px-2.5 py-1 rounded-md font-bold backdrop-blur-sm border border-white/10 select-none">
-            Watch Preview
-          </span>
         </div>
+        {isOwnMessage && isDeletable && onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(attachment.id);
+            }}
+            className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 hover:bg-destructive text-white backdrop-blur-md flex items-center justify-center shadow-lg transition-all duration-200 border border-white/20 hover:scale-110 opacity-0 group-hover:opacity-100 z-20 cursor-pointer"
+            title="Delete Video"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     );
   }
@@ -155,6 +189,20 @@ function FileAttachment({
         >
           <Download className="h-4 w-4" />
         </a>
+
+        {isOwnMessage && isDeletable && onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(attachment.id);
+            }}
+            className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all duration-150 cursor-pointer"
+            title="Delete File"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -164,12 +212,16 @@ function MessageContent({
   content,
   isOwnMessage,
   attachments,
-  onPreviewFile
+  onPreviewFile,
+  onDeleteAttachment,
+  isDeletable
 }: {
   content: string;
   isOwnMessage: boolean;
   attachments?: Attachment[];
   onPreviewFile?: (file: { fileName: string; fileUrl: string; fileSize: number }) => void;
+  onDeleteAttachment?: (attachmentId: string) => void;
+  isDeletable?: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLongMessage, setIsLongMessage] = useState(false);
@@ -329,6 +381,8 @@ function MessageContent({
               attachment={att}
               isOwnMessage={isOwnMessage}
               onPreviewFile={onPreviewFile}
+              onDelete={onDeleteAttachment}
+              isDeletable={isDeletable}
             />
           ))}
         </div>
@@ -359,7 +413,7 @@ export default function ChannelDetailPage() {
 
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [localOverrides, setLocalOverrides] = useState<Record<string, { content?: string; isDeleted?: boolean; updated_at?: string }>>({});
+  const [localOverrides, setLocalOverrides] = useState<Record<string, { content?: string; isDeleted?: boolean; updated_at?: string; attachments?: Attachment[] }>>({});
   const [menuOpenMessageId, setMenuOpenMessageId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [messageIdToDelete, setMessageIdToDelete] = useState<string | null>(null);
@@ -442,6 +496,7 @@ export default function ChannelDetailPage() {
       });
   }, [messageIdToDelete]);
 
+
   const handleThreeDotClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -501,7 +556,8 @@ export default function ChannelDetailPage() {
         [message.id]: {
           content: message.content,
           updated_at: message.updated_at,
-          isDeleted: false
+          isDeleted: false,
+          attachments: message.attachments
         }
       }));
     };
@@ -542,6 +598,7 @@ export default function ChannelDetailPage() {
             content: override.content ?? msg.content,
             updated_at: override.updated_at ?? msg.updated_at,
             isDeleted: override.isDeleted ?? false,
+            attachments: override.attachments ?? msg.attachments,
           } as Message;
         }
         return msg;
@@ -549,6 +606,39 @@ export default function ChannelDetailPage() {
       .filter((msg: Message & { isDeleted?: boolean }) => !msg.isDeleted)
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }, [messages, socketMessages, localOverrides]);
+
+  const handleDeleteAttachment = useCallback((attachmentId: string) => {
+    // Find parent message to get its current attachments list
+    const parentMessage = allMessages.find(m => m.attachments?.some(a => a.id === attachmentId));
+    if (!parentMessage) return;
+
+    const remainingAttachments = parentMessage.attachments?.filter(a => a.id !== attachmentId) || [];
+
+    // Optimistic UI Update
+    setLocalOverrides((prev) => ({
+      ...prev,
+      [parentMessage.id]: {
+        ...prev[parentMessage.id],
+        attachments: remainingAttachments,
+      },
+    }));
+
+    // Trigger API call in background
+    messageService.deleteAttachment(attachmentId)
+      .then(() => {
+        toast.success("Attachment deleted successfully");
+      })
+      .catch((err) => {
+        console.error("Failed to delete attachment:", err);
+        toast.error("Failed to delete attachment: " + (err.response?.data?.message || err.message));
+        // Rollback optimistic update
+        setLocalOverrides((prev) => {
+          const copy = { ...prev };
+          delete copy[parentMessage.id];
+          return copy;
+        });
+      });
+  }, [allMessages]);
 
   const editingMessage = useMemo(() => {
     return allMessages.find((m) => m.id === editingMessageId) || null;
@@ -787,6 +877,8 @@ export default function ChannelDetailPage() {
                                       isOwnMessage={isOwnMessage}
                                       attachments={message.attachments}
                                       onPreviewFile={setPreviewFile}
+                                      onDeleteAttachment={handleDeleteAttachment}
+                                      isDeletable={isDeletable}
                                     />
                                     <div className="flex items-center justify-end gap-1 mt-1.5 self-end select-none">
                                       <span className="text-[9.5px] text-muted-foreground/80 font-medium">

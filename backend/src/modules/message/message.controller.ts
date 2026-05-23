@@ -61,3 +61,14 @@ export const deleteMessage = async (request: FastifyRequest, reply: FastifyReply
 
   return sendSuccess(reply, result, 'DELETE', 'Message deleted successfully');
 };
+
+// Delete a message attachment
+export const deleteAttachment = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { attachmentId } = request.params as { attachmentId: string };
+  const user = (request as any).user;
+
+  const result = await MessageService.deleteAttachment(attachmentId, user.userId, request.server.io);
+
+  return sendSuccess(reply, result, 'DELETE', 'Attachment deleted successfully');
+};
+

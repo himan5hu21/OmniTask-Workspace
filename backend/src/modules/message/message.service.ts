@@ -202,4 +202,80 @@ export class MessageService {
     if (io) io.to(`channel:${message.channel_id}`).emit('channel:message_deleted', { id: messageId });
     return { id: messageId };
   }
+
+  // Delete a single message attachment
+  static async deleteAttachment(attachmentId: string, userId: string, io?: Server) {
+    const { prisma: db } = await import('@/lib/database');
+
+    const attachment = await db.messageAttachment.findUnique({
+      where: { id: attachmentId },
+      include: {
+        channel_message: true,
+        direct_message: true,
+      },
+    });
+
+    if (!attachment) {
+      throw new AppError('Attachment not found', HttpStatus.NOT_FOUND);
+    }
+
+    const message = attachment.channel_message ?? attachment.direct_message;
+    if (!message) {
+      throw new AppError('Parent message not found', HttpStatus.NOT_FOUND);
+    }
+
+    // Sender verification
+    if (message.sender_id !== userId) {
+      throw new AppError('You can only delete attachments on your own messages', HttpStatus.FORBIDDEN);
+    }
+
+    // Enforce 5 minute deletion limit
+    const diff = new Date().getTime() - new Date(message.created_at).getTime();
+    if (diff > 5 * 60 * 1000) {
+      throw new AppError('Deleting time limit exceeded (5 minutes max)', HttpStatus.BAD_REQUEST);
+    }
+
+    // Delete physical file
+    await StorageService.deleteFile(attachment.file_url);
+
+    // Delete database record
+    await db.messageAttachment.delete({
+      where: { id: attachmentId },
+    });
+
+    let messageData = null;
+    if (attachment.channel_message_id) {
+      const fullMessage = await messageRepo.findOne(
+        { id: attachment.channel_message_id },
+        {
+          include: {
+            sender: { select: { id: true, name: true, email: true } },
+            attachments: true,
+          },
+        }
+      );
+
+      if (fullMessage) {
+        messageData = {
+          id: fullMessage.id,
+          content: fullMessage.text,
+          channel_id: fullMessage.channel_id,
+          user_id: fullMessage.sender_id,
+          user_name: fullMessage.sender.name,
+          created_at: fullMessage.created_at,
+          updated_at: fullMessage.updated_at,
+          attachments: fullMessage.attachments.map((att: any) => ({
+            ...att,
+            file_url: StorageService.getFileUrl(att.file_url),
+          })),
+        };
+
+        if (io) {
+          io.to(`channel:${fullMessage.channel_id}`).emit('channel:message_updated', messageData);
+        }
+      }
+    }
+
+    return { id: attachmentId, messageId: message.id, message: messageData };
+  }
 }
