@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import * as z from "zod/v4";
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
@@ -30,8 +30,11 @@ const registerSchema = z.object({
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
+const INVITE_TOKEN_KEY = "pending_invite_token";
+
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -49,7 +52,14 @@ export default function RegisterPage() {
   const onSubmit = (data: RegisterFormValues) => {
     registerMutation.mutate(data, {
       onSuccess: () => {
-        router.push("/dashboard");
+        // If there's a pending invite token or redirect param, go to invite accept page
+        const pendingToken = localStorage.getItem(INVITE_TOKEN_KEY);
+        const redirectPath = searchParams.get("redirect");
+        if (pendingToken || redirectPath === "/invite/accept") {
+          router.push("/invite/accept");
+        } else {
+          router.push("/dashboard");
+        }
       },
       onError: (err: unknown) => {
         handleApiFormError<RegisterFormValues>({

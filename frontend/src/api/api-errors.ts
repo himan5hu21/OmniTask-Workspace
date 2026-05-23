@@ -52,6 +52,7 @@ export function handleApiError(
 
     // Handle 403 Access Denied errors
     if (status === 403 && handlers?.accessDenied) {
+      console.log("Access denied========================");
       handlers.accessDenied(backendMessage);
       return;
     }

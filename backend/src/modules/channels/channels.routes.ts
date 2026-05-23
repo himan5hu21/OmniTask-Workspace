@@ -74,6 +74,13 @@ const channelRoutes: FastifyPluginAsync = async (fastify) => {
     body: channelController.updateMemberRoleSchema,
   }), channelController.updateChannelMemberRole);
 
+  app.get('/channels/:id/inviteable-members', createSchema({
+    description: 'Get organization members who can be invited to this channel',
+    tags: ['Channels'],
+    params: z.object({ id: z.cuid() }),
+    querystring: channelController.inviteableMembersQuerySchema,
+  }), channelController.getInviteableMembers);
+
 };
 
 export default channelRoutes;

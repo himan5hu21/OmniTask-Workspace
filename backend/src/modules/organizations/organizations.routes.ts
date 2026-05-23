@@ -74,6 +74,24 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     params: orgController.orgMemberParamSchema,
   }), orgController.removeOrganizationMember);
 
+
+  // ==========================================
+  // ORGANIZATION INVITATION ROUTES
+  // ==========================================
+  // Note: /invitations/accept must be registered BEFORE /:orgId wildcards
+  app.post('/organizations/invitations/accept', createSchema({
+    description: 'Accept an organization invitation token',
+    tags: ['Organizations'],
+    body: orgController.acceptInvitationSchema,
+  }), orgController.acceptInvitation);
+
+  app.post('/organizations/:orgId/invitations', createSchema({
+    description: 'Generate an invitation link for an organization',
+    tags: ['Organizations'],
+    params: orgController.orgIdParamSchema,
+    body: orgController.generateInvitationSchema,
+  }), orgController.generateInvitation);
+
 };
 
 export default orgRoutes;

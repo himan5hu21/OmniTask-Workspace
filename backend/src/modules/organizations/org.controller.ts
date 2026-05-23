@@ -156,3 +156,33 @@ export const removeOrganizationMember = async (request: FastifyRequest, reply: F
 
   return sendSuccess(reply, null, 'DELETE', 'Member removed successfully');
 };
+
+// 9. Generate Invitation Link
+export const generateInvitationSchema = z.object({
+  email: z.email('Valid email is required'),
+  role: z.enum(['ADMIN', 'MEMBER', 'GUEST']).default('MEMBER')
+});
+
+export const generateInvitation = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { orgId } = orgIdParamSchema.parse((request as any).params);
+  const { email, role } = generateInvitationSchema.parse(request.body);
+  const currentUser = (request as any).user;
+
+  const result = await OrganizationService.generateInvitation(orgId, email, role, currentUser.userId, request.server.jwt);
+
+  return sendSuccess(reply, result, 'CREATE', 'Invitation link generated successfully');
+};
+
+// 10. Accept Invitation
+export const acceptInvitationSchema = z.object({
+  token: z.string().min(1, 'Invitation token is required')
+});
+
+export const acceptInvitation = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { token } = acceptInvitationSchema.parse(request.body);
+  const currentUser = (request as any).user;
+
+  const result = await OrganizationService.acceptInvitation(token, currentUser.userId, request.server.jwt, request.server.io);
+
+  return sendSuccess(reply, result, 'CREATE', result.alreadyMember ? 'You are already a member of this organization' : 'You have successfully joined the organization');
+};

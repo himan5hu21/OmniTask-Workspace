@@ -285,3 +285,57 @@ export const useRemoveOrganizationMember = () => {
   });
 };
 
+// --- INVITATION TYPES ---
+
+export type GenerateInvitationInput = {
+  email: string;
+  role?: 'ADMIN' | 'MEMBER' | 'GUEST';
+};
+
+export type GenerateInvitationResponse = ApiSuccess<{
+  inviteLink: string;
+  token: string;
+  orgName: string;
+  email: string;
+  role: string;
+}>;
+
+export type AcceptInvitationResponse = ApiSuccess<{
+  orgId: string;
+  orgName: string;
+  alreadyMember: boolean;
+}>;
+
+// --- INVITATION SERVICE ---
+
+export const invitationService = {
+  generateInvitationLink: async (orgId: string, data: GenerateInvitationInput): Promise<GenerateInvitationResponse> => {
+    return apiRequest.post<GenerateInvitationResponse>(`/organizations/${orgId}/invitations`, data);
+  },
+
+  acceptInvitation: async (token: string): Promise<AcceptInvitationResponse> => {
+    return apiRequest.post<AcceptInvitationResponse>('/organizations/invitations/accept', { token });
+  },
+};
+
+// --- INVITATION HOOKS ---
+
+export const useGenerateInvitationLink = () => {
+  return useMutation({
+    mutationKey: ['generateInvitationLink'],
+    mutationFn: ({ orgId, data }: { orgId: string; data: GenerateInvitationInput }) =>
+      invitationService.generateInvitationLink(orgId, data),
+  });
+};
+
+export const useAcceptInvitation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationKey: ['acceptInvitation'],
+    mutationFn: (token: string) => invitationService.acceptInvitation(token),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: organizationKeys.all });
+    },
+  });
+};

@@ -348,4 +348,50 @@ export class ChannelService {
       };
     });
   }
+
+  // Get organization members who are NOT yet in this channel
+  static async getInviteableMembers(channelId: string, currentUserId: string, options: { search?: string } = {}) {
+    const channel = await channelRepo.getById(channelId);
+    if (!channel) throw new AppError('Channel not found', HttpStatus.NOT_FOUND);
+
+    const orgMembership = await orgMemberRepo.findOne({ organization_id: channel.org_id, user_id: currentUserId });
+    const channelMembership = await channelMemberRepo.findOne({ channel_id: channelId, user_id: currentUserId });
+
+    // Capability Check: channel.member.add
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'channel.member.add')) {
+      throw new AppError('You lack the channel.member.add capability', HttpStatus.FORBIDDEN);
+    }
+
+    const { search } = options;
+
+    // Get all org members
+    const allOrgMembers = await orgMemberRepo.getAll({
+      where: {
+        organization_id: channel.org_id,
+        ...(search ? {
+          OR: [
+            { user: { name: { contains: search, mode: 'insensitive' } } },
+            { user: { email: { contains: search, mode: 'insensitive' } } }
+          ]
+        } : {})
+      },
+      include: { user: { select: { id: true, name: true, email: true } } }
+    });
+
+    // Get existing channel member user IDs
+    const channelMembers = await channelMemberRepo.getAll({ where: { channel_id: channelId } });
+    const channelMemberUserIds = new Set(channelMembers.map((m: any) => m.user_id));
+
+    // Filter out users already in the channel
+    const inviteable = allOrgMembers
+      .filter((m: any) => !channelMemberUserIds.has(m.user_id))
+      .map((m: any) => ({
+        user_id: m.user_id,
+        name: m.user.name,
+        email: m.user.email,
+        org_role: m.role
+      }));
+
+    return { members: inviteable };
+  }
 }

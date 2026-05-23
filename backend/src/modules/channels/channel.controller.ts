@@ -142,3 +142,20 @@ export const updateChannelMemberRole = async (request: FastifyRequest, reply: Fa
 
   return sendSuccess(reply, result, 'UPDATE', 'Member role updated successfully');
 };
+
+export const inviteableMembersQuerySchema = z.object({
+  search: z.string().trim().optional()
+});
+
+// 9. Get org members who can be invited to this channel
+export const getInviteableMembers = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { id } = request.params as { id: string };
+  const user = (request as any).user;
+  const { search } = inviteableMembersQuerySchema.parse(request.query ?? {});
+
+  const members = await ChannelService.getInviteableMembers(id, user.userId, {
+    ...(search !== undefined ? { search } : {})
+  });
+
+  return sendSuccess(reply, members, 'FETCH', 'Inviteable members retrieved successfully');
+};

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import * as z from "zod/v4";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
@@ -25,8 +25,11 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+const INVITE_TOKEN_KEY = "pending_invite_token";
+
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
 
   const resolver = createZodResolver<LoginFormValues>(loginSchema);
@@ -43,7 +46,14 @@ export default function LoginPage() {
   const onSubmit = (data: LoginFormValues) => {
     loginMutation.mutate(data, {
       onSuccess: () => {
-        router.push("/dashboard");
+        // If coming from an invite redirect or a pending token exists, go accept the invite
+        const pendingToken = localStorage.getItem(INVITE_TOKEN_KEY);
+        const redirectPath = searchParams.get("redirect");
+        if (pendingToken || redirectPath === "/invite/accept") {
+          router.push("/invite/accept");
+        } else {
+          router.push("/dashboard");
+        }
       },
       onError: (err: unknown) => {
         handleApiFormError<LoginFormValues>({

@@ -290,3 +290,35 @@ export const useRemoveChannelMember = () => {
   });
 };
 
+// --- INVITEABLE MEMBERS ---
+
+export type InviteableMember = {
+  user_id: string;
+  name: string;
+  email: string;
+  org_role: string;
+};
+
+export type InviteableMembersResponse = ApiSuccess<{ members: InviteableMember[] }>;
+
+export const channelInviteKeys = {
+  inviteable: (channelId: string, search?: string) =>
+    [...channelKeys.all, "inviteable", channelId, search] as const,
+};
+
+export const useInviteableMembers = (channelId: string, search?: string, options?: { enabled?: boolean }) => {
+  const queryResult = useQuery({
+    queryKey: channelInviteKeys.inviteable(channelId, search),
+    queryFn: () =>
+      apiRequest.get<InviteableMembersResponse>(`/channels/${channelId}/inviteable-members`, {
+        params: search ? { search } : undefined,
+      }),
+    enabled: (options?.enabled ?? true) && !!channelId,
+    staleTime: 1000 * 30,
+  });
+
+  return {
+    ...queryResult,
+    members: queryResult.data?.success ? queryResult.data.data.members : [],
+  };
+};
