@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { joinChannelRoom, leaveChannelRoom } from "@/socket/socket";
-import { taskKeys, type TaskComment } from "@/api/tasks";
+import { taskKeys, type TaskComment, type TaskActivity } from "@/api/tasks";
 
 type TaskRefreshScope = "board" | "task" | "comments" | "task+comments";
 
@@ -24,6 +24,14 @@ type TaskCommentCreatedPayload = {
   actorUserId: string;
   timestamp: string;
   comment: TaskComment;
+};
+
+type TaskActivityCreatedPayload = {
+  channelId: string;
+  taskId: string;
+  actorUserId: string;
+  timestamp: string;
+  activity: TaskActivity;
 };
 
 type TaskDeletedPayload = {
@@ -54,12 +62,12 @@ type BoardListsReorderedPayload = {
 
 type UseTaskRealtimeOptions = {
   userId?: string;
-  activeTaskIdRef?: MutableRefObject<string | null>;
-  openDialogRef?: MutableRefObject<boolean>;
-  isDraggingRef?: MutableRefObject<boolean>;
-  pendingBoardRefreshRef?: MutableRefObject<boolean>;
-  pendingTaskRefreshRef?: MutableRefObject<Set<string>>;
-  dirtyFieldsRef?: MutableRefObject<Record<string, boolean>>;
+  activeTaskIdRef?: RefObject<string | null>;
+  openDialogRef?: RefObject<boolean>;
+  isDraggingRef?: RefObject<boolean>;
+  pendingBoardRefreshRef?: RefObject<boolean>;
+  pendingTaskRefreshRef?: RefObject<Set<string>>;
+  dirtyFieldsRef?: RefObject<Record<string, boolean>>;
   onTaskDeleted?: (payload: TaskDeletedPayload) => void;
 };
 
@@ -77,9 +85,14 @@ export function useTaskRealtime(channelId: string, options: UseTaskRealtimeOptio
   const boardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const taskTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const effectiveIsDraggingRef = isDraggingRef ?? useRef(false);
-  const effectivePendingBoardRefreshRef = pendingBoardRefreshRef ?? useRef(false);
-  const effectivePendingTaskRefreshRef = pendingTaskRefreshRef ?? useRef(new Set<string>());
+  const localIsDraggingRef = useRef(false);
+  const effectiveIsDraggingRef = isDraggingRef ?? localIsDraggingRef;
+
+  const localPendingBoardRefreshRef = useRef(false);
+  const effectivePendingBoardRefreshRef = pendingBoardRefreshRef ?? localPendingBoardRefreshRef;
+
+  const localPendingTaskRefreshRef = useRef(new Set<string>());
+  const effectivePendingTaskRefreshRef = pendingTaskRefreshRef ?? localPendingTaskRefreshRef;
 
   const debouncedRefreshBoard = useMemo(
     () => () => {
@@ -107,6 +120,18 @@ export function useTaskRealtime(channelId: string, options: UseTaskRealtimeOptio
     },
     [queryClient]
   );
+
+  const flushPendingRefreshes = () => {
+    if (effectivePendingBoardRefreshRef.current) {
+      effectivePendingBoardRefreshRef.current = false;
+      debouncedRefreshBoard();
+    }
+
+    if (effectivePendingTaskRefreshRef.current.size > 0) {
+      Array.from(effectivePendingTaskRefreshRef.current).forEach((taskId) => debouncedRefreshTask(taskId));
+      effectivePendingTaskRefreshRef.current.clear();
+    }
+  };
 
   useEffect(() => {
     if (!channelId || !userId) return;
@@ -174,6 +199,25 @@ export function useTaskRealtime(channelId: string, options: UseTaskRealtimeOptio
       });
     };
 
+    const handleActivityCreated = (payload: TaskActivityCreatedPayload) => {
+      if (payload.channelId !== channelId) return;
+      if (payload.actorUserId === userId) return;
+
+      queryClient.setQueryData(taskKeys.activities(payload.taskId), (existing: unknown) => {
+        const current = existing as { success?: boolean; data?: { data: TaskActivity[] } } | undefined;
+        if (!current?.success || !current.data) return existing;
+        const currentActivities = current.data.data ?? [];
+        if (currentActivities.some((act) => act.id === payload.activity.id)) return existing;
+        return {
+          ...current,
+          data: {
+            ...current.data,
+            data: [payload.activity, ...currentActivities],
+          },
+        };
+      });
+    };
+
     const handleTaskDeleted = (payload: TaskDeletedPayload) => {
       if (payload.channelId !== channelId) return;
       if (payload.actorUserId === userId) return;
@@ -207,21 +251,26 @@ export function useTaskRealtime(channelId: string, options: UseTaskRealtimeOptio
 
     socket.on("channel:task_refresh", handleRefresh);
     socket.on("channel:task_comment_created", handleCommentCreated);
+    socket.on("channel:task_activity_created", handleActivityCreated);
     socket.on("channel:task_deleted", handleTaskDeleted);
     socket.on("channel:task_moved", handleTaskMoved);
     socket.on("channel:board_lists_reordered", handleBoardListsReordered);
 
+    const activeBoardTimer = boardTimerRef.current;
+    const activeTaskTimers = taskTimersRef.current;
+
     return () => {
       socket.off("channel:task_refresh", handleRefresh);
       socket.off("channel:task_comment_created", handleCommentCreated);
+      socket.off("channel:task_activity_created", handleActivityCreated);
       socket.off("channel:task_deleted", handleTaskDeleted);
       socket.off("channel:task_moved", handleTaskMoved);
       socket.off("channel:board_lists_reordered", handleBoardListsReordered);
       leaveChannelRoom(channelId, userId);
 
-      if (boardTimerRef.current) clearTimeout(boardTimerRef.current);
-      taskTimersRef.current.forEach((timer) => clearTimeout(timer));
-      taskTimersRef.current.clear();
+      if (activeBoardTimer) clearTimeout(activeBoardTimer);
+      activeTaskTimers.forEach((timer) => clearTimeout(timer));
+      activeTaskTimers.clear();
     };
   }, [
     channelId,
@@ -238,16 +287,6 @@ export function useTaskRealtime(channelId: string, options: UseTaskRealtimeOptio
   ]);
 
   return {
-    flushPendingRefreshes: () => {
-      if (effectivePendingBoardRefreshRef.current) {
-        effectivePendingBoardRefreshRef.current = false;
-        debouncedRefreshBoard();
-      }
-
-      if (effectivePendingTaskRefreshRef.current.size > 0) {
-        Array.from(effectivePendingTaskRefreshRef.current).forEach((taskId) => debouncedRefreshTask(taskId));
-        effectivePendingTaskRefreshRef.current.clear();
-      }
-    },
+    flushPendingRefreshes,
   };
 }

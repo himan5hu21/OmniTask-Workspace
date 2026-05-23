@@ -404,6 +404,34 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }),
     taskController.createSubtask
   );
+
+  // PHASE 6 — Activity Feed
+
+  // GET paginated activity log for a task
+  app.get(
+    '/tasks/:id/activities',
+    createSchema({
+      description: 'Get paginated activity log for a task',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+      querystring: z.object({
+        page: z.coerce.number().int().min(1).optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+      }),
+    }),
+    taskController.getActivities
+  );
+
+  // DELETE a single activity entry (admin / audit cleanup)
+  app.delete(
+    '/activities/:id',
+    createSchema({
+      description: 'Delete a task activity log entry',
+      tags: ['Tasks'],
+      params: z.object({ id: z.string().cuid() }),
+    }),
+    taskController.deleteActivity
+  );
 };
 
 export default taskRoutes;

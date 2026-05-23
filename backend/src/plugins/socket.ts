@@ -20,6 +20,8 @@ interface SocketData {
   };
 }
 
+export let socketIO: Server | null = null;
+
 interface ServerToClientEvents {
   'channel:user_joined': (data: { channelId: string; userId: string; name: string; timestamp: string }) => void;
   'channel:typing': (data: { channelId: string; userId: string; name: string; timestamp: string }) => void;
@@ -40,6 +42,13 @@ interface ServerToClientEvents {
     actorUserId: string;
     timestamp: string;
     comment: unknown;
+  }) => void;
+  'channel:task_activity_created': (data: {
+    channelId: string;
+    taskId: string;
+    actorUserId: string;
+    timestamp: string;
+    activity: unknown;
   }) => void;
   'channel:task_deleted': (data: {
     channelId: string;
@@ -86,6 +95,8 @@ const socketPlugin: FastifyPluginAsync = async (fastify, options) => {
       methods: ['GET', 'POST'],
     }
   });
+
+  socketIO = io;
 
   // Global access aapo
   fastify.decorate('io', io);

@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Calendar as CalendarIcon,
   Plus,
+  PlusCircle,
   FileText,
   Check,
   Paperclip,
@@ -23,7 +24,17 @@ import {
   ZoomOut,
   Download,
   ExternalLink,
-  RotateCcw
+  RotateCcw,
+  History,
+  UserPlus,
+  UserMinus,
+  Tag,
+  TagIcon,
+  Activity,
+  GitCommitHorizontal,
+  Pencil,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -57,7 +68,9 @@ import {
   useUnassignLabel,
   useCreateLabel,
   useDeleteLabel,
-  TaskUser
+  useTaskActivities,
+  TaskUser,
+  type TaskActivity,
 } from "@/api/tasks";
 import { useChannelMembers } from "@/api/channels";
 import { toast } from "sonner";
@@ -104,6 +117,7 @@ import {
   PopoverTrigger,
   PopoverClose,
 } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 /**
  * PROPS & INTERFACES
@@ -301,6 +315,99 @@ function CommentInput({ onSubmit }: { onSubmit: (content: string) => void }) {
     </div>
   );
 }
+
+/**
+ * ActivityFeed Component
+ * Renders the paginated activity log for a task with icons, user info, and timestamps.
+ */
+const ACTIVITY_META: Record<
+  string,
+  { label: string; icon: React.ReactNode; color: string }
+> = {
+  CREATED:           { label: "created this task",           icon: <PlusCircle size={13} />,          color: "text-emerald-500" },
+  UPDATED:           { label: "updated this task",           icon: <Pencil size={13} />,              color: "text-blue-500"   },
+  STATUS_CHANGED:    { label: "changed the status",          icon: <CheckCircle2 size={13} />,        color: "text-violet-500" },
+  ASSIGNED:          { label: "assigned a member",           icon: <UserPlus size={13} />,            color: "text-sky-500"    },
+  UNASSIGNED:        { label: "removed a member",            icon: <UserMinus size={13} />,           color: "text-orange-500" },
+  COMMENTED:         { label: "commented",                   icon: <MessageSquare size={13} />,       color: "text-muted-foreground" },
+  CHECKLIST_UPDATED: { label: "updated a checklist",         icon: <CheckSquare size={13} />,         color: "text-amber-500"  },
+  ATTACHMENT_ADDED:  { label: "added an attachment",         icon: <Paperclip size={13} />,           color: "text-pink-500"   },
+  LABEL_ADDED:       { label: "added a label",               icon: <Tag size={13} />,                 color: "text-teal-500"   },
+  LABEL_REMOVED:     { label: "removed a label",             icon: <Tag size={13} />,                 color: "text-rose-500"   },
+  PRIORITY_CHANGED:  { label: "changed the priority",        icon: <ChevronsUp size={13} />,          color: "text-yellow-500" },
+  DUE_DATE_CHANGED:  { label: "changed the due date",        icon: <Clock size={13} />,               color: "text-indigo-500" },
+  DELETED:           { label: "deleted an item",             icon: <Trash2 size={13} />,              color: "text-destructive" },
+};
+
+function ActivityFeed({ taskId }: { taskId: string }) {
+  const { activities, isLoading } = useTaskActivities(taskId, { enabled: !!taskId });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <OrbitalLoader size="sm" />
+      </div>
+    );
+  }
+
+  return (
+    <ScrollArea className="flex-1 px-4 py-0">
+      <div className="flex flex-col gap-0 py-4">
+        {activities.length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-2 pt-10 text-center">
+            <History className="h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No activity yet.</p>
+            <p className="text-xs text-muted-foreground/60">Changes to this task will appear here.</p>
+          </div>
+        )}
+        {activities.map((activity: TaskActivity, idx: number) => {
+          const meta = ACTIVITY_META[activity.type] ?? {
+            label: activity.type.toLowerCase().replace(/_/g, " "),
+            icon: <Activity size={13} />,
+            color: "text-muted-foreground",
+          };
+          const displayLabel = activity.type === "ATTACHMENT_ADDED" && activity.content?.toLowerCase().includes("removed")
+            ? "removed an attachment"
+            : meta.label;
+          const isLast = idx === activities.length - 1;
+          return (
+            <div key={activity.id} className="flex gap-2.5 relative">
+              {/* Timeline line */}
+              {!isLast && (
+                <div className="absolute left-[15px] top-7 bottom-0 w-px bg-border z-0" />
+              )}
+              {/* Icon bubble */}
+              <div className={cn(
+                "w-7 h-7 rounded-full border border-border bg-background flex items-center justify-center shrink-0 z-10 mt-1",
+                meta.color
+              )}>
+                {meta.icon}
+              </div>
+              {/* Content */}
+              <div className="flex flex-col gap-0.5 flex-1 py-1 pb-3">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[12px] font-semibold text-foreground leading-tight">
+                    {activity.user?.name || "Someone"}
+                  </span>
+                  <span className="text-[12px] text-muted-foreground leading-tight">{displayLabel}</span>
+                </div>
+                {activity.content && (
+                  <p className="text-[11px] text-muted-foreground/80 bg-muted/50 rounded px-2 py-1 mt-0.5 italic leading-snug">
+                    {activity.content}
+                  </p>
+                )}
+                <span className="text-[10px] text-muted-foreground/60 mt-0.5">
+                  {format(new Date(activity.created_at), "MMM d, p")}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </ScrollArea>
+  );
+}
+
 
 /**
  * AddSubtaskForm Component
@@ -2305,54 +2412,77 @@ export function TaskDetailDialog({
             </main>
 
             {/* 
-             * RIGHT COLUMN: Sidebar (Activity & Comments)
-             * Displays the activity feed and allows users to post new comments.
+             * RIGHT COLUMN: Sidebar (Comments & Activity)
+             * Tab-based sidebar: default tab is "Comments", second tab is "Activity".
              */}
             <aside className="w-[35%] bg-muted/10 flex flex-col border-l border-border h-full">
-              <div className="p-4 border-b border-border bg-card shrink-0">
-                <div className="flex items-center gap-2 text-foreground font-bold">
-                  <MessageSquare className="h-5 w-5 text-primary" />
-                  <h3>Activity & Comments</h3>
+              <Tabs defaultValue="comments" className="flex flex-col h-full gap-0">
+                {/* Tab header */}
+                <div className="px-4 pt-3 pb-0 border-b border-border bg-card shrink-0">
+                  <TabsList variant="line" className="w-full justify-start gap-0 h-auto pb-0 rounded-none">
+                    <TabsTrigger
+                      value="comments"
+                      className="flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold rounded-none border-b-2 border-transparent data-[state=active]:border-transparent data-[state=active]:text-primary"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Comments
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="activity"
+                      className="flex items-center gap-1.5 pb-2.5 px-3 text-xs font-semibold rounded-none data-[state=active]:border-transparent data-[state=active]:text-primary"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                      Activity
+                    </TabsTrigger>
+                  </TabsList>
                 </div>
-              </div>
 
-              {/* Comment Input Header */}
-              {canComment && (
-                <div className="p-4 border-b border-border bg-card shrink-0">
-                  <div className="flex flex-col gap-2">
-                    <CommentInput onSubmit={handleAddComment} />
-                  </div>
-                </div>
-              )}
-
-              <ScrollArea className="flex-1 p-4">
-                <div className="flex flex-col gap-4 relative pb-4">
-                  {/* Comment Entries */}
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="flex gap-2 relative z-10">
-                      <div className="w-8 h-8 rounded-full bg-muted overflow-hidden border border-background shrink-0">
-                        <Avatar className="w-full h-full">
-                          <AvatarImage src={comment.user?.avatar_url} />
-                          <AvatarFallback className="text-[10px] font-bold uppercase">{comment.user?.name?.substring(0, 2) || "U"}</AvatarFallback>
-                        </Avatar>
-                      </div>
-                      <div className="flex flex-col gap-1 flex-1">
-                        <div className="flex items-center justify-between w-full">
-                          <span className="text-[13px] font-medium text-foreground">{comment.user?.name || "User"}</span>
-                          <span className="text-[11px] text-muted-foreground opacity-70">{format(new Date(comment.created_at), 'MMM d, p')}</span>
-                        </div>
-                        <div className="bg-card border border-border p-2.5 rounded-lg rounded-tl-none text-sm text-foreground shadow-sm whitespace-pre-wrap wrap-anywhere">
-                          {comment.text}
-                        </div>
-                      </div>
+                {/* ── COMMENTS TAB ── */}
+                <TabsContent value="comments" className="flex flex-col flex-1 overflow-hidden mt-0">
+                  {canComment && (
+                    <div className="p-4 border-b border-border bg-card shrink-0">
+                      <CommentInput onSubmit={handleAddComment} />
                     </div>
-                  ))}
-
-                  {comments.length === 0 && (
-                    <div className="text-sm text-muted-foreground relative z-10 pl-12 pt-2">No activity yet.</div>
                   )}
-                </div>
-              </ScrollArea>
+                  <ScrollArea className="flex-1 p-4">
+                    <div className="flex flex-col gap-4 pb-4">
+                      {comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-2">
+                          <div className="w-8 h-8 rounded-full bg-muted overflow-hidden border border-background shrink-0">
+                            <Avatar className="w-full h-full">
+                              <AvatarImage src={comment.user?.avatar_url} />
+                              <AvatarFallback className="text-[10px] font-bold uppercase">
+                                {comment.user?.name?.substring(0, 2) || "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1">
+                            <div className="flex items-center justify-between w-full">
+                              <span className="text-[13px] font-medium text-foreground">{comment.user?.name || "User"}</span>
+                              <span className="text-[11px] text-muted-foreground opacity-70">{format(new Date(comment.created_at), 'MMM d, p')}</span>
+                            </div>
+                            <div className="bg-card border border-border p-2.5 rounded-lg rounded-tl-none text-sm text-foreground shadow-sm whitespace-pre-wrap wrap-anywhere">
+                              {comment.text}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {comments.length === 0 && (
+                        <div className="flex flex-col items-center justify-center gap-2 pt-10 text-center">
+                          <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
+                          <p className="text-sm text-muted-foreground">No comments yet.</p>
+                          <p className="text-xs text-muted-foreground/60">Be the first to leave a comment.</p>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                {/* ── ACTIVITY TAB ── */}
+                <TabsContent value="activity" className="flex flex-col flex-1 overflow-hidden mt-0">
+                  <ActivityFeed taskId={task.id} />
+                </TabsContent>
+              </Tabs>
            </aside>
           </div>
         </DialogContent>

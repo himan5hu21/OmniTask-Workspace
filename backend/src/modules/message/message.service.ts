@@ -184,6 +184,19 @@ export class MessageService {
       throw new AppError('Deleting time limit exceeded (5 minutes max)', HttpStatus.BAD_REQUEST);
     }
 
+    // Fetch and delete physical message attachment files
+    try {
+      const { prisma: db } = await import('@/lib/database');
+      const attachments = await db.messageAttachment.findMany({
+        where: { channel_message_id: messageId }
+      });
+      for (const attachment of attachments) {
+        await StorageService.deleteFile(attachment.file_url);
+      }
+    } catch (e: any) {
+      console.error('[Delete Message Attachments Error]', e?.message ?? e);
+    }
+
     await messageRepo.delete(messageId);
 
     if (io) io.to(`channel:${message.channel_id}`).emit('channel:message_deleted', { id: messageId });

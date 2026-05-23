@@ -7,6 +7,7 @@ import { commentService } from './comment.service';
 import { checklistService } from './checklist.service';
 import { labelService } from './label.service';
 import { attachmentService } from './attachment.service';
+import { activityService } from './activity.service';
 import { sendSuccess, sendError } from '@/utils/response';
 import { PermissionGuard } from '@/utils/permissions';
 import { HttpStatus } from '@/types/api';
@@ -20,6 +21,7 @@ import { taskRepository } from '@/repositories/task.repository';
 import { attachmentRepository } from '@/repositories/attachment.repository';
 import { commentRepository } from '@/repositories/comment.repository';
 import { labelRepository } from '@/repositories/label.repository';
+import { activityRepository } from '@/repositories/activity.repository';
 import { StorageService } from '@/lib/storage';
 
 export class TaskController {
@@ -49,6 +51,8 @@ export class TaskController {
     this.addAttachment = this.addAttachment.bind(this);
     this.createSubtask = this.createSubtask.bind(this);
     this.deleteTask = this.deleteTask.bind(this);
+    this.getActivities = this.getActivities.bind(this);
+    this.deleteActivity = this.deleteActivity.bind(this);
   }
 
   private emitTaskRefresh(
@@ -353,6 +357,19 @@ export class TaskController {
 
     const sourceListId = task.list_id;
     const updatedTask = await taskService.moveTask(id, target_list_id, position);
+
+    // Log move activity — fire-and-forget, look up list name for context
+    boardListRepository.getById(target_list_id)
+      .then((targetList: any) => {
+        activityService.logActivity(
+          id,
+          userId,
+          'UPDATED',
+          targetList ? `Moved to "${targetList.name}"` : 'Moved to another list'
+        );
+      })
+      .catch((e: any) => console.error('[Activity]', e?.message ?? e));
+
     this.emitTaskMoved(request, channelId, {
       taskId: id,
       sourceListId,
@@ -457,7 +474,20 @@ export class TaskController {
     const updatedTask = await taskService.updateTask(id, {
       title: request.body.title,
       description: request.body.description,
+    }, {
+      actorId: userId,
+      type: 'UPDATED',
+      content: request.body.title ? `Renamed to "${request.body.title}"` : 'Updated description',
     });
+
+    if (task.parent_task_id && request.body.title && task.title !== request.body.title) {
+      activityService.logActivity(
+        task.parent_task_id,
+        userId,
+        'UPDATED',
+        `Renamed subtask "${task.title}" to "${request.body.title}"`
+      ).catch((e) => console.error("[Activity]", e?.message ?? e));
+    }
 
     if (updatedTask.attachments) {
       updatedTask.attachments = updatedTask.attachments.map((att: any) => ({
@@ -469,12 +499,14 @@ export class TaskController {
       scope: 'task+comments',
       taskId: id,
       listId: task.list_id,
+      parentTaskId: task.parent_task_id || undefined,
       reason: 'task_content_updated',
     });
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'board',
       taskId: id,
       listId: task.list_id,
+      parentTaskId: task.parent_task_id || undefined,
       reason: 'task_content_updated',
     });
     return sendSuccess(reply, updatedTask, 'UPDATE');
@@ -504,7 +536,21 @@ export class TaskController {
     const updatedTask = await taskService.updateTask(id, {
       status: request.body.status,
       completed_at: request.body.status === 'COMPLETED' ? new Date() : null,
+    }, {
+      actorId: userId,
+      type: 'STATUS_CHANGED',
+      content: `Status → ${request.body.status.replace(/_/g, ' ')}`,
     });
+
+    if (task.parent_task_id) {
+      const isCompleted = request.body.status === 'COMPLETED';
+      activityService.logActivity(
+        task.parent_task_id,
+        userId,
+        'STATUS_CHANGED',
+        isCompleted ? `Completed subtask "${task.title}"` : `Marked subtask "${task.title}" as incomplete`
+      ).catch((e) => console.error("[Activity]", e?.message ?? e));
+    }
 
     if (updatedTask.attachments) {
       updatedTask.attachments = updatedTask.attachments.map((att: any) => ({
@@ -516,12 +562,14 @@ export class TaskController {
       scope: 'task',
       taskId: id,
       listId: task.list_id,
+      parentTaskId: task.parent_task_id || undefined,
       reason: 'task_status_updated',
     });
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'board',
       taskId: id,
       listId: task.list_id,
+      parentTaskId: task.parent_task_id || undefined,
       reason: 'task_status_updated',
     });
     return sendSuccess(reply, updatedTask, 'UPDATE');
@@ -552,12 +600,29 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to manage task properties');
     }
 
+    const body = request.body;
+    const activityType = body.priority !== undefined
+      ? 'PRIORITY_CHANGED'
+      : body.due_date !== undefined
+        ? 'DUE_DATE_CHANGED'
+        : 'UPDATED';
+
+    const activityContent = body.priority !== undefined
+      ? `Priority → ${body.priority ?? 'None'}`
+      : body.due_date !== undefined
+        ? `Due date → ${body.due_date ? new Date(body.due_date as string).toDateString() : 'None'}`
+        : undefined;
+
     const updatedTask = await taskService.updateTask(id, {
-      priority: request.body.priority,
-      start_date: request.body.start_date,
-      due_date: request.body.due_date,
-      completed_at: request.body.completed_at,
-      cover_color: request.body.cover_color,
+      priority: body.priority,
+      start_date: body.start_date,
+      due_date: body.due_date,
+      completed_at: body.completed_at,
+      cover_color: body.cover_color,
+    }, {
+      actorId: userId,
+      type: activityType as any,
+      content: activityContent,
     });
 
     if (updatedTask.attachments) {
@@ -570,12 +635,14 @@ export class TaskController {
       scope: 'task',
       taskId: id,
       listId: task.list_id,
+      parentTaskId: task.parent_task_id || undefined,
       reason: 'task_manage_updated',
     });
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'board',
       taskId: id,
       listId: task.list_id,
+      parentTaskId: task.parent_task_id || undefined,
       reason: 'task_manage_updated',
     });
     return sendSuccess(reply, updatedTask, 'UPDATE');
@@ -595,6 +662,25 @@ export class TaskController {
     const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
     if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.delete')) {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete task');
+    }
+
+    // Log before hard-delete so the task_id still resolves for the foreign key
+    // (cascade delete on task_activities means the log row will be removed with the task;
+    //  but if you want to keep logs, switch TaskActivity to onDelete: Restrict or SetNull)
+    if (task.parent_task_id) {
+      activityService.logActivity(
+        task.parent_task_id,
+        userId,
+        'UPDATED',
+        `Removed subtask "${task.title}"`
+      ).catch((e) => console.error('[Activity]', e?.message ?? e));
+    } else {
+      activityService.logActivity(
+        id,
+        userId,
+        'DELETED',
+        `Deleted task "${task.title}"`
+      ).catch((e) => console.error('[Activity]', e?.message ?? e));
     }
 
     await taskService.deleteTask(id);
@@ -627,7 +713,20 @@ export class TaskController {
     const targetUser = await prisma.user.findUnique({ where: { id: user_id } });
     if (!targetUser) return sendError(reply, HttpStatus.NOT_FOUND, 'Target user not found');
 
-    const assignment = await assignmentService.assignUser(id, user_id);
+    const assignment = await assignmentService.assignUser(
+      id,
+      user_id,
+      userId,
+      targetUser.name
+    );
+    if (task.parent_task_id) {
+      activityService.logActivity(
+        task.parent_task_id,
+        userId,
+        'ASSIGNED',
+        `Assigned subtask "${task.title}" to ${targetUser.name}`
+      ).catch((e) => console.error("[Activity]", e?.message ?? e));
+    }
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'task',
       taskId: id,
@@ -656,7 +755,17 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to unassign users');
     }
 
-    await assignmentService.unassignUser(id, targetUserId);
+    const { prisma: db } = await import('@/lib/database');
+    const targetUserForUnassign = await db.user.findUnique({ where: { id: targetUserId }, select: { name: true } });
+    await assignmentService.unassignUser(id, targetUserId, userId, targetUserForUnassign?.name ?? undefined);
+    if (task.parent_task_id) {
+      activityService.logActivity(
+        task.parent_task_id,
+        userId,
+        'UNASSIGNED',
+        `Unassigned subtask "${task.title}" (previously assigned to ${targetUserForUnassign?.name ?? 'member'})`
+      ).catch((e) => console.error("[Activity]", e?.message ?? e));
+    }
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'task',
       taskId: id,
@@ -728,7 +837,7 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to create checklists');
     }
 
-    const checklist = await checklistService.createChecklist(id, title);
+    const checklist = await checklistService.createChecklist(id, title, userId);
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'task',
       taskId: id,
@@ -751,7 +860,56 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to update checklists');
     }
 
-    const updatedChecklist = await checklistService.updateChecklist(checklistId, title || (checklist as any).name, assignee_id);
+    const oldAssigneeId = (checklist as any).assignee_id;
+    const oldTitle = (checklist as any).name;
+
+    const updatedChecklist = await checklistService.updateChecklist(checklistId, title || oldTitle, assignee_id);
+
+    // Log updates
+    if (title && title !== oldTitle) {
+      activityService.logActivity(
+        (checklist as any).task.id,
+        userId,
+        'CHECKLIST_UPDATED',
+        `Renamed checklist "${oldTitle}" to "${title}"`
+      ).catch((e) => console.error('[Activity]', e?.message ?? e));
+    }
+
+    if (assignee_id !== undefined && assignee_id !== oldAssigneeId) {
+      const { prisma: db } = await import('@/lib/database');
+      
+      let oldAssigneeName = '';
+      if (oldAssigneeId) {
+        const u = await db.user.findUnique({ where: { id: oldAssigneeId }, select: { name: true } });
+        oldAssigneeName = u?.name || 'someone';
+      }
+
+      let newAssigneeName = '';
+      if (assignee_id) {
+        const u = await db.user.findUnique({ where: { id: assignee_id }, select: { name: true } });
+        newAssigneeName = u?.name || 'someone';
+      }
+
+      let logMessage = '';
+      const checklistTitle = title || oldTitle;
+      if (oldAssigneeId && assignee_id) {
+        logMessage = `Changed assignee of checklist "${checklistTitle}" from ${oldAssigneeName} to ${newAssigneeName}`;
+      } else if (assignee_id) {
+        logMessage = `Assigned checklist "${checklistTitle}" to ${newAssigneeName}`;
+      } else if (oldAssigneeId) {
+        logMessage = `Unassigned checklist "${checklistTitle}" (previously assigned to ${oldAssigneeName})`;
+      }
+
+      if (logMessage) {
+        activityService.logActivity(
+          (checklist as any).task.id,
+          userId,
+          'CHECKLIST_UPDATED',
+          logMessage
+        ).catch((e) => console.error('[Activity]', e?.message ?? e));
+      }
+    }
+
     this.emitTaskRefresh(request, (checklist as any).task.channel_id, {
       scope: 'task',
       taskId: (checklist as any).task.id,
@@ -776,6 +934,12 @@ export class TaskController {
     }
 
     const item = await checklistService.addItem(checklistId, userId, text, position);
+    activityService.logActivity(
+      (checklist as any).task.id,
+      userId,
+      'CHECKLIST_UPDATED',
+      `Added item "${text}"`
+    ).catch((e) => console.error('[Activity]', e?.message ?? e));
     this.emitTaskRefresh(request, (checklist as any).task.channel_id, {
       scope: 'task',
       taskId: (checklist as any).task.id,
@@ -789,7 +953,12 @@ export class TaskController {
     const { id: itemId } = request.params;
     const { userId } = request.user as any;
 
-    const item = await checklistItemRepository.getById(itemId, { include: { checklist: { include: { task: true } } } });
+    const item = await checklistItemRepository.getById(itemId, {
+      include: {
+        checklist: { include: { task: true } },
+        assignee: { select: { id: true, name: true } }
+      }
+    });
     if (!item) return sendError(reply, HttpStatus.NOT_FOUND, 'Item not found');
 
     const [orgMembership, channelMembership] = await this.getRoles((item as any).checklist.task.org_id, (item as any).checklist.task.channel_id, userId);
@@ -798,13 +967,55 @@ export class TaskController {
     }
 
     const { is_completed, text, position, assignee_id } = request.body;
+    const itemText = (item as any).text as string;
     const updateData: any = {};
     if (is_completed !== undefined) updateData.is_completed = is_completed;
     if (text !== undefined) updateData.text = text;
     if (position !== undefined) updateData.position = position;
     if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
 
-    const updatedItem = await checklistService.updateItem(itemId, updateData);
+    const updatedItem = await checklistService.updateItem(itemId, updateData, {
+      taskId: (item as any).checklist.task.id,
+      actorId: userId,
+    });
+
+    // Log assignee change (is_completed toggle is handled inside checklistService.updateItem)
+    if (assignee_id !== undefined && is_completed === undefined) {
+      const oldAssignee = (item as any).assignee;
+      const oldAssigneeId = oldAssignee?.id || null;
+      const newAssigneeId = assignee_id;
+
+      if (oldAssigneeId !== newAssigneeId) {
+        const { prisma: db } = await import('@/lib/database');
+        
+        let oldAssigneeName = oldAssignee?.name || '';
+        let newAssigneeName = '';
+
+        if (newAssigneeId) {
+          const userObj = await db.user.findUnique({ where: { id: newAssigneeId }, select: { name: true } });
+          newAssigneeName = userObj?.name || 'someone';
+        }
+
+        let activityContent = '';
+        if (oldAssigneeId && newAssigneeId) {
+          activityContent = `Changed assignee of "${itemText}" from ${oldAssigneeName} to ${newAssigneeName}`;
+        } else if (newAssigneeId) {
+          activityContent = `Assigned "${itemText}" to ${newAssigneeName}`;
+        } else if (oldAssigneeId) {
+          activityContent = `Unassigned "${itemText}" (previously assigned to ${oldAssigneeName})`;
+        }
+
+        if (activityContent) {
+          activityService.logActivity(
+            (item as any).checklist.task.id,
+            userId,
+            'CHECKLIST_UPDATED',
+            activityContent
+          ).catch((e) => console.error('[Activity]', e?.message ?? e));
+        }
+      }
+    }
+
     this.emitTaskRefresh(request, (item as any).checklist.task.channel_id, {
       scope: 'task',
       taskId: (item as any).checklist.task.id,
@@ -826,7 +1037,14 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete items');
     }
 
+    const deletedItemText = (item as any).text as string;
     await checklistService.deleteItem(itemId);
+    activityService.logActivity(
+      (item as any).checklist.task.id,
+      userId,
+      'CHECKLIST_UPDATED',
+      `Removed item "${deletedItemText}"`
+    ).catch((e) => console.error('[Activity]', e?.message ?? e));
     this.emitTaskRefresh(request, (item as any).checklist.task.channel_id, {
       scope: 'task',
       taskId: (item as any).checklist.task.id,
@@ -849,6 +1067,13 @@ export class TaskController {
     }
 
     await checklistService.deleteChecklist(checklistId);
+    activityService.logActivity(
+      (checklist as any).task.id,
+      userId,
+      'CHECKLIST_UPDATED',
+      `Removed checklist "${checklist.name}"`
+    ).catch((e) => console.error('[Activity]', e?.message ?? e));
+
     this.emitTaskRefresh(request, (checklist as any).task.channel_id, {
       scope: 'task',
       taskId: (checklist as any).task.id,
@@ -902,7 +1127,9 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to assign labels');
     }
 
-    const assignment = await labelService.assignLabel(id, label_id);
+    // Resolve label name for content
+    const labelRecord = await labelRepository.getById(label_id);
+    const assignment = await labelService.assignLabel(id, label_id, userId, labelRecord?.name);
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'task',
       taskId: id,
@@ -924,7 +1151,8 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to unassign labels');
     }
 
-    await labelService.unassignLabel(id, labelId);
+    const labelForRemove = await labelRepository.getById(labelId);
+    await labelService.unassignLabel(id, labelId, userId, labelForRemove?.name ?? undefined);
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'task',
       taskId: id,
@@ -1012,6 +1240,18 @@ export class TaskController {
     }
 
     await attachmentService.deleteAttachment(attachmentId);
+
+    // Delete physical file
+    await StorageService.deleteFile(attachment.file_url);
+
+    // Log activity
+    activityService.logActivity(
+      task.id,
+      userId,
+      'ATTACHMENT_ADDED',
+      `Removed attachment "${attachment.file_name}"`
+    ).catch((e) => console.error('[Activity]', e?.message ?? e));
+
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'task',
       taskId: task.id,
@@ -1050,6 +1290,61 @@ export class TaskController {
       reason: 'subtask_created',
     });
     return sendSuccess(reply, subtask, 'CREATE');
+  };
+
+  // PHASE 6 — Activity Feed
+
+  /**
+   * GET /tasks/:id/activities
+   * Returns a paginated activity log for a task.
+   */
+  getActivities = async (
+    request: FastifyRequest<{ Params: { id: string }; Querystring: { page?: number; limit?: number } }>,
+    reply: FastifyReply
+  ) => {
+    const { id } = request.params;
+    const { userId } = request.user as any;
+    const page = Number(request.query.page ?? 1);
+    const limit = Number(request.query.limit ?? 50);
+
+    const task = await taskRepository.getById(id);
+    if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.view')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to view task activities');
+    }
+
+    const result = await activityService.getActivities(id, page, limit);
+    return sendSuccess(reply, result, 'FETCH');
+  };
+
+  /**
+   * DELETE /activities/:id
+   * Hard-deletes a single activity log entry (admin / audit cleanup).
+   */
+  deleteActivity = async (
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+  ) => {
+    const { id: activityId } = request.params;
+    const { userId } = request.user as any;
+
+    const activity = await activityRepository.getById(activityId);
+    if (!activity) return sendError(reply, HttpStatus.NOT_FOUND, 'Activity not found');
+
+    // Resolve the parent task for permission check
+    const task = await taskRepository.getById(activity.task_id);
+    if (!task) return sendError(reply, HttpStatus.NOT_FOUND, 'Task not found');
+
+    const [orgMembership, channelMembership] = await this.getRoles(task.org_id, task.channel_id, userId);
+    // Only managers / admins can delete audit log entries
+    if (!PermissionGuard.canChannel(orgMembership?.role, channelMembership?.role, 'task.update-manage')) {
+      return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to delete activity entries');
+    }
+
+    await activityService.deleteActivity(activityId);
+    return sendSuccess(reply, { success: true }, 'DELETE');
   };
 
   // Private Helper

@@ -1,7 +1,7 @@
 import { taskRepository } from '@/repositories/task.repository';
 import { boardListRepository } from '@/repositories/board-list.repository';
 import { prisma } from '@/lib/database';
-
+import { activityService } from './activity.service';
 
 export class TaskService {
   private getBoardTaskSelect() {
@@ -121,7 +121,17 @@ export class TaskService {
       );
       data.position = lastTask ? lastTask.position + 1000 : 1000;
     }
-    return taskRepository.create(data, this.getTaskIncludes());
+    const task = await taskRepository.create(data, this.getTaskIncludes());
+
+    // Log creation activity
+    activityService.logActivity(
+      task.id,
+      data.creator_id,
+      'CREATED',
+      `Created task "${data.title}"`
+    ).catch((e) => console.error("[Activity]", e?.message ?? e));
+
+    return task;
   }
 
   async moveTask(taskId: string, targetListId: string, position: number) {
@@ -175,8 +185,31 @@ export class TaskService {
     return taskRepository.getById(id, this.getTaskIncludes());
   }
 
-  async updateTask(id: string, data: any) {
-    return taskRepository.update(id, data, this.getTaskIncludes());
+  /**
+   * General-purpose task update. Caller passes actorId + updateType to drive
+   * the activity log. Defaults to UPDATED if no type is provided.
+   */
+  async updateTask(
+    id: string,
+    data: any,
+    activityMeta?: {
+      actorId: string;
+      type?: 'UPDATED' | 'STATUS_CHANGED' | 'PRIORITY_CHANGED' | 'DUE_DATE_CHANGED';
+      content?: string | undefined;
+    }
+  ) {
+    const result = await taskRepository.update(id, data, this.getTaskIncludes());
+
+    if (activityMeta) {
+      activityService.logActivity(
+        id,
+        activityMeta.actorId,
+        activityMeta.type ?? 'UPDATED',
+        activityMeta.content
+      ).catch((e) => console.error("[Activity]", e?.message ?? e));
+    }
+
+    return result;
   }
 
   async getBoardData(channelId: string) {
@@ -245,7 +278,7 @@ export class TaskService {
     );
     const position = lastSubtask ? lastSubtask.position + 1000 : 1000;
 
-    return taskRepository.create({
+    const subtask = await taskRepository.create({
       ...data,
       parent_task_id: parentId,
       channel_id: parent.channel_id,
@@ -253,7 +286,18 @@ export class TaskService {
       list_id: parent.list_id,
       position
     });
+
+    // Log on the parent task
+    activityService.logActivity(
+      parentId,
+      data.creator_id,
+      'UPDATED',
+      `Added subtask "${data.title}"`
+    ).catch((e) => console.error("[Activity]", e?.message ?? e));
+
+    return subtask;
   }
 }
 
 export const taskService = new TaskService();
+

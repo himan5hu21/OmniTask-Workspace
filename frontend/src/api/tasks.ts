@@ -55,6 +55,42 @@ export type TaskComment = {
   user?: TaskUser;
 };
 
+export type TaskActivityType =
+  | 'CREATED'
+  | 'UPDATED'
+  | 'STATUS_CHANGED'
+  | 'ASSIGNED'
+  | 'UNASSIGNED'
+  | 'COMMENTED'
+  | 'CHECKLIST_UPDATED'
+  | 'ATTACHMENT_ADDED'
+  | 'LABEL_ADDED'
+  | 'LABEL_REMOVED'
+  | 'PRIORITY_CHANGED'
+  | 'DUE_DATE_CHANGED'
+  | 'DELETED';
+
+export type TaskActivity = {
+  id: string;
+  task_id: string;
+  user_id: string;
+  type: TaskActivityType;
+  content?: string | null;
+  created_at: string;
+  user?: TaskUser;
+};
+
+export type TaskActivitiesResponse = ApiSuccess<{
+  data: TaskActivity[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}>;
+
 export type TaskAttachment = {
   id: string;
   file_name: string;
@@ -166,6 +202,7 @@ export const taskKeys = {
   details: () => [...taskKeys.all, "detail"] as const,
   detail: (taskId: string) => [...taskKeys.details(), taskId] as const,
   comments: (taskId: string) => [...taskKeys.detail(taskId), "comments"] as const,
+  activities: (taskId: string) => [...taskKeys.detail(taskId), "activities"] as const,
   labels: (orgId: string) => ["labels", orgId] as const,
 };
 
@@ -299,6 +336,13 @@ export const taskService = {
   // Subtasks
   createSubtask: async (parentId: string, data: CreateSubtaskInput): Promise<TaskResponse> => {
     return apiRequest.post<TaskResponse>(`/tasks/${parentId}/subtasks`, data);
+  },
+
+  // Activities
+  getActivities: async (id: string, page = 1, limit = 50): Promise<TaskActivitiesResponse> => {
+    return apiRequest.get<TaskActivitiesResponse>(`/tasks/${id}/activities`, {
+      params: { page, limit },
+    });
   },
 };
 
@@ -452,6 +496,25 @@ export const useTaskComments = (taskId: string, options?: { enabled?: boolean })
   return {
     ...query,
     comments,
+  };
+};
+
+export const useTaskActivities = (taskId: string, options?: { enabled?: boolean }) => {
+  const query = useQuery({
+    queryKey: taskKeys.activities(taskId),
+    queryFn: () => taskService.getActivities(taskId),
+    enabled: (options?.enabled ?? true) && !!taskId,
+    staleTime: 1000 * 30,
+  });
+
+  const activities = useMemo(
+    () => (query.data?.success ? query.data.data.data : []),
+    [query.data]
+  );
+
+  return {
+    ...query,
+    activities,
   };
 };
 
