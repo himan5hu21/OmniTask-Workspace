@@ -18,6 +18,8 @@ import {
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
+import { useMemo, useState, useEffect } from "react";
+import { useOrganizationMembers, type OrganizationMember } from "@/api/organizations";
 import { useAuthProfile, useLogoutMutation } from "@/api/auth"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -57,6 +59,9 @@ const CreateChannelDialog = dynamic(
   { ssr: false }
 );
 import { Can } from "@/lib/casl"
+import { useConversations } from "@/api/messages"
+import { NewDirectMessageDialog } from "@/components/layout/new-dm-dialog"
+import { getSocket } from "@/socket/socket"
 
 export interface AppSidebarProps {
   mode?: "dashboard" | "organization"
@@ -71,11 +76,7 @@ export interface AppSidebarProps {
   className?: string
 }
 
-const dummyDMs = [
-  { id: "1", name: "Alice", online: true },
-  { id: "2", name: "Bob", online: false },
-  { id: "3", name: "Alex", online: true },
-]
+// Remove dummyDMs
 
 export function AppSidebar({
   mode = "dashboard",
@@ -90,6 +91,57 @@ export function AppSidebar({
   const pathname = usePathname()
   const router = useRouter()
   const { user } = useAuthProfile()
+
+  const { data: conversationsData, isLoading: conversationsLoading } = useConversations();
+  const conversations = useMemo(() => conversationsData?.data || [], [conversationsData]);
+  const actualLoadingDMs = conversationsLoading || isLoadingDMs;
+
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleOnlineList = (userIds: string[]) => {
+      setOnlineUsers(new Set(userIds));
+    };
+
+    const handleStatusChanged = ({ userId, status }: { userId: string; status: "online" | "offline" }) => {
+      setOnlineUsers((prev) => {
+        const next = new Set(prev);
+        if (status === "online") {
+          next.add(userId);
+        } else {
+          next.delete(userId);
+        }
+        return next;
+      });
+    };
+
+    socket.on("user:online_list", handleOnlineList);
+    socket.on("user:status_changed", handleStatusChanged);
+
+    // If socket is already connected and has socket.id, we might not get user:online_list immediately unless we request or if it was already sent.
+    // However, it is automatically sent on connection, and standard page mounts will hook it up correctly.
+
+    return () => {
+      socket.off("user:online_list", handleOnlineList);
+      socket.off("user:status_changed", handleStatusChanged);
+    };
+  }, []);
+
+  const { members = [] } = useOrganizationMembers(organizationId || "", { page: 1, limit: 100 }, { enabled: mode === "organization" && !!organizationId });
+
+  const memberUserIds = useMemo(() => {
+    return new Set(members.map((m: OrganizationMember) => m.user_id));
+  }, [members]);
+
+  const filteredConversations = useMemo(() => {
+    if (mode === "organization" && organizationId) {
+      return conversations.filter((conv) => memberUserIds.has(conv.otherUser.id));
+    }
+    return conversations;
+  }, [conversations, mode, organizationId, memberUserIds]);
 
   const logoutMutation = useLogoutMutation({
     onSuccess: () => {
@@ -454,40 +506,58 @@ export function AppSidebar({
                     </SidebarGroup>
 
                     <SidebarGroup className="mt-6 p-0">
-                      <SidebarGroupLabel className="mb-2 h-auto px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        Direct Messages
-                      </SidebarGroupLabel>
+                      <div className="mb-2 px-2 flex items-center justify-between">
+                        <SidebarGroupLabel className="h-auto px-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                          Direct Messages
+                        </SidebarGroupLabel>
+                        {organizationId && (
+                          <NewDirectMessageDialog
+                            orgId={organizationId}
+                            trigger={
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-md hover:bg-sidebar-accent flex items-center justify-center"
+                                aria-label="New Direct Message"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
+                            }
+                          />
+                        )}
+                      </div>
                       <SidebarGroupContent>
-                        {isLoadingDMs ? (
+                        {actualLoadingDMs ? (
                           <div className="flex w-full items-center justify-center py-6">
                           <ButtonSpinner />
                           </div>
-                        ) : (
+                        ) : filteredConversations.length > 0 ? (
                           <SidebarMenu className="gap-1">
-                            {dummyDMs.map((dm) => (
-                              <SidebarMenuItem key={dm.id}>
+                            {filteredConversations.map((conv) => (
+                              <SidebarMenuItem key={conv.id}>
                                 <SidebarMenuButton
                                   asChild
-                                  isActive={pathname === `/messages/${dm.id}`}
+                                  isActive={pathname === `/messages/${conv.id}`}
                                   className="h-9 rounded-lg border border-transparent px-2 text-sm text-muted-foreground transition-all hover:bg-sidebar-accent/60 hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                                 >
-                                  <Link href={`/messages/${dm.id}`} className="flex items-center gap-2">
-                                    <div className="relative shrink-0">
-                                      <Avatar className="h-6 w-6 rounded-md border border-primary/20 bg-primary/10">
-                                        <AvatarFallback className="bg-transparent text-primary font-bold text-[9px] shadow-sm uppercase">
-                                          {getInitials(dm.name)}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      {dm.online ? (
-                                        <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-sidebar bg-emerald-500" />
-                                      ) : null}
-                                    </div>
-                                    <span className="truncate font-medium text-xs">{dm.name}</span>
+                                  <Link href={`/messages/${conv.id}${organizationId ? `?orgId=${organizationId}` : ""}`} className="flex items-center gap-2">
+                                      <div className="relative shrink-0">
+                                        <Avatar className="h-6 w-6 rounded-md border border-primary/20 bg-primary/10">
+                                          <AvatarFallback className="bg-transparent text-primary font-bold text-[9px] shadow-sm uppercase">
+                                            {getInitials(conv.otherUser.name)}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        {onlineUsers.has(conv.otherUser.id) && (
+                                          <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-sidebar bg-emerald-500 animate-in fade-in duration-200" />
+                                        )}
+                                      </div>
+                                    <span className="truncate font-medium text-xs">{conv.otherUser.name}</span>
                                   </Link>
                                 </SidebarMenuButton>
                               </SidebarMenuItem>
                             ))}
                           </SidebarMenu>
+                        ) : (
+                          <div className="px-2 py-2 text-xs text-muted-foreground">No conversations yet</div>
                         )}
                       </SidebarGroupContent>
                     </SidebarGroup>
@@ -550,31 +620,39 @@ export function AppSidebar({
             Direct Messages
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {dummyDMs.map((dm) => (
-                <SidebarMenuItem key={dm.id}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === `/messages/${dm.id}`}
-                    className="h-10 transition-all data-[active=true]:border-l-[3px] data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:text-primary"
-                  >
-                    <Link href={`/messages/${dm.id}`} className="flex items-center gap-3">
-                      <div className="relative shrink-0">
-                        <Avatar className="h-6 w-6 rounded-md border border-primary/20 bg-primary/10">
-                          <AvatarFallback className="bg-transparent text-primary font-bold text-[9px] shadow-sm uppercase">
-                            {getInitials(dm.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        {dm.online ? (
-                          <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-emerald-500 shadow-sm" />
-                        ) : null}
-                      </div>
-                      <span className="truncate font-medium">{dm.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+            {actualLoadingDMs ? (
+              <div className="flex w-full items-center justify-center py-6">
+              <ButtonSpinner />
+              </div>
+            ) : filteredConversations.length > 0 ? (
+              <SidebarMenu className="space-y-1">
+                {filteredConversations.map((conv) => (
+                  <SidebarMenuItem key={conv.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === `/messages/${conv.id}`}
+                      className="h-10 transition-all data-[active=true]:border-l-[3px] data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:text-primary"
+                    >
+                      <Link href={`/messages/${conv.id}`} className="flex items-center gap-3">
+                        <div className="relative shrink-0">
+                          <Avatar className="h-6 w-6 rounded-md border border-primary/20 bg-primary/10">
+                            <AvatarFallback className="bg-transparent text-primary font-bold text-[9px] shadow-sm uppercase">
+                              {getInitials(conv.otherUser.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {onlineUsers.has(conv.otherUser.id) && (
+                            <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-emerald-500 shadow-sm animate-in fade-in duration-200" />
+                          )}
+                        </div>
+                        <span className="truncate font-medium">{conv.otherUser.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            ) : (
+              <div className="px-3 py-2 text-xs text-muted-foreground">No conversations yet</div>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

@@ -72,3 +72,79 @@ export const deleteAttachment = async (request: FastifyRequest, reply: FastifyRe
   return sendSuccess(reply, result, 'DELETE', 'Attachment deleted successfully');
 };
 
+// ==========================================
+// DIRECT MESSAGING (DM) CONTROLLERS
+// ==========================================
+
+export const getOrCreateConversationSchema = z.object({
+  recipientId: z.string().cuid('Invalid recipient ID')
+});
+
+export const getDirectMessagesQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20)
+});
+
+// Get user's active direct conversations
+export const getConversations = async (request: FastifyRequest, reply: FastifyReply) => {
+  const user = (request as any).user;
+
+  const conversations = await MessageService.getUserConversations(user.userId);
+
+  return sendSuccess(reply, conversations, 'FETCH', 'Conversations retrieved successfully');
+};
+
+// Start or retrieve a private conversation with a user
+export const getOrCreateConversation = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { recipientId } = getOrCreateConversationSchema.parse(request.body);
+  const user = (request as any).user;
+
+  const conversation = await MessageService.getOrCreateConversation(user.userId, recipientId);
+
+  return sendSuccess(reply, conversation, 'CREATE', 'Conversation resolved successfully');
+};
+
+// Get Direct Messages history in a conversation
+export const getDirectMessages = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { conversationId } = request.params as { conversationId: string };
+  const user = (request as any).user;
+  const { page, limit } = getDirectMessagesQuerySchema.parse(request.query ?? {});
+
+  const messagesData = await MessageService.getDirectMessages(conversationId, user.userId, { page, limit });
+
+  return sendSuccess(reply, messagesData, 'FETCH', 'Direct messages retrieved successfully');
+};
+
+// Create a new direct message
+export const createDirectMessage = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { conversationId } = request.params as { conversationId: string };
+  const { content, attachments } = createMessageSchema.parse(request.body);
+  const user = (request as any).user;
+
+  const message = await MessageService.createDirectMessage({ content, attachments }, conversationId, user.userId, request.server.io);
+
+  return sendSuccess(reply, { message }, 'CREATE', 'Direct message sent successfully');
+};
+
+// Edit a direct message
+export const editDirectMessage = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { messageId } = request.params as { messageId: string };
+  const { content } = z.object({ content: z.string().min(1) }).parse(request.body);
+  const user = (request as any).user;
+
+  const message = await MessageService.editDirectMessage(messageId, content, user.userId, request.server.io);
+
+  return sendSuccess(reply, { message }, 'UPDATE', 'Direct message updated successfully');
+};
+
+// Delete a direct message
+export const deleteDirectMessage = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { messageId } = request.params as { messageId: string };
+  const user = (request as any).user;
+
+  const result = await MessageService.deleteDirectMessage(messageId, user.userId, request.server.io);
+
+  return sendSuccess(reply, result, 'DELETE', 'Direct message deleted successfully');
+};
+
+

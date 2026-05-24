@@ -73,6 +73,11 @@ interface ServerToClientEvents {
     timestamp: string;
     items: { id: string; position: number }[];
   }) => void;
+  'dm:message_created': (data: any) => void;
+  'dm:message_updated': (data: any) => void;
+  'dm:message_deleted': (data: { id: string; conversation_id: string }) => void;
+  'user:status_changed': (data: { userId: string; status: 'online' | 'offline' }) => void;
+  'user:online_list': (userIds: string[]) => void;
   'error': (data: { message: string }) => void;
 }
 
@@ -155,6 +160,15 @@ const socketPlugin: FastifyPluginAsync = async (fastify, options) => {
 
     // Auto-join user room for private notifications
     socket.join(`user:${user.userId}`);
+
+    // Broadcast user online status
+    io.emit('user:status_changed', { userId: user.userId, status: 'online' });
+
+    // Send the list of all currently online user IDs to the newly connected user
+    const onlineUserIds = Array.from(io.sockets.sockets.values())
+      .map((s: any) => s.data?.user?.userId)
+      .filter((id): id is string => !!id);
+    socket.emit('user:online_list', Array.from(new Set(onlineUserIds)));
 
     // ==========================================
     // 🛠️ CHANNEL EVENTS
@@ -268,6 +282,15 @@ const socketPlugin: FastifyPluginAsync = async (fastify, options) => {
 
     socket.on('disconnect', () => {
       fastify.log.info(`[Socket] User gayo: ${socket.id}`);
+
+      // Check if this was the last socket connection for this user ID (to handle multiple tabs)
+      const userSockets = Array.from(io.sockets.sockets.values()).filter(
+        (s: any) => s.data?.user?.userId === user.userId
+      );
+
+      if (userSockets.length === 0) {
+        io.emit('user:status_changed', { userId: user.userId, status: 'offline' });
+      }
     });
   });
 };

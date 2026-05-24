@@ -31,9 +31,9 @@ export function FilePreviewDialog({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ext = fileName.split(".").pop()?.toLowerCase() || "";
-  const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName);
-  const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(fileName);
+  const ext = fileName ? (fileName.split(".").pop()?.toLowerCase() || "") : "";
+  const isImage = fileName ? /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName) : false;
+  const isVideo = fileName ? /\.(mp4|webm|ogg|mov)$/i.test(fileName) : false;
   const isPdf = ext === "pdf";
   const isCodeOrText = [
     "txt", "js", "jsx", "ts", "tsx", "html", "css", "json", "md", "php", 

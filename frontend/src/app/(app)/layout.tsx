@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useParams, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -11,18 +11,21 @@ import { OrbitalLoader } from "@/components/ui/orbital-loader";
 import { AbilityProvider } from "@/components/providers/AbilityProvider";
 import OrganizationSettingsModal from "@/components/organizations/organization-settings-modal";
 
-// Layout for the main app area
+// Layout for the main authenticated app area
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   useAuthProfile();
   
-  // Detect if we're in organization context
+  // Detect if we're in organization context (either `/organizations/[id]` or `/messages/[id]?orgId=xxx`)
   const pathSegments = pathname.split('/');
-  const isOrganizationContext = pathSegments[1] === 'organizations' && !!pathSegments[2];
-  const orgId = isOrganizationContext ? pathSegments[2] : undefined;
+  const isOrgRoute = pathSegments[1] === 'organizations' && !!pathSegments[2];
+  const queryOrgId = searchParams.get('orgId') || undefined;
+
+  const orgId = isOrgRoute ? pathSegments[2] : queryOrgId;
+  const isOrganizationContext = !!orgId;
 
   const { organizations = [], isLoading: isLoadingOrgs } = useOrganizations({}, {
     enabled: isOrganizationContext,
@@ -55,7 +58,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           channels={channels}
           isLoadingOrg={isLoadingOrg || isLoadingOrgs}
           isLoadingChannels={isLoadingChannels}
-          isLoadingDMs={false} // Currently dummy data, set to false
+          isLoadingDMs={false}
           canAddChannels={canAddChannels}
           onAddChannel={() => orgId && router.push(`/organizations/${orgId}`)}
           className="border-r-0!"
@@ -68,5 +71,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </SidebarProvider>
       <OrganizationSettingsModal />
     </AbilityProvider>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<OrbitalLoader />}>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </Suspense>
   );
 }

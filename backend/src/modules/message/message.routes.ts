@@ -44,6 +44,47 @@ const messageRoutes: FastifyPluginAsync = async (fastify) => {
     params: z.object({ attachmentId: z.cuid() }),
   }), messageController.deleteAttachment);
 
+  // ==========================================
+  // DIRECT MESSAGES ROUTES
+  // ==========================================
+  app.get('/conversations', createSchema({
+    description: 'Get all direct conversations for user',
+    tags: ['Messages'],
+  }), messageController.getConversations);
+
+  app.post('/conversations', createSchema({
+    description: 'Start or retrieve a direct conversation with another user',
+    tags: ['Messages'],
+    body: messageController.getOrCreateConversationSchema,
+  }), messageController.getOrCreateConversation);
+
+  app.get('/conversations/:conversationId/messages', createSchema({
+    description: 'Get direct messages for a conversation',
+    tags: ['Messages'],
+    params: z.object({ conversationId: z.cuid() }),
+    querystring: messageController.getDirectMessagesQuerySchema,
+  }), messageController.getDirectMessages);
+
+  app.post('/conversations/:conversationId/messages', createSchema({
+    description: 'Send a new direct message',
+    tags: ['Messages'],
+    params: z.object({ conversationId: z.cuid() }),
+    body: messageController.createMessageSchema,
+  }), messageController.createDirectMessage);
+
+  app.put('/conversations/messages/:messageId', createSchema({
+    description: 'Edit a direct message',
+    tags: ['Messages'],
+    params: z.object({ messageId: z.cuid() }),
+    body: z.object({ content: z.string().min(1) }),
+  }), messageController.editDirectMessage);
+
+  app.delete('/conversations/messages/:messageId', createSchema({
+    description: 'Delete a direct message',
+    tags: ['Messages'],
+    params: z.object({ messageId: z.cuid() }),
+  }), messageController.deleteDirectMessage);
+
 };
 
 export default messageRoutes;

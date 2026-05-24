@@ -39,7 +39,6 @@ export const getSocket = () => {
     });
 
     socket.on('connect_error', async (err) => {
-      console.error('[Socket] Connection error:', err.message);
       const errMsg = err.message.toLowerCase();
 
       // Only proceed with auth check if it's likely an authentication failure
@@ -61,7 +60,7 @@ export const getSocket = () => {
         isCheckingAuth = true;
 
         try {
-          console.log('[Socket] Auth error detected. Verifying session via API...');
+          console.warn('[Socket] Stale auth detected (expired token). Attempting token refresh...');
           const { default: api } = await import('@/api/api');
 
           // This triggers the Axios 401 interceptor if the token is truly expired.
@@ -72,17 +71,18 @@ export const getSocket = () => {
             if (newToken) {
               socket.auth = { token: `Bearer ${newToken}` };
               socket.connect();
-              console.log('[Socket] Session verified. Reconnected socket.');
+              console.log('[Socket] Session verified and token refreshed. Socket reconnected successfully!');
             }
           }
         } catch (apiErr) {
-          console.error('[Socket] Session check failed. Socket will wait for next manual refresh.', apiErr);
+          console.error('[Socket] Session refresh failed. Permanent connection error:', err.message, apiErr);
           // Add a long cooldown before we allow another auth check to prevent loops
           await new Promise(resolve => setTimeout(resolve, 5000));
         } finally {
           isCheckingAuth = false;
         }
       } else {
+        console.error('[Socket] Connection error:', err.message);
         console.warn('[Socket] Non-auth error (likely backend down). No API check triggered.');
       }
     });
