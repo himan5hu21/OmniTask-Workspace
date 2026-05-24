@@ -695,3 +695,113 @@ export const useDeleteAttachment = (taskId: string) => {
     },
   });
 };
+
+// --- MY TASKS ---
+
+export type MyTaskDirectCard = Task & {
+  assignmentType: 'card';
+  _count: { comments: number; subtasks: number };
+};
+
+export type MyTaskSubtask = Task & {
+  assignmentType: 'subtask';
+  parent_task: {
+    id: string;
+    title: string;
+    org_id: string;
+    channel_id: string;
+    list_id: string | null;
+    status: TaskStatus;
+  };
+};
+
+export type MyTaskChecklist = {
+  id: string;
+  name: string;
+  position: number;
+  assignee_id: string;
+  task_id: string;
+  assignmentType: 'checklist';
+  task: {
+    id: string;
+    title: string;
+    org_id: string;
+    channel_id: string;
+    list_id: string | null;
+    status: TaskStatus;
+    priority?: TaskPriority;
+    due_date?: string;
+  };
+  _count: { items: number };
+};
+
+export type MyTaskChecklistItem = {
+  id: string;
+  text: string;
+  is_completed: boolean;
+  position: number;
+  checklist_id: string;
+  assignee_id: string;
+  assignmentType: 'checklist_item';
+  checklist: {
+    id: string;
+    name: string;
+    task_id: string;
+    task: {
+      id: string;
+      title: string;
+      org_id: string;
+      channel_id: string;
+      list_id: string | null;
+      status: TaskStatus;
+      priority?: TaskPriority;
+      due_date?: string;
+    };
+  };
+};
+
+export type MyTasksResponse = ApiSuccess<{
+  directTasks: MyTaskDirectCard[];
+  subtasks: MyTaskSubtask[];
+  checklists: MyTaskChecklist[];
+  checklistItems: MyTaskChecklistItem[];
+}>;
+
+// Extend taskService with getMyTasks
+export const myTasksService = {
+  getMyTasks: async (orgId?: string): Promise<MyTasksResponse> => {
+    return apiRequest.get<MyTasksResponse>('/tasks/assigned', {
+      params: orgId ? { orgId } : undefined,
+    });
+  },
+};
+
+export const myTasksKeys = {
+  all: ['myTasks'] as const,
+  global: () => [...myTasksKeys.all, 'global'] as const,
+  org: (orgId: string) => [...myTasksKeys.all, 'org', orgId] as const,
+};
+
+export const useMyTasks = (orgId?: string, options?: { enabled?: boolean }) => {
+  const query = useQuery({
+    queryKey: orgId ? myTasksKeys.org(orgId) : myTasksKeys.global(),
+    queryFn: () => myTasksService.getMyTasks(orgId),
+    enabled: options?.enabled ?? true,
+    staleTime: 1000 * 30,
+  });
+
+  const data = query.data?.success ? query.data.data : null;
+
+  return {
+    ...query,
+    directTasks: data?.directTasks ?? [],
+    subtasks: data?.subtasks ?? [],
+    checklists: data?.checklists ?? [],
+    checklistItems: data?.checklistItems ?? [],
+    totalCount:
+      (data?.directTasks.length ?? 0) +
+      (data?.subtasks.length ?? 0) +
+      (data?.checklists.length ?? 0) +
+      (data?.checklistItems.length ?? 0),
+  };
+};

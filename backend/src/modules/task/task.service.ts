@@ -297,6 +297,88 @@ export class TaskService {
 
     return subtask;
   }
+
+  /**
+   * Aggregate all tasks/sub-items assigned to a user.
+   * Supports optional org_id to scope to a single workspace.
+   */
+  async getMyTasks(userId: string, orgId?: string) {
+    const orgFilter = orgId ? { org_id: orgId } : {};
+
+    // 1. Tasks directly assigned to the user (top-level cards only)
+    const directTasks = await prisma.task.findMany({
+      where: {
+        ...orgFilter,
+        deleted_at: null,
+        parent_task_id: null,
+        assignments: { some: { user_id: userId } },
+      },
+      include: {
+        assignments: { include: { user: { select: { id: true, name: true, avatar_url: true } } } },
+        checklists: { select: { id: true, name: true, _count: { select: { items: true } } } },
+        _count: { select: { comments: true, subtasks: true } },
+      },
+      orderBy: [{ due_date: 'asc' }, { created_at: 'desc' }],
+    });
+
+    // 2. Top-level tasks where a subtask is assigned to the user
+    const subtaskRows = await prisma.task.findMany({
+      where: {
+        deleted_at: null,
+        parent_task_id: { not: null },
+        assignments: { some: { user_id: userId } },
+        ...(orgId ? { org_id: orgId } : {}),
+      },
+      include: {
+        assignments: { include: { user: { select: { id: true, name: true, avatar_url: true } } } },
+        parent_task: { select: { id: true, title: true, org_id: true, channel_id: true, list_id: true, status: true } },
+        _count: { select: { comments: true } },
+      },
+      orderBy: [{ due_date: 'asc' }, { created_at: 'desc' }],
+    });
+
+    // 3. Checklists assigned to the user → attach parent task info
+    const checklistRows = await prisma.taskChecklist.findMany({
+      where: {
+        assignee_id: userId,
+        task: { deleted_at: null, ...(orgId ? { org_id: orgId } : {}) },
+      },
+      include: {
+        task: {
+          select: { id: true, title: true, org_id: true, channel_id: true, list_id: true, status: true, priority: true, due_date: true },
+        },
+        _count: { select: { items: true } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    // 4. Checklist items assigned to the user → attach parent task info
+    const checklistItemRows = await prisma.taskChecklistItem.findMany({
+      where: {
+        assignee_id: userId,
+        checklist: {
+          task: { deleted_at: null, ...(orgId ? { org_id: orgId } : {}) },
+        },
+      },
+      include: {
+        checklist: {
+          include: {
+            task: {
+              select: { id: true, title: true, org_id: true, channel_id: true, list_id: true, status: true, priority: true, due_date: true },
+            },
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return {
+      directTasks: directTasks.map((t: any) => ({ ...t, assignmentType: 'card' as const })),
+      subtasks: subtaskRows.map((t: any) => ({ ...t, assignmentType: 'subtask' as const })),
+      checklists: checklistRows.map((c: any) => ({ ...c, assignmentType: 'checklist' as const })),
+      checklistItems: checklistItemRows.map((i: any) => ({ ...i, assignmentType: 'checklist_item' as const })),
+    };
+  }
 }
 
 export const taskService = new TaskService();

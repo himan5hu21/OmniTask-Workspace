@@ -53,6 +53,7 @@ export class TaskController {
     this.deleteTask = this.deleteTask.bind(this);
     this.getActivities = this.getActivities.bind(this);
     this.deleteActivity = this.deleteActivity.bind(this);
+    this.getMyTasks = this.getMyTasks.bind(this);
   }
 
   private emitTaskRefresh(
@@ -1354,6 +1355,22 @@ export class TaskController {
       channelMemberRepository.getMember(channelId, userId)
     ]);
   }
+
+  /**
+   * GET /tasks/assigned?orgId=...
+   * Returns all tasks/checklists/items assigned to the currently authenticated user.
+   * The optional `orgId` query param scopes results to a specific workspace.
+   */
+  getMyTasks = async (
+    request: FastifyRequest<{ Querystring: { orgId?: string } }>,
+    reply: FastifyReply
+  ) => {
+    const { userId } = request.user as any;
+    const { orgId } = request.query;
+
+    const result = await taskService.getMyTasks(userId, orgId);
+    return sendSuccess(reply, result, 'FETCH');
+  };
 }
 
 export const taskController = new TaskController();

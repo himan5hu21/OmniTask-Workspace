@@ -30,7 +30,7 @@ import {
   useDeleteOrganization,
   useUpdateOrganization
 } from '@/api/organizations';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { 
   Dialog, 
   DialogContent, 
@@ -95,8 +95,20 @@ export default function OrganizationSettingsModal() {
   const { isOrgSettingsOpen, closeOrgSettings } = useUIStore();
   const ability = React.useContext(AbilityContext);
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const orgId = params.id as string;
+
+  // Resolve active orgId context:
+  // If route is /organizations/[id], use params.id.
+  // If route is /messages/[id], use the search query param ?orgId=xxx or fallback to localStorage context.
+  const routeOrgId = params.id as string;
+  const queryOrgId = searchParams.get("orgId");
+  const savedOrgId = typeof window !== "undefined" ? localStorage.getItem("lastActiveOrgId") : null;
+
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const isOrgRoute = pathname.includes("/organizations/");
+  const orgId = isOrgRoute ? routeOrgId : (queryOrgId || savedOrgId || "");
+
   const { user } = useAuthProfile();
   
   const [activeTab, setActiveTab] = useState<Tab>('members');

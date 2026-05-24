@@ -1,14 +1,11 @@
 "use client";
 
-import { ClipboardList } from "lucide-react";
-import { FeaturePlaceholder } from "@/components/layout/feature-placeholder";
+import { useParams } from "next/navigation";
+import { MyTasksView } from "@/components/tasks/MyTasksView";
 
 export default function OrganizationTasksPage() {
-  return (
-    <FeaturePlaceholder
-      title="Workspace Tasks"
-      description="This organization task view has not been built yet. The route exists now so navigating here and going back will not leave the shared workspace UI in a broken loading state."
-      icon={<ClipboardList className="h-6 w-6" />}
-    />
-  );
+  const params = useParams();
+  const orgId = params.id as string;
+
+  return <MyTasksView orgId={orgId} title="Workspace Tasks" />;
 }

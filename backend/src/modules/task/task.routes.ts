@@ -131,6 +131,19 @@ const taskRoutes: FastifyPluginAsync = async (fastify) => {
 
   // PHASE 3 — Task Modal
 
+  // My Tasks — must be before /tasks/:id so 'assigned' is not matched as an :id param
+  app.get(
+    '/tasks/assigned',
+    createSchema({
+      description: 'Get all tasks/items assigned to the authenticated user',
+      tags: ['Tasks'],
+      querystring: z.object({
+        orgId: z.string().cuid().optional(),
+      }),
+    }),
+    taskController.getMyTasks
+  );
+
   // 6. Get Single Task Details
   app.get(
     '/tasks/:id',
