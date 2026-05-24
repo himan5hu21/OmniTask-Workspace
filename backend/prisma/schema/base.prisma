@@ -33,6 +33,8 @@ model User {
   refreshTokens          RefreshToken[]
   createdChannels        Channel[]            @relation("ChannelCreator")
   taskComments           TaskComment[]
+  notifications         Notification[]      @relation("NotificationRecipient")
+  actorNotifications    Notification[]      @relation("NotificationActor")
   taskAttachments        TaskAttachment[]
   auditLogs              AuditLog[]
   taskActivities         TaskActivity[]
@@ -76,6 +78,7 @@ model Organization {
   tasks    Task[]
   labels   Label[]
   settings OrganizationSettings?
+  notifications Notification[]
 
   @@map("organizations")
 }
@@ -160,6 +163,19 @@ enum ChannelRole {
   VIEWER
 }
 
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_COMMENT_MENTION
+  CHANNEL_MESSAGE_MENTION
+  DIRECT_MESSAGE
+}
+
+enum NotificationEntityType {
+  TASK
+  CHANNEL
+  DM
+}
+
 model OrganizationSettings {
   id                          String  @id @default(cuid())
   org_id                      String  @unique
@@ -187,4 +203,28 @@ model AuditLog {
   @@index([user_id])
   @@index([entity_type, entity_id])
   @@map("audit_logs")
+}
+
+model Notification {
+  id          String                 @id @default(cuid())
+  user_id     String
+  org_id      String?
+  actor_user_id String?
+  type        NotificationType
+  entity_type NotificationEntityType
+  entity_id   String
+  title       String
+  body        String
+  metadata    Json?
+  is_read     Boolean                @default(false)
+  read_at     DateTime?
+  created_at  DateTime               @default(now())
+
+  user         User          @relation("NotificationRecipient", fields: [user_id], references: [id], onDelete: Cascade)
+  actor        User?         @relation("NotificationActor", fields: [actor_user_id], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [org_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_read, created_at(sort: Desc)])
+  @@index([user_id, org_id, is_read, created_at(sort: Desc)])
+  @@map("notifications")
 }

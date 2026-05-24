@@ -1,14 +1,33 @@
 "use client";
 
-import { Bell } from "lucide-react";
-import { FeaturePlaceholder } from "@/components/layout/feature-placeholder";
+import { useParams } from "next/navigation";
+import {
+  useMarkAllOrganizationNotificationsRead,
+  useMarkNotificationRead,
+  useOrganizationNotifications,
+  type NotificationItem,
+} from "@/api/notifications";
+import { NotificationList } from "@/components/notifications/notification-list";
 
 export default function OrganizationNotificationsPage() {
+  const params = useParams();
+  const orgId = params.id as string;
+  const { items } = useOrganizationNotifications(orgId, {}, { enabled: !!orgId });
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllOrganizationNotificationsRead(orgId);
+
   return (
-    <FeaturePlaceholder
+    <NotificationList
       title="Workspace Notifications"
-      description="This organization notifications view is still pending. Keeping the route valid prevents layout state from getting stuck after browser navigation."
-      icon={<Bell className="h-6 w-6" />}
+      description="Assignments and mentions scoped to this workspace."
+      items={items}
+      isMarkingAll={markAllRead.isPending}
+      onMarkRead={(notification: NotificationItem) => {
+        markRead.mutate(notification.id);
+      }}
+      onMarkAllRead={() => {
+        markAllRead.mutate();
+      }}
     />
   );
 }

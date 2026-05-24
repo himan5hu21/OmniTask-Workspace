@@ -76,6 +76,9 @@ interface ServerToClientEvents {
   'dm:message_created': (data: any) => void;
   'dm:message_updated': (data: any) => void;
   'dm:message_deleted': (data: { id: string; conversation_id: string }) => void;
+  'notification:created': (data: any) => void;
+  'notification:read': (data: { id: string; orgId?: string | null }) => void;
+  'notification:read_all': (data: { orgId?: string | null }) => void;
   'user:status_changed': (data: { userId: string; status: 'online' | 'offline' }) => void;
   'user:online_list': (userIds: string[]) => void;
   'error': (data: { message: string }) => void;

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -22,8 +22,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Message } from "@/api/messages";
+import { extractMentionTokens, renderMentionTokens, replaceMentionLabelsWithTokens, stripMentionTokens } from "@/lib/mentions";
 
 const EmojiPicker = dynamic(() => import("emoji-picker-react"), { ssr: false });
+
+type MentionCandidate = {
+  id: string;
+  name: string;
+  avatar_url?: string | null;
+};
 
 export default function ChatInputBox({
   channelName,
@@ -32,6 +39,7 @@ export default function ChatInputBox({
   editingMessage,
   onUpdateMessage,
   onCancelEdit,
+  mentionCandidates = [],
 }: {
   channelName: string;
   onSendMessage: (text: string, attachments: File[]) => Promise<boolean>;
@@ -39,11 +47,41 @@ export default function ChatInputBox({
   editingMessage?: Message | null;
   onUpdateMessage?: (messageId: string, text: string) => Promise<boolean>;
   onCancelEdit?: () => void;
+  mentionCandidates?: MentionCandidate[];
 }) {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [, forceUpdate] = useState({});
   const [isEmojiOpen, setIsEmojiOpen] = useState(false);
+  const [mentionState, setMentionState] = useState<{ query: string; from: number; to: number } | null>(null);
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
+  const [selectedMentions, setSelectedMentions] = useState<Array<{ id: string; name: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredMentionCandidates = useMemo(() => {
+    if (!mentionState) return [];
+    const normalizedQuery = mentionState.query.trim().toLowerCase();
+    const candidates = normalizedQuery
+      ? mentionCandidates.filter((candidate) => candidate.name.toLowerCase().includes(normalizedQuery))
+      : mentionCandidates;
+    return candidates.slice(0, 6);
+  }, [mentionCandidates, mentionState]);
+
+  const insertMention = (candidate: MentionCandidate) => {
+    if (!editor || !mentionState) return;
+
+    editor
+      .chain()
+      .focus()
+      .deleteRange({ from: mentionState.from, to: mentionState.to })
+      .insertContent(`@${candidate.name} `)
+      .run();
+
+    setSelectedMentions((prev) =>
+      prev.some((mention) => mention.id === candidate.id) ? prev : [...prev, { id: candidate.id, name: candidate.name }]
+    );
+    setMentionState(null);
+    setActiveMentionIndex(0);
+  };
 
   // TipTap Editor Setup
   const editor = useEditor({
@@ -58,6 +96,24 @@ export default function ChatInputBox({
     ],
     content: '',
     onTransaction: () => {
+      const { selection, doc } = editor?.state ?? {};
+      if (selection && doc) {
+        const textBefore = doc.textBetween(Math.max(0, selection.from - 80), selection.from, "\n", "\0");
+        const match = textBefore.match(/(?:^|\s)@([a-zA-Z0-9._-]*)$/);
+
+        if (match) {
+          const query = match[1] ?? "";
+          const triggerLength = query.length + 1;
+          const from = selection.from - triggerLength;
+          setMentionState((prev) => {
+            if (prev?.query === query && prev.from === from && prev.to === selection.from) return prev;
+            return { query, from, to: selection.from };
+          });
+        } else {
+          setMentionState(null);
+          setActiveMentionIndex(0);
+        }
+      }
       forceUpdate({});
     },
 
@@ -66,16 +122,43 @@ export default function ChatInputBox({
         class: 'chat-editor relative max-h-[220px] w-full min-w-0 resize-none bg-transparent px-2 py-1 text-base outline-none overflow-y-auto custom-scrollbar max-w-none focus:outline-none whitespace-pre-wrap wrap-anywhere [&_p]:m-0 [&_p]:wrap-anywhere [&_ol]:m-0 [&_ul]:m-0 [&_li]:wrap-anywhere [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:wrap-anywhere [&_pre]:break-words [&_pre_code]:whitespace-pre-wrap [&_pre_code]:wrap-anywhere [&_pre_code]:break-words',
       },
       handleKeyDown: (view, event) => {
+        if (mentionState && filteredMentionCandidates.length > 0) {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setActiveMentionIndex((prev) => (prev + 1) % filteredMentionCandidates.length);
+            return true;
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActiveMentionIndex((prev) => (prev - 1 + filteredMentionCandidates.length) % filteredMentionCandidates.length);
+            return true;
+          }
+          if (event.key === "Enter" || event.key === "Tab") {
+            event.preventDefault();
+            insertMention(filteredMentionCandidates[activeMentionIndex]);
+            return true;
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            setMentionState(null);
+            setActiveMentionIndex(0);
+            return true;
+          }
+        }
+
         // 1. ENTER (Without Shift) -> Send/Update Message
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
-          const htmlContent = view.state.doc.textContent.trim() ? editor?.getHTML() : "";
+          const htmlContent = view.state.doc.textContent.trim()
+            ? replaceMentionLabelsWithTokens(editor?.getHTML() ?? "", selectedMentions)
+            : "";
 
           if (editingMessage && onUpdateMessage) {
             if (htmlContent) {
               Promise.resolve(onUpdateMessage(editingMessage.id, htmlContent)).then((success) => {
                 if (success) {
                   editor?.commands.clearContent();
+                  setSelectedMentions([]);
                 }
               });
             }
@@ -85,6 +168,7 @@ export default function ChatInputBox({
                 if (success) {
                   editor?.commands.clearContent();
                   setAttachments([]);
+                  setSelectedMentions([]);
                 }
               });
             }
@@ -145,13 +229,21 @@ export default function ChatInputBox({
   useEffect(() => {
     if (editor) {
       if (editingMessage) {
-        editor.commands.setContent(editingMessage.content);
+        editor.commands.setContent(stripMentionTokens(editingMessage.content));
+        setSelectedMentions(extractMentionTokens(editingMessage.content));
         editor.commands.focus('end');
       } else {
         editor.commands.setContent('');
+        setSelectedMentions([]);
       }
     }
   }, [editingMessage, editor]);
+
+  useEffect(() => {
+    if (activeMentionIndex >= filteredMentionCandidates.length) {
+      setActiveMentionIndex(0);
+    }
+  }, [activeMentionIndex, filteredMentionCandidates.length]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -191,13 +283,16 @@ export default function ChatInputBox({
   };
 
   const handleSend = () => {
-    const htmlContent = editor?.getText().trim() ? editor.getHTML() : "";
+    const htmlContent = editor?.getText().trim()
+      ? replaceMentionLabelsWithTokens(editor.getHTML(), selectedMentions)
+      : "";
     
     if (editingMessage && onUpdateMessage) {
       if (!htmlContent) return;
       Promise.resolve(onUpdateMessage(editingMessage.id, htmlContent)).then((success) => {
         if (success) {
           editor?.commands.clearContent();
+          setSelectedMentions([]);
         }
       });
     } else {
@@ -206,6 +301,7 @@ export default function ChatInputBox({
         if (success) {
           editor?.commands.clearContent();
           setAttachments([]);
+          setSelectedMentions([]);
         }
       });
     }
@@ -220,7 +316,7 @@ export default function ChatInputBox({
         <div className="flex items-center justify-between px-4 py-2 bg-primary/5 border-b border-border/40 text-xs text-primary font-medium animate-in slide-in-from-top-2 duration-200">
           <div className="flex items-center gap-2 min-w-0">
             <span className="shrink-0 font-bold uppercase tracking-wider text-[9px] bg-primary/15 text-primary px-1.5 py-0.5 rounded">Editing Message</span>
-            <span className="truncate opacity-80" dangerouslySetInnerHTML={{ __html: editingMessage.content }} />
+            <span className="truncate opacity-80" dangerouslySetInnerHTML={{ __html: renderMentionTokens(editingMessage.content) }} />
           </div>
           <button 
             onClick={onCancelEdit}
@@ -365,6 +461,32 @@ export default function ChatInputBox({
       )}
 
       <EditorContent editor={editor} className="chat-editor min-h-[80px]" />
+      {mentionState && filteredMentionCandidates.length > 0 && (
+        <div className="border-t border-border/40 bg-card/95 px-2 py-2">
+          <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Mention someone
+          </div>
+          <div className="space-y-1">
+            {filteredMentionCandidates.map((candidate, index) => (
+              <button
+                key={candidate.id}
+                type="button"
+                onClick={() => insertMention(candidate)}
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                  index === activeMentionIndex
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-muted text-foreground"
+                }`}
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold uppercase text-primary">
+                  {candidate.name.slice(0, 2)}
+                </div>
+                <span className="truncate font-medium">{candidate.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <input type="file" multiple hidden ref={fileInputRef} onChange={handleFileSelect} />
 
     </div>

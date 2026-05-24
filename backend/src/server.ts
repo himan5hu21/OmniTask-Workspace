@@ -7,6 +7,7 @@ import taskRoutes from '@/modules/task/task.routes';
 import orgRoutes from '@/modules/organizations/organizations.routes';
 import channelRoutes from '@/modules/channels/channels.routes';
 import messageRoutes from '@/modules/message/message.routes';
+import notificationRoutes from '@/modules/notification/notification.routes';
 import healthRoutes from '@/routes/health.routes';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
@@ -294,6 +295,7 @@ const buildServer = async () => {
   await app.register(orgRoutes, { prefix: '/api/v1' });
   await app.register(channelRoutes, { prefix: '/api/v1' });
   await app.register(messageRoutes, { prefix: '/api/v1' });
+  await app.register(notificationRoutes, { prefix: '/api/v1' });
   await app.register(attachmentRoutes, { prefix: '/api/v1' });
 
   // 3. Prisma logs ko Fastify logger ke through pass karo

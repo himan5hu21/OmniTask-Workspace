@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthProfile } from "@/api/auth";
 import { useMessages, useCreateMessage, messageService, messageKeys, type Message, type Attachment } from "@/api/messages";
-import { useChannel, useMarkChannelRead } from "@/api/channels";
+import { useChannel, useChannelMembers, useMarkChannelRead } from "@/api/channels";
 import { joinChannelRoom, leaveChannelRoom } from "@/socket/socket";
 import ChatInputBox from "@/components/ChatInputBox";
 import { DeleteMessageDialog } from "@/components/DeleteMessageDialog";
@@ -27,6 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AbilityProvider } from "@/components/providers/AbilityProvider";
 import { getInitials } from "@/lib/utils";
 import { buildAuthenticatedFileUrl } from "@/lib/file-url";
+import { renderMentionTokens } from "@/lib/mentions";
 import { toast } from "sonner";
 import { useUnreadStore } from "@/store/unread.store";
 import {
@@ -361,7 +362,7 @@ function MessageContent({
         className={`chat-rich-text whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed max-w-none transition-[max-height] duration-200
           [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_ul]:ml-5 [&_ol]:ml-5 [&_p]:m-0 [&_blockquote]:pl-4
           text-foreground ${isOwnMessage ? "chat-rich-text--own" : ""}`}
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: renderMentionTokens(content) }}
       />
 
       {isLongMessage ? (
@@ -405,6 +406,7 @@ export default function ChannelDetailPage() {
   const activeTab = searchParams.get("tab") === "tasks" ? "tasks" : "chat";
   const { user, isLoading: isLoadingUser } = useAuthProfile({ enabled: true });
   const { channel } = useChannel(channelId, { enabled: !!channelId });
+  const { members: channelMembers } = useChannelMembers(channelId, { page: 1, limit: 100 });
   const {
     messages,
     isLoading: isLoadingMessages,
@@ -1001,6 +1003,13 @@ export default function ChannelDetailPage() {
                   editingMessage={editingMessage}
                   onUpdateMessage={handleUpdateMessage}
                   onCancelEdit={handleCancelEdit}
+                  mentionCandidates={channelMembers
+                    .filter((member) => member.user_id !== user?.id)
+                    .map((member) => ({
+                      id: member.user_id,
+                      name: member.name,
+                      avatar_url: member.avatar_url ?? null,
+                    }))}
                 />
               </div>
             </section>

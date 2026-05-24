@@ -7,6 +7,7 @@ import { AttachmentService, AttachmentData } from '@/modules/attachment/attachme
 import { PermissionGuard } from '@/utils/permissions';
 import { StorageService } from '@/lib/storage';
 import { prisma } from '@/lib/database';
+import { NotificationService } from '@/modules/notification/notification.service';
 
 const messageRepo = new BaseRepository('channelMessage');
 const channelRepo = new BaseRepository('channel');
@@ -116,21 +117,55 @@ export class MessageService {
       }))
     };
  
-    if (io) {
-      io.to(`channel:${channelId}`).emit('channel:message_created', messageData);
+      if (io) {
+        io.to(`channel:${channelId}`).emit('channel:message_created', messageData);
 
-      // Emit to all channel members' private rooms for sidebar unread badge support
-      try {
+        // Emit to all channel members' private rooms for sidebar unread badge support
+        try {
         const members = await channelMemberRepo.getAll({ where: { channel_id: channelId } });
         for (const member of members) {
           io.to(`user:${member.user_id}`).emit('channel:message_created', messageData);
         }
-      } catch (err) {
-        console.error('[Socket] Failed to broadcast channel message to members:', err);
+        } catch (err) {
+          console.error('[Socket] Failed to broadcast channel message to members:', err);
+        }
       }
+
+      const mentionedUserIds = NotificationService.extractMentionedUserIds(content);
+      if (mentionedUserIds.length > 0) {
+        const memberships = await prisma.channelMember.findMany({
+          where: {
+            channel_id: channelId,
+            user_id: {
+              in: mentionedUserIds.filter((mentionedUserId) => mentionedUserId !== userId),
+            },
+          },
+          select: { user_id: true },
+        });
+
+        await Promise.all(
+          memberships.map((membership) =>
+            NotificationService.create({
+              userId: membership.user_id,
+              orgId: channel.org_id,
+              actorUserId: userId,
+              type: 'CHANNEL_MESSAGE_MENTION',
+              entityType: 'CHANNEL',
+              entityId: channelId,
+              title: `Mentioned in #${channel.name}`,
+              body: `${fullMessage.sender.name} mentioned you in #${channel.name}`,
+              metadata: {
+                channelId,
+                channelName: channel.name,
+                messageId: fullMessage.id,
+              },
+            }, io)
+          )
+        );
+      }
+
+      return messageData;
     }
-    return messageData;
-  }
 
   // Edit a message
   static async editMessage(messageId: string, content: string, userId: string, io?: Server) {
@@ -557,14 +592,14 @@ export class MessageService {
       }))
     };
 
-    // Socket.io Real-time Propagation (Emit to both users' private notification rooms)
-    if (io) {
-      io.to(`user:${conversation.user1_id}`).emit('dm:message_created', messageData);
-      io.to(`user:${conversation.user2_id}`).emit('dm:message_created', messageData);
-    }
+      // Socket.io Real-time Propagation (Emit to both users' private notification rooms)
+      if (io) {
+        io.to(`user:${conversation.user1_id}`).emit('dm:message_created', messageData);
+        io.to(`user:${conversation.user2_id}`).emit('dm:message_created', messageData);
+      }
 
-    return messageData;
-  }
+      return messageData;
+    }
 
   // Edit a direct message
   static async editDirectMessage(messageId: string, content: string, userId: string, io?: Server) {

@@ -23,6 +23,7 @@ import { commentRepository } from '@/repositories/comment.repository';
 import { labelRepository } from '@/repositories/label.repository';
 import { activityRepository } from '@/repositories/activity.repository';
 import { StorageService } from '@/lib/storage';
+import { NotificationService } from '@/modules/notification/notification.service';
 
 export class TaskController {
   constructor() {
@@ -714,13 +715,28 @@ export class TaskController {
     const targetUser = await prisma.user.findUnique({ where: { id: user_id } });
     if (!targetUser) return sendError(reply, HttpStatus.NOT_FOUND, 'Target user not found');
 
-    const assignment = await assignmentService.assignUser(
-      id,
-      user_id,
-      userId,
-      targetUser.name
-    );
-    if (task.parent_task_id) {
+      const assignment = await assignmentService.assignUser(
+        id,
+        user_id,
+        userId,
+        targetUser.name
+      );
+      await NotificationService.create({
+        userId: user_id,
+        orgId: task.org_id,
+        actorUserId: userId,
+        type: 'TASK_ASSIGNED',
+        entityType: 'TASK',
+        entityId: task.id,
+        title: 'Task assigned to you',
+        body: `${(request.user as any).name} assigned you to "${task.title}"`,
+        metadata: {
+          taskId: task.id,
+          taskTitle: task.title,
+          channelId: task.channel_id,
+        },
+      }, request.server.io);
+      if (task.parent_task_id) {
       activityService.logActivity(
         task.parent_task_id,
         userId,
@@ -797,8 +813,40 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to comment');
     }
 
-    const comment = await commentService.createComment(id, userId, content);
-    request.server.io?.to(`channel:${task.channel_id}`).emit('channel:task_comment_created', {
+      const comment = await commentService.createComment(id, userId, content);
+      const mentionedUserIds = NotificationService.extractMentionedUserIds(content);
+      if (mentionedUserIds.length > 0) {
+        const { prisma } = await import('@/lib/database');
+        const memberships = await prisma.organizationMember.findMany({
+          where: {
+            organization_id: task.org_id,
+            user_id: { in: mentionedUserIds.filter((mentionedUserId) => mentionedUserId !== userId) },
+          },
+          select: { user_id: true },
+        });
+
+        await Promise.all(
+          memberships.map((membership) =>
+            NotificationService.create({
+              userId: membership.user_id,
+              orgId: task.org_id,
+              actorUserId: userId,
+              type: 'TASK_COMMENT_MENTION',
+              entityType: 'TASK',
+              entityId: task.id,
+              title: 'Mentioned in a task comment',
+              body: `${(request.user as any).name} mentioned you on "${task.title}"`,
+              metadata: {
+                taskId: task.id,
+                taskTitle: task.title,
+                channelId: task.channel_id,
+                commentId: comment.id,
+              },
+            }, request.server.io)
+          )
+        );
+      }
+      request.server.io?.to(`channel:${task.channel_id}`).emit('channel:task_comment_created', {
       channelId: task.channel_id,
       taskId: id,
       actorUserId: userId,

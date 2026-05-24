@@ -1,14 +1,31 @@
 "use client";
 
-import { Bell } from "lucide-react";
-import { FeaturePlaceholder } from "@/components/layout/feature-placeholder";
+import {
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useNotifications,
+  type NotificationItem,
+} from "@/api/notifications";
+import { NotificationList } from "@/components/notifications/notification-list";
 
 export default function DashboardNotificationsPage() {
+  const { items } = useNotifications();
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
+
   return (
-    <FeaturePlaceholder
+    <NotificationList
       title="Notifications"
-      description="Notifications are not implemented yet. This placeholder prevents the sidebar link from dropping the app into a missing-route state."
-      icon={<Bell className="h-6 w-6" />}
+      description="Assignments and mentions across all your workspaces."
+      items={items}
+      showOrganization
+      isMarkingAll={markAllRead.isPending}
+      onMarkRead={(notification: NotificationItem) => {
+        markRead.mutate(notification.id);
+      }}
+      onMarkAllRead={() => {
+        markAllRead.mutate();
+      }}
     />
   );
 }

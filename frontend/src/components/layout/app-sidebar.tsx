@@ -62,8 +62,10 @@ const CreateChannelDialog = dynamic(
 import { Can } from "@/lib/casl"
 import { useConversations } from "@/api/messages"
 import type { Channel } from "@/api/channels"
+import { useNotificationSummary } from "@/api/notifications"
 import { NewDirectMessageDialog } from "@/components/layout/new-dm-dialog"
 import { getSocket } from "@/socket/socket"
+import { useNotificationStore } from "@/store/notification.store"
 
 export interface AppSidebarProps {
   mode?: "dashboard" | "organization"
@@ -97,10 +99,19 @@ export function AppSidebar({
   const { data: conversationsData, isLoading: conversationsLoading } = useConversations();
   const conversations = useMemo(() => conversationsData?.data || [], [conversationsData]);
   const actualLoadingDMs = conversationsLoading || isLoadingDMs;
+  const { unreadCount: notificationUnreadCount, organizations: notificationOrganizations } = useNotificationSummary();
 
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
   const { initialize, incrementDm, incrementChannel, dmUnread, channelUnread } = useUnreadStore();
+  const {
+    totalUnread,
+    orgUnread,
+    initialize: initializeNotifications,
+    increment: incrementNotification,
+    markOneRead,
+    markAllRead,
+  } = useNotificationStore();
 
   // Keep a stable ref to user.id so socket handlers can check without causing effect re-runs
   const userIdRef = useRef<string | undefined>(undefined);
@@ -120,6 +131,13 @@ export function AppSidebar({
       ),
     });
   }, [channels, conversations, initialize]);
+
+  useEffect(() => {
+    initializeNotifications({
+      totalUnread: notificationUnreadCount,
+      orgUnread: notificationOrganizations,
+    });
+  }, [initializeNotifications, notificationOrganizations, notificationUnreadCount]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -164,18 +182,36 @@ export function AppSidebar({
       }
     };
 
+    const handleNotificationCreated = (data: { organization?: { id: string } | null }) => {
+      incrementNotification(data.organization?.id ?? null);
+    };
+
+    const handleNotificationRead = (data: { orgId?: string | null }) => {
+      markOneRead(data.orgId ?? null);
+    };
+
+    const handleNotificationReadAll = (data: { orgId?: string | null }) => {
+      markAllRead(data.orgId ?? null);
+    };
+
     socket.on("user:online_list", handleOnlineList);
     socket.on("user:status_changed", handleStatusChanged);
     socket.on("dm:message_created", handleDmCreated);
     socket.on("channel:message_created", handleChannelMessageCreated);
+    socket.on("notification:created", handleNotificationCreated);
+    socket.on("notification:read", handleNotificationRead);
+    socket.on("notification:read_all", handleNotificationReadAll);
 
     return () => {
       socket.off("user:online_list", handleOnlineList);
       socket.off("user:status_changed", handleStatusChanged);
       socket.off("dm:message_created", handleDmCreated);
       socket.off("channel:message_created", handleChannelMessageCreated);
+      socket.off("notification:created", handleNotificationCreated);
+      socket.off("notification:read", handleNotificationRead);
+      socket.off("notification:read_all", handleNotificationReadAll);
     };
-  }, [incrementDm, incrementChannel]);
+  }, [incrementDm, incrementChannel, incrementNotification, markAllRead, markOneRead]);
 
   const { members = [] } = useOrganizationMembers(organizationId || "", { page: 1, limit: 100 }, { enabled: mode === "organization" && !!organizationId });
 
@@ -223,7 +259,7 @@ export function AppSidebar({
             label: "Notifications",
             icon: Bell,
             active: pathname === `/organizations/${organizationId}/notifications`,
-            badge: "3",
+            badge: (orgUnread[organizationId] ?? 0) > 0 ? String(orgUnread[organizationId] ?? 0) : undefined,
           },
         ]
       : [
@@ -244,7 +280,7 @@ export function AppSidebar({
             label: "Notifications",
             icon: Bell,
             active: pathname === "/notifications",
-            badge: "3",
+            badge: totalUnread > 0 ? String(totalUnread) : undefined,
           },
         ]
 

@@ -18,6 +18,7 @@ import { FileText, Download, Play } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getInitials, cn } from "@/lib/utils";
 import { buildAuthenticatedFileUrl } from "@/lib/file-url";
+import { renderMentionTokens } from "@/lib/mentions";
 import { toast } from "sonner";
 import { useUnreadStore } from "@/store/unread.store";
 import {
@@ -342,7 +343,7 @@ function MessageContent({
         className={`chat-rich-text whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed max-w-none transition-[max-height] duration-200
           [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_ul]:ml-5 [&_ol]:ml-5 [&_p]:m-0 [&_blockquote]:pl-4
           text-foreground ${isOwnMessage ? "chat-rich-text--own" : ""}`}
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: renderMentionTokens(content) }}
       />
 
       {isLongMessage ? (
