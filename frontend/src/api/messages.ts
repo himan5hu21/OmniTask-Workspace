@@ -99,6 +99,7 @@ export const messageService = {
   // ==========================================
   getConversations: async (): Promise<ApiSuccess<Array<{
     id: string;
+    unreadCount: number;
     otherUser: {
       id: string;
       name: string;
@@ -145,6 +146,10 @@ export const messageService = {
 
   deleteDirectMessage: async (messageId: string): Promise<ApiSuccess<{ id: string }>> => {
     return apiRequest.delete<ApiSuccess<{ id: string }>>(`/conversations/messages/${messageId}`);
+  },
+
+  markConversationRead: async (conversationId: string): Promise<ApiSuccess<{ success: boolean }>> => {
+    return apiRequest.get<ApiSuccess<{ success: boolean }>>(`/conversations/${conversationId}/messages`);
   },
 };
 

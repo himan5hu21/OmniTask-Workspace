@@ -116,7 +116,19 @@ export class MessageService {
       }))
     };
  
-    if (io) io.to(`channel:${channelId}`).emit('channel:message_created', messageData);
+    if (io) {
+      io.to(`channel:${channelId}`).emit('channel:message_created', messageData);
+
+      // Emit to all channel members' private rooms for sidebar unread badge support
+      try {
+        const members = await channelMemberRepo.getAll({ where: { channel_id: channelId } });
+        for (const member of members) {
+          io.to(`user:${member.user_id}`).emit('channel:message_created', messageData);
+        }
+      } catch (err) {
+        console.error('[Socket] Failed to broadcast channel message to members:', err);
+      }
+    }
     return messageData;
   }
 
@@ -369,6 +381,16 @@ export class MessageService {
           orderBy: { created_at: 'desc' },
           take: 1,
           include: { sender: { select: { id: true, name: true } } }
+        },
+        _count: {
+          select: {
+            messages: {
+              where: {
+                sender_id: { not: userId },
+                is_read: false
+              }
+            }
+          }
         }
       },
       orderBy: {
@@ -388,6 +410,7 @@ export class MessageService {
           email: otherUser.email,
           avatar_url: otherUser.avatar_url ? StorageService.getFileUrl(otherUser.avatar_url) : null
         },
+        unreadCount: conv._count.messages,
         lastMessage: lastMessage
           ? {
               id: lastMessage.id,

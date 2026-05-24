@@ -159,3 +159,13 @@ export const getInviteableMembers = async (request: FastifyRequest, reply: Fasti
 
   return sendSuccess(reply, members, 'FETCH', 'Inviteable members retrieved successfully');
 };
+
+// 10. Mark channel as read
+export const markChannelRead = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { id } = request.params as { id: string };
+  const user = (request as any).user;
+
+  const result = await ChannelService.updateLastRead(id, user.userId);
+
+  return sendSuccess(reply, result, 'UPDATE', 'Channel marked as read successfully');
+};

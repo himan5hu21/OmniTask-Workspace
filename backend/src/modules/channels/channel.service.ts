@@ -70,24 +70,39 @@ export class ChannelService {
       page, limit, search, searchFields: ['name'], where,
       include: {
         _count: { select: { members: true, messages: true } },
-        members: { where: { user_id: userId }, select: { role: true } },
+        members: { where: { user_id: userId }, select: { role: true, last_read_at: true } },
         organization: { select: { owner_id: true } }
       },
       orderBy: [{ isDefault: 'desc' }, { created_at: 'desc' }]
     });
 
+    const channels = await Promise.all(data.map(async (channel: any) => {
+      const explicitMembership = channel.members[0];
+      const currentChannelRole = explicitMembership?.role;
+      let unreadCount = 0;
+
+      if (explicitMembership) {
+        unreadCount = await prisma.channelMessage.count({
+          where: {
+            channel_id: channel.id,
+            sender_id: { not: userId },
+            created_at: { gt: explicitMembership.last_read_at }
+          }
+        });
+      }
+
+      return {
+        id: channel.id, name: channel.name, org_id: channel.org_id, isDefault: channel.isDefault,
+        created_at: channel.created_at, updated_at: channel.updated_at, currentUserChannelRole: currentChannelRole ?? null,
+        memberCount: channel._count.members, messageCount: channel._count.messages, unreadCount,
+        permissions: this.buildChannelPermissions({
+          orgRole: membership.role, channelRole: currentChannelRole, isDefault: channel.isDefault
+        })
+      };
+    }));
+
     return {
-      channels: data.map((channel: any) => {
-        const currentChannelRole = channel.members[0]?.role;
-        return {
-          id: channel.id, name: channel.name, org_id: channel.org_id, isDefault: channel.isDefault,
-          created_at: channel.created_at, updated_at: channel.updated_at, currentUserChannelRole: currentChannelRole ?? null,
-          memberCount: channel._count.members, messageCount: channel._count.messages,
-          permissions: this.buildChannelPermissions({
-            orgRole: membership.role, channelRole: currentChannelRole, isDefault: channel.isDefault
-          })
-        };
-      }),
+      channels,
       pagination: meta, currentUserOrgRole: membership.role
     };
   }
@@ -393,5 +408,14 @@ export class ChannelService {
       }));
 
     return { members: inviteable };
+  }
+
+  // Update last read timestamp
+  static async updateLastRead(channelId: string, userId: string) {
+    const membership = await channelMemberRepo.findOne({ channel_id: channelId, user_id: userId });
+    if (!membership) throw new AppError('Channel membership not found', HttpStatus.NOT_FOUND);
+
+    await channelMemberRepo.update(membership.id, { last_read_at: new Date() });
+    return { success: true };
   }
 }

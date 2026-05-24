@@ -55,6 +55,7 @@ export type Channel = {
   org_id: string;
   created_at: string;
   updated_at: string;
+  unreadCount?: number;
   isDefault?: boolean;
   currentUserChannelRole?: ChannelRole | null;
   currentUserOrgRole?: string | null;
@@ -157,6 +158,10 @@ export const channelService = {
 
   removeMember: async (channelId: string, userId: string): Promise<SuccessResponse> => {
     return apiRequest.delete<SuccessResponse>(`/channels/${channelId}/members/${userId}`);
+  },
+
+  markRead: async (channelId: string): Promise<SuccessResponse> => {
+    return apiRequest.post<SuccessResponse>(`/channels/${channelId}/read`);
   },
 };
 
@@ -286,6 +291,18 @@ export const useRemoveChannelMember = () => {
     onSuccess: async (data, variables) => {
       await queryClient.invalidateQueries({ queryKey: channelKeys.byId(variables.channelId) });
       await queryClient.invalidateQueries({ queryKey: [...channelKeys.all, "members", variables.channelId] });
+    },
+  });
+};
+
+export const useMarkChannelRead = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationKey: ["markChannelRead"],
+    mutationFn: (channelId: string) => channelService.markRead(channelId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: channelKeys.all });
     },
   });
 };

@@ -13,13 +13,14 @@ const TaskBoard = dynamic(() => import("@/components/tasks/TaskBoard"), {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthProfile } from "@/api/auth";
-import { useMessages, useCreateMessage, messageService, type Message, type Attachment } from "@/api/messages";
-import { useChannel } from "@/api/channels";
+import { useMessages, useCreateMessage, messageService, messageKeys, type Message, type Attachment } from "@/api/messages";
+import { useChannel, useMarkChannelRead } from "@/api/channels";
 import { joinChannelRoom, leaveChannelRoom } from "@/socket/socket";
 import ChatInputBox from "@/components/ChatInputBox";
 import { DeleteMessageDialog } from "@/components/DeleteMessageDialog";
 import { FilePreviewDialog } from "@/components/FilePreviewDialog";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 import { FileText, ImageIcon, Download, ExternalLink, Play } from "lucide-react";
 import Image from "next/image";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,6 +28,7 @@ import { AbilityProvider } from "@/components/providers/AbilityProvider";
 import { getInitials } from "@/lib/utils";
 import { buildAuthenticatedFileUrl } from "@/lib/file-url";
 import { toast } from "sonner";
+import { useUnreadStore } from "@/store/unread.store";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -409,11 +411,42 @@ export default function ChannelDetailPage() {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
+    refetch,
   } = useMessages(channelId);
 
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [localOverrides, setLocalOverrides] = useState<Record<string, { content?: string; isDeleted?: boolean; updated_at?: string; attachments?: Attachment[] }>>({});
+  const { clearChannel } = useUnreadStore();
+  const markChannelRead = useMarkChannelRead();
+  const queryClient = useQueryClient();
+  const lastReadChannelIdRef = useRef<string | null>(null);
+
+  const [prevChannelId, setPrevChannelId] = useState(channelId);
+  if (channelId !== prevChannelId) {
+    setPrevChannelId(channelId);
+    setSocketMessages([]);
+    setLocalOverrides({});
+    setEditingMessageId(null);
+  }
+
+  // Clear unread badge for this channel when the user opens it
+  // and force a refetch if there were new messages waiting
+  useEffect(() => {
+    if (!channelId || lastReadChannelIdRef.current === channelId) return;
+
+    lastReadChannelIdRef.current = channelId;
+    const hadUnread = (useUnreadStore.getState().channelUnread[channelId] ?? 0) > 0;
+
+    clearChannel(channelId);
+    markChannelRead.mutate(channelId);
+
+    if (hadUnread) {
+      void refetch();
+      void queryClient.invalidateQueries({ queryKey: messageKeys.byChannel(channelId) });
+      void queryClient.invalidateQueries({ queryKey: ["channels"] });
+    }
+  }, [channelId, clearChannel, markChannelRead, queryClient, refetch]);
   const [menuOpenMessageId, setMenuOpenMessageId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [messageIdToDelete, setMessageIdToDelete] = useState<string | null>(null);

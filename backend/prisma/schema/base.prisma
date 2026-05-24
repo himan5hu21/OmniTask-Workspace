@@ -141,9 +141,10 @@ model Channel {
 model ChannelMember {
   id         String      @id @default(cuid())
   user_id    String
-  channel_id String
-  role       ChannelRole @default(CONTRIBUTOR)
-  joined_at  DateTime    @default(now())
+  channel_id   String
+  role         ChannelRole @default(CONTRIBUTOR)
+  joined_at    DateTime    @default(now())
+  last_read_at DateTime    @default(now())
 
   // Relations
   user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)

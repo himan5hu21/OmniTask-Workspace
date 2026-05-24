@@ -18,7 +18,7 @@ import {
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useOrganizationMembers, type OrganizationMember } from "@/api/organizations";
 import { useAuthProfile, useLogoutMutation } from "@/api/auth"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/sidebar"
 import { cn, getInitials } from "@/lib/utils"
 import { useUIStore } from "@/store/ui.store"
+import { useUnreadStore } from "@/store/unread.store"
 const InviteMemberDialog = dynamic(
   () => import("@/components/organizations/invite-member-dialog").then(mod => mod.InviteMemberDialog),
   { ssr: false }
@@ -60,6 +61,7 @@ const CreateChannelDialog = dynamic(
 );
 import { Can } from "@/lib/casl"
 import { useConversations } from "@/api/messages"
+import type { Channel } from "@/api/channels"
 import { NewDirectMessageDialog } from "@/components/layout/new-dm-dialog"
 import { getSocket } from "@/socket/socket"
 
@@ -67,7 +69,7 @@ export interface AppSidebarProps {
   mode?: "dashboard" | "organization"
   organizationId?: string
   organizationName?: string
-  channels?: Array<{ id: string; name: string }>
+  channels?: Channel[]
   isLoadingOrg?: boolean
   isLoadingChannels?: boolean
   isLoadingDMs?: boolean
@@ -98,6 +100,27 @@ export function AppSidebar({
 
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
+  const { initialize, incrementDm, incrementChannel, dmUnread, channelUnread } = useUnreadStore();
+
+  // Keep a stable ref to user.id so socket handlers can check without causing effect re-runs
+  const userIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => { userIdRef.current = user?.id; }, [user?.id]);
+
+  useEffect(() => {
+    initialize({
+      dmUnread: Object.fromEntries(
+        conversations
+          .filter((conversation) => (conversation.unreadCount ?? 0) > 0)
+          .map((conversation) => [conversation.id, conversation.unreadCount ?? 0])
+      ),
+      channelUnread: Object.fromEntries(
+        channels
+          .filter((channel) => (channel.unreadCount ?? 0) > 0)
+          .map((channel) => [channel.id, channel.unreadCount ?? 0])
+      ),
+    });
+  }, [channels, conversations, initialize]);
+
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
@@ -118,17 +141,41 @@ export function AppSidebar({
       });
     };
 
+    // Track DM unread: increment only for messages FROM the other person
+    // and only when NOT already viewing that conversation
+    const handleDmCreated = (data: { conversation_id: string; user_id: string }) => {
+      // Skip messages sent by the current user themselves
+      if (data.user_id === userIdRef.current) return;
+      const currentPath = window.location.pathname;
+      const isViewingConversation = currentPath === `/messages/${data.conversation_id}`;
+      if (!isViewingConversation) {
+        incrementDm(data.conversation_id);
+      }
+    };
+
+    // Track channel unread: increment for messages from other users while not viewing that channel
+    const handleChannelMessageCreated = (data: { channel_id: string; user_id: string }) => {
+      // Skip messages sent by the current user themselves
+      if (data.user_id === userIdRef.current) return;
+      const currentPath = window.location.pathname;
+      const isViewingChannel = currentPath.includes(`/channels/${data.channel_id}`);
+      if (!isViewingChannel) {
+        incrementChannel(data.channel_id);
+      }
+    };
+
     socket.on("user:online_list", handleOnlineList);
     socket.on("user:status_changed", handleStatusChanged);
-
-    // If socket is already connected and has socket.id, we might not get user:online_list immediately unless we request or if it was already sent.
-    // However, it is automatically sent on connection, and standard page mounts will hook it up correctly.
+    socket.on("dm:message_created", handleDmCreated);
+    socket.on("channel:message_created", handleChannelMessageCreated);
 
     return () => {
       socket.off("user:online_list", handleOnlineList);
       socket.off("user:status_changed", handleStatusChanged);
+      socket.off("dm:message_created", handleDmCreated);
+      socket.off("channel:message_created", handleChannelMessageCreated);
     };
-  }, []);
+  }, [incrementDm, incrementChannel]);
 
   const { members = [] } = useOrganizationMembers(organizationId || "", { page: 1, limit: 100 }, { enabled: mode === "organization" && !!organizationId });
 
@@ -459,6 +506,7 @@ export function AppSidebar({
                             <SidebarMenu className="gap-1">
                               {channels.map((channel) => {
                                 const isActive = pathname === `/organizations/${organizationId}/channels/${channel.id}`
+                                const chUnread = channelUnread[channel.id] ?? 0;
 
                                 return (
                                   <SidebarMenuItem key={channel.id}>
@@ -477,7 +525,12 @@ export function AppSidebar({
                                         className="flex items-center gap-3"
                                       >
                                         <Hash className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
-                                        <span className="truncate font-medium">{channel.name}</span>
+                                        <span className="flex-1 truncate font-medium">{channel.name}</span>
+                                        {chUnread > 0 && !isActive && (
+                                          <span className="flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground shadow-sm">
+                                            {chUnread > 99 ? "99+" : chUnread}
+                                          </span>
+                                        )}
                                       </Link>
                                     </SidebarMenuButton>
                                   </SidebarMenuItem>
@@ -532,11 +585,14 @@ export function AppSidebar({
                           </div>
                         ) : filteredConversations.length > 0 ? (
                           <SidebarMenu className="gap-1">
-                            {filteredConversations.map((conv) => (
+                            {filteredConversations.map((conv) => {
+                              const convUnread = dmUnread[conv.id] ?? 0;
+                              const isActive = pathname === `/messages/${conv.id}`;
+                              return (
                               <SidebarMenuItem key={conv.id}>
                                 <SidebarMenuButton
                                   asChild
-                                  isActive={pathname === `/messages/${conv.id}`}
+                                  isActive={isActive}
                                   className="h-9 rounded-lg border border-transparent px-2 text-sm text-muted-foreground transition-all hover:bg-sidebar-accent/60 hover:text-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                                 >
                                   <Link href={`/messages/${conv.id}${organizationId ? `?orgId=${organizationId}` : ""}`} className="flex items-center gap-2">
@@ -550,11 +606,16 @@ export function AppSidebar({
                                           <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-sidebar bg-emerald-500 animate-in fade-in duration-200" />
                                         )}
                                       </div>
-                                    <span className="truncate font-medium text-xs">{conv.otherUser.name}</span>
+                                    <span className="flex-1 truncate font-medium text-xs">{conv.otherUser.name}</span>
+                                    {convUnread > 0 && !isActive && (
+                                      <span className="flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground shadow-sm animate-in zoom-in-75 duration-150">
+                                        {convUnread > 99 ? "99+" : convUnread}
+                                      </span>
+                                    )}
                                   </Link>
                                 </SidebarMenuButton>
                               </SidebarMenuItem>
-                            ))}
+                            )})}
                           </SidebarMenu>
                         ) : (
                           <div className="px-2 py-2 text-xs text-muted-foreground">No conversations yet</div>
@@ -626,11 +687,14 @@ export function AppSidebar({
               </div>
             ) : filteredConversations.length > 0 ? (
               <SidebarMenu className="space-y-1">
-                {filteredConversations.map((conv) => (
+                {filteredConversations.map((conv) => {
+                  const convUnread = dmUnread[conv.id] ?? 0;
+                  const isActive = pathname === `/messages/${conv.id}`;
+                  return (
                   <SidebarMenuItem key={conv.id}>
                     <SidebarMenuButton
                       asChild
-                      isActive={pathname === `/messages/${conv.id}`}
+                      isActive={isActive}
                       className="h-10 transition-all data-[active=true]:border-l-[3px] data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:text-primary"
                     >
                       <Link href={`/messages/${conv.id}`} className="flex items-center gap-3">
@@ -644,11 +708,16 @@ export function AppSidebar({
                             <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-emerald-500 shadow-sm animate-in fade-in duration-200" />
                           )}
                         </div>
-                        <span className="truncate font-medium">{conv.otherUser.name}</span>
+                        <span className="flex-1 truncate font-medium">{conv.otherUser.name}</span>
+                        {convUnread > 0 && !isActive && (
+                          <span className="flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground shadow-sm animate-in zoom-in-75 duration-150">
+                            {convUnread > 99 ? "99+" : convUnread}
+                          </span>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                ))}
+                )})}
               </SidebarMenu>
             ) : (
               <div className="px-3 py-2 text-xs text-muted-foreground">No conversations yet</div>

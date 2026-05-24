@@ -81,6 +81,12 @@ const channelRoutes: FastifyPluginAsync = async (fastify) => {
     querystring: channelController.inviteableMembersQuerySchema,
   }), channelController.getInviteableMembers);
 
+  app.post('/channels/:id/read', createSchema({
+    description: 'Mark a channel as read',
+    tags: ['Channels'],
+    params: z.object({ id: z.cuid() }),
+  }), channelController.markChannelRead);
+
 };
 
 export default channelRoutes;

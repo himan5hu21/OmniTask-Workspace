@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { MessageSquareText, ArrowLeft, MoreHorizontal, Pencil, Trash2, ChevronDown, Copy } from "lucide-react";
 import Spinner from "@/components/Loading";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuthProfile } from "@/api/auth";
@@ -18,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { getInitials, cn } from "@/lib/utils";
 import { buildAuthenticatedFileUrl } from "@/lib/file-url";
 import { toast } from "sonner";
+import { useUnreadStore } from "@/store/unread.store";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -384,6 +386,7 @@ export default function DirectMessagePage() {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
+    refetch,
   } = useDirectMessages(conversationId);
 
   const [socketMessages, setSocketMessages] = useState<Message[]>([]);
@@ -396,8 +399,37 @@ export default function DirectMessagePage() {
   const otherUserId = otherUser?.id;
 
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const { clearDm } = useUnreadStore();
+  const queryClient = useQueryClient();
+  const lastReadConversationIdRef = useRef<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [localOverrides, setLocalOverrides] = useState<Record<string, { content?: string; isDeleted?: boolean; updated_at?: string; attachments?: Attachment[] }>>({});
+
+  const [prevConversationId, setPrevConversationId] = useState(conversationId);
+  if (conversationId !== prevConversationId) {
+    setPrevConversationId(conversationId);
+    setSocketMessages([]);
+    setLocalOverrides({});
+    setEditingMessageId(null);
+  }
+
+  // Clear unread badge for this conversation the moment the user opens it
+  // and force a refetch if there were new messages waiting
+  useEffect(() => {
+    if (!conversationId || lastReadConversationIdRef.current === conversationId) return;
+
+    lastReadConversationIdRef.current = conversationId;
+    const hadUnread = (useUnreadStore.getState().dmUnread[conversationId] ?? 0) > 0;
+
+    clearDm(conversationId);
+    void messageService.markConversationRead(conversationId);
+
+    if (hadUnread) {
+      void refetch();
+      void queryClient.invalidateQueries({ queryKey: ["messages", "direct", conversationId] });
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    }
+  }, [conversationId, clearDm, queryClient, refetch]);
   const [menuOpenMessageId, setMenuOpenMessageId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [messageIdToDelete, setMessageIdToDelete] = useState<string | null>(null);
