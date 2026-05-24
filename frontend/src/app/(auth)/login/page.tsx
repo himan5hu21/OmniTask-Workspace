@@ -122,7 +122,7 @@ export default function LoginPage() {
                   <div className="flex flex-col gap-2">
                     <div className="flex justify-between items-center">
                       <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest" htmlFor="password">Password</Label>
-                      <a className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors" href="#">Forgot password?</a>
+                      <Link className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors" href="/forgot-password">Forgot password?</Link>
                     </div>
                     <div className="relative flex items-center">
                       <Lock className="absolute left-3 h-5 w-5 text-muted-foreground pointer-events-none" />

@@ -35,6 +35,24 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }),
     config: { isPublic: true } 
   }, authController.refreshToken); 
+
+  app.post('/forgot-password', { 
+    ...createSchema({
+      description: 'Request password reset link',
+      tags: ['Auth'],
+      body: authController.forgotPasswordSchema,
+    }),
+    config: { isPublic: true } 
+  }, authController.forgotPassword); 
+
+  app.post('/reset-password', { 
+    ...createSchema({
+      description: 'Reset password using secure token',
+      tags: ['Auth'],
+      body: authController.resetPasswordSchema,
+    }),
+    config: { isPublic: true } 
+  }, authController.resetPassword); 
   
   // Protected Routes
   app.get('/profile', {

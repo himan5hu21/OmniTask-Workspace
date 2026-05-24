@@ -38,6 +38,15 @@ export const changePasswordSchema = z.object({
 });
 
 
+export const forgotPasswordSchema = z.object({
+  email: z.email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string(),
+  password: z.string().min(3, 'Password must be at least 3 characters long'),
+});
+
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -211,4 +220,20 @@ export const deactivateAccount = async (request: FastifyRequest, reply: FastifyR
   await AuthService.deactivateAccount(user.userId);
   
   return sendSuccess(reply, null, 'DELETE', 'Account deactivated successfully');
+}
+
+export const forgotPassword = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { email } = forgotPasswordSchema.parse(request.body);
+
+  await AuthService.forgotPassword(email);
+
+  return sendSuccess(reply, null, 'FETCH', 'If the email is registered, we have sent a reset password link.');
+}
+
+export const resetPassword = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { token, password } = resetPasswordSchema.parse(request.body);
+
+  await AuthService.resetPassword(token, password);
+
+  return sendSuccess(reply, null, 'UPDATE', 'Password has been reset successfully.');
 }

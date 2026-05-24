@@ -13,6 +13,10 @@ model User {
   // Soft delete
   deleted_at DateTime?
 
+  // Password reset
+  reset_token            String?   @unique
+  reset_token_expires_at DateTime?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

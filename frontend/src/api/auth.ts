@@ -67,6 +67,14 @@ export const authService = {
   refreshToken: async (): Promise<AuthResponse> => {
     return apiRequest.post<AuthResponse>("/auth/refresh");
   },
+
+  forgotPassword: async (data: { email: string }): Promise<ApiSuccess<null>> => {
+    return apiRequest.post<ApiSuccess<null>>("/auth/forgot-password", data);
+  },
+
+  resetPassword: async (data: { token: string; password: string }): Promise<ApiSuccess<null>> => {
+    return apiRequest.post<ApiSuccess<null>>("/auth/reset-password", data);
+  },
 };
 
 // --- HOOKS ---
@@ -174,6 +182,21 @@ export const useLogoutMutation = (options?: { onSuccess?: () => void }) => {
       queryClient.removeQueries({ queryKey: authKeys.all });
     },
     onSuccess: options?.onSuccess,
+  });
+};
+
+
+export const useForgotPasswordMutation = () => {
+  return useMutation({
+    mutationKey: ["forgotPassword"],
+    mutationFn: authService.forgotPassword,
+  });
+};
+
+export const useResetPasswordMutation = () => {
+  return useMutation({
+    mutationKey: ["resetPassword"],
+    mutationFn: authService.resetPassword,
   });
 };
 
