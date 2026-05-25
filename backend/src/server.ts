@@ -12,10 +12,8 @@ import healthRoutes from '@/routes/health.routes';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import cookie from '@fastify/cookie';
-import fastifyStatic from '@fastify/static';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+import { createReadStream } from 'node:fs';
 import { setupErrorHandler } from '@/middlewares/errorHandlers';
 import { verifyToken } from '@/middlewares/auth.middleware';
 import attachmentRoutes from '@/modules/attachment/attachment.routes';
@@ -23,6 +21,7 @@ import { prisma } from "@/lib/database";
 import type { Prisma } from '@/generated/prisma/client';
 import swaggerPlugin from '@/plugins/swagger';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import { StorageService } from '@/lib/storage';
 
 // dotenv/config ensures env vars are loaded before any other imports
 
@@ -99,13 +98,48 @@ const buildServer = async () => {
     secret: process.env.COOKIE_SECRET || 'omnitask-secret',
   });
 
-  // Register Static for serving public uploads (like user avatars)
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  await app.register(fastifyStatic, {
-    root: path.join(__dirname, '../uploads'),
-    prefix: '/uploads/user',
-    setHeaders: (res) => {
-      res.setHeader('X-Content-Type-Options', 'nosniff');
+  const streamStoredFile = async (reply: any, relativePath: string, contentType?: string | null) => {
+    const filePath = StorageService.getUploadPath(relativePath);
+    reply.header('X-Content-Type-Options', 'nosniff');
+    if (contentType) {
+      reply.type(contentType);
+    }
+    return reply.send(createReadStream(filePath));
+  };
+
+  app.get('/uploads/user/:filename', async (request, reply) => {
+    try {
+      await verifyToken(request, reply);
+    } catch (err) {
+      return reply.code(401).send({ success: false, message: 'Unauthorized. Please login.' });
+    }
+
+    const { filename } = request.params as { filename: string };
+    const user = (request as any).user;
+
+    if (!user?.userId) {
+      return reply.code(401).send({ success: false, message: 'Unauthorized.' });
+    }
+
+    const owner = await prisma.user.findFirst({
+      where: {
+        avatar_url: {
+          endsWith: `user/${filename}`
+        }
+      },
+      select: {
+        avatar_url: true
+      }
+    });
+
+    if (!owner?.avatar_url) {
+      return reply.code(404).send({ success: false, message: 'File not found.' });
+    }
+
+    try {
+      return await streamStoredFile(reply, owner.avatar_url);
+    } catch (err) {
+      return reply.code(404).send({ success: false, message: 'File not found.' });
     }
   });
 
@@ -188,7 +222,11 @@ const buildServer = async () => {
       }
     }
 
-    return reply.sendFile(`message/${filename}`);
+    try {
+      return await streamStoredFile(reply, attachment.file_url, attachment.mime_type);
+    } catch (err) {
+      return reply.code(404).send({ success: false, message: 'File not found.' });
+    }
   });
 
   app.get('/uploads/task/:filename', async (request, reply) => {
@@ -248,7 +286,11 @@ const buildServer = async () => {
       }
     }
 
-    return reply.sendFile(`task/${filename}`);
+    try {
+      return await streamStoredFile(reply, attachment.file_url, attachment.mime_type);
+    } catch (err) {
+      return reply.code(404).send({ success: false, message: 'File not found.' });
+    }
   });
 
   // Register JWT plugin

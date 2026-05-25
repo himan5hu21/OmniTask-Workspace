@@ -115,6 +115,29 @@ export class TaskController {
     });
   }
 
+  private normalizeStorageUrls<T>(payload: T): T {
+    if (Array.isArray(payload)) {
+      return payload.map((item) => this.normalizeStorageUrls(item)) as T;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return payload;
+    }
+
+    for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+      if ((key === 'avatar_url' || key === 'file_url') && typeof value === 'string') {
+        (payload as Record<string, unknown>)[key] = StorageService.getFileUrl(value);
+        continue;
+      }
+
+      if (value && typeof value === 'object') {
+        (payload as Record<string, unknown>)[key] = this.normalizeStorageUrls(value);
+      }
+    }
+
+    return payload;
+  }
+
   // 1. Create Board List
   async createBoardList(
     request: FastifyRequest<{ Body: { channel_id: string; name: string; position: number } }>,
@@ -204,7 +227,7 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to view list tasks');
     }
 
-    const tasks = await taskService.getTasksByList(id, page, limit);
+    const tasks = this.normalizeStorageUrls(await taskService.getTasksByList(id, page, limit));
     return sendSuccess(reply, tasks, 'FETCH');
   }
 
@@ -312,10 +335,10 @@ export class TaskController {
       return sendError(reply, HttpStatus.FORBIDDEN, 'Insufficient permissions to create task');
     }
 
-    const task = await taskService.createTask({
+    const task = this.normalizeStorageUrls(await taskService.createTask({
       ...request.body,
       creator_id: userId,
-    });
+    }));
     this.emitTaskRefresh(request, channel_id, {
       scope: 'board',
       taskId: task.id,
@@ -378,7 +401,7 @@ export class TaskController {
       targetListId: target_list_id,
       position,
     });
-    return sendSuccess(reply, updatedTask, 'UPDATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(updatedTask), 'UPDATE');
   }
 
   // 5. Reorder Lists
@@ -436,14 +459,7 @@ export class TaskController {
     }
 
     // Transform attachment URLs
-    if (task.attachments) {
-      task.attachments = task.attachments.map((att: any) => ({
-        ...att,
-        file_url: StorageService.getFileUrl(att.file_url)
-      }));
-    }
-
-    return sendSuccess(reply, task, 'FETCH');
+    return sendSuccess(reply, this.normalizeStorageUrls(task), 'FETCH');
   };
 
   // 7.1 Update Task Content (Title & Description)
@@ -491,12 +507,6 @@ export class TaskController {
       ).catch((e) => console.error("[Activity]", e?.message ?? e));
     }
 
-    if (updatedTask.attachments) {
-      updatedTask.attachments = updatedTask.attachments.map((att: any) => ({
-        ...att,
-        file_url: StorageService.getFileUrl(att.file_url)
-      }));
-    }
     this.emitTaskRefresh(request, task.channel_id, {
       scope: 'task+comments',
       taskId: id,
@@ -511,7 +521,7 @@ export class TaskController {
       parentTaskId: task.parent_task_id || undefined,
       reason: 'task_content_updated',
     });
-    return sendSuccess(reply, updatedTask, 'UPDATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(updatedTask), 'UPDATE');
   };
 
   // 7.2 Update Task Status
@@ -574,7 +584,7 @@ export class TaskController {
       parentTaskId: task.parent_task_id || undefined,
       reason: 'task_status_updated',
     });
-    return sendSuccess(reply, updatedTask, 'UPDATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(updatedTask), 'UPDATE');
   };
 
   // 7.3 Update Task Manage (Due Date, Priority, Cover Color)
@@ -647,7 +657,7 @@ export class TaskController {
       parentTaskId: task.parent_task_id || undefined,
       reason: 'task_manage_updated',
     });
-    return sendSuccess(reply, updatedTask, 'UPDATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(updatedTask), 'UPDATE');
   };
 
   // 7.5. Delete Task API
@@ -757,7 +767,7 @@ export class TaskController {
       listId: task.list_id,
       reason: 'task_assignment_created',
     });
-    return sendSuccess(reply, assignment, 'CREATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(assignment), 'CREATE');
   }
 
   async unassignUser(request: FastifyRequest<{ Params: { id: string; userId: string } }>, reply: FastifyReply) {
@@ -853,7 +863,7 @@ export class TaskController {
       timestamp: new Date().toISOString(),
       comment,
     });
-    return sendSuccess(reply, comment, 'CREATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(comment), 'CREATE');
   }
 
   async getComments(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
@@ -869,7 +879,7 @@ export class TaskController {
     }
 
     const comments = await commentService.getComments(id);
-    return sendSuccess(reply, comments, 'FETCH');
+    return sendSuccess(reply, this.normalizeStorageUrls(comments), 'FETCH');
   }
 
   // 10. Checklists
@@ -893,7 +903,7 @@ export class TaskController {
       listId: task.list_id,
       reason: 'checklist_created',
     });
-    return sendSuccess(reply, checklist, 'CREATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(checklist), 'CREATE');
   };
 
   updateChecklist = async (request: FastifyRequest<{ Params: { id: string }; Body: { title?: string; assignee_id?: string | null } }>, reply: FastifyReply) => {
@@ -965,7 +975,7 @@ export class TaskController {
       listId: (checklist as any).task.list_id,
       reason: 'checklist_updated',
     });
-    return sendSuccess(reply, updatedChecklist, 'UPDATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(updatedChecklist), 'UPDATE');
   };
 
   addChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { text: string; position?: number } }>, reply: FastifyReply) => {
@@ -995,7 +1005,7 @@ export class TaskController {
       listId: (checklist as any).task.list_id,
       reason: 'checklist_item_created',
     });
-    return sendSuccess(reply, item, 'CREATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(item), 'CREATE');
   };
 
   updateChecklistItem = async (request: FastifyRequest<{ Params: { id: string }; Body: { text?: string; is_completed?: boolean; position?: number; assignee_id?: string | null } }>, reply: FastifyReply) => {
@@ -1071,7 +1081,7 @@ export class TaskController {
       listId: (item as any).checklist.task.list_id,
       reason: 'checklist_item_updated',
     });
-    return sendSuccess(reply, updatedItem, 'UPDATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(updatedItem), 'UPDATE');
   };
 
   deleteChecklistItem = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
@@ -1264,10 +1274,9 @@ export class TaskController {
         listId: task.list_id,
         reason: 'task_attachment_created',
       });
-      return sendSuccess(reply, {
+      return sendSuccess(reply, this.normalizeStorageUrls({
         ...attachment,
-        file_url: StorageService.getFileUrl(attachment.file_url) // Return full URL for frontend
-      }, 'CREATE');
+      }), 'CREATE');
     } catch (err: any) {
       return sendError(reply, HttpStatus.BAD_REQUEST, err.message || 'File upload failed');
     }
@@ -1338,7 +1347,7 @@ export class TaskController {
       listId: parentTask.list_id,
       reason: 'subtask_created',
     });
-    return sendSuccess(reply, subtask, 'CREATE');
+    return sendSuccess(reply, this.normalizeStorageUrls(subtask), 'CREATE');
   };
 
   // PHASE 6 — Activity Feed
@@ -1365,7 +1374,7 @@ export class TaskController {
     }
 
     const result = await activityService.getActivities(id, page, limit);
-    return sendSuccess(reply, result, 'FETCH');
+    return sendSuccess(reply, this.normalizeStorageUrls(result), 'FETCH');
   };
 
   /**
@@ -1417,7 +1426,7 @@ export class TaskController {
     const { orgId } = request.query;
 
     const result = await taskService.getMyTasks(userId, orgId);
-    return sendSuccess(reply, result, 'FETCH');
+    return sendSuccess(reply, this.normalizeStorageUrls(result), 'FETCH');
   };
 }
 

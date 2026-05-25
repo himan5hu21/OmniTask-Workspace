@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { ButtonSpinner } from "@/components/ui/orbital-loader";
 
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -22,6 +22,7 @@ import { useOrganizationMembers } from "@/api/organizations";
 import { useStartConversation } from "@/api/messages";
 import { useAuthProfile } from "@/api/auth";
 import { getInitials } from "@/lib/utils";
+import { buildAuthenticatedFileUrl } from "@/lib/file-url";
 
 interface NewDirectMessageDialogProps {
   orgId: string;
@@ -115,6 +116,7 @@ export function NewDirectMessageDialog({
                     className="flex w-full items-center gap-3 rounded-lg p-2.5 text-left text-sm hover:bg-sidebar-accent/60 transition-colors disabled:opacity-50"
                   >
                     <Avatar className="h-8 w-8 rounded-md border border-sidebar-border bg-primary/10">
+                      <AvatarImage src={member.avatar_url ? buildAuthenticatedFileUrl(member.avatar_url) : undefined} />
                       <AvatarFallback className="bg-transparent text-primary font-bold text-xs uppercase">
                         {getInitials(member.name)}
                       </AvatarFallback>

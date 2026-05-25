@@ -4,6 +4,7 @@ import { AppError } from '@/utils/AppError';
 import { HttpStatus } from '@/types/api';
 import { prisma } from '@/lib/database';
 import { PermissionGuard } from '@/utils/permissions';
+import { StorageService } from '@/lib/storage';
 import type { Server } from 'socket.io';
 
 const channelRepo = new BaseRepository('channel');
@@ -155,6 +156,7 @@ export class ChannelService {
             id: true, 
             name: true, 
             email: true,
+            avatar_url: true,
             orgMemberships: {
               where: { organization_id: channel.org_id },
               select: { role: true }
@@ -173,7 +175,8 @@ export class ChannelService {
         org_role: m.user.orgMemberships[0]?.role || 'MEMBER',
         joined_at: m.joined_at,
         name: m.user.name,
-        email: m.user.email
+        email: m.user.email,
+        avatar_url: m.user.avatar_url ? StorageService.getFileUrl(m.user.avatar_url) : null
       })),
       pagination: meta,
       currentUserOrgRole: orgMembership?.role ?? null,
@@ -390,7 +393,7 @@ export class ChannelService {
           ]
         } : {})
       },
-      include: { user: { select: { id: true, name: true, email: true } } }
+      include: { user: { select: { id: true, name: true, email: true, avatar_url: true } } }
     });
 
     // Get existing channel member user IDs
@@ -404,7 +407,8 @@ export class ChannelService {
         user_id: m.user_id,
         name: m.user.name,
         email: m.user.email,
-        org_role: m.role
+        org_role: m.role,
+        avatar_url: m.user.avatar_url ? StorageService.getFileUrl(m.user.avatar_url) : null
       }));
 
     return { members: inviteable };

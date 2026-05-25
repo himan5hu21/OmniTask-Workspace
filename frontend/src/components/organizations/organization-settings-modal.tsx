@@ -42,7 +42,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { ORG_ROLES } from '@/types/roles';
 import { handleApiError } from '@/api/api-errors';
@@ -53,6 +53,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { cn, getInitials } from '@/lib/utils';
+import { buildAuthenticatedFileUrl } from '@/lib/file-url';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthProfile } from '@/api/auth';
 import { 
@@ -428,6 +429,7 @@ export default function OrganizationSettingsModal() {
                             <TableCell>
                               <div className="flex items-center gap-3 min-w-0">
                                 <Avatar className="h-8 w-8 border border-border">
+                                  <AvatarImage src={member.avatar_url ? buildAuthenticatedFileUrl(member.avatar_url) : undefined} />
                                   <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary uppercase">
                                     {member.name?.charAt(0) || "U"}
                                   </AvatarFallback>

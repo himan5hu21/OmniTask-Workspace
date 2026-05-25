@@ -10,7 +10,7 @@ const TaskBoard = dynamic(() => import("@/components/tasks/TaskBoard"), {
   loading: () => <Spinner size="lg" />
 });
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthProfile } from "@/api/auth";
 import { useMessages, useCreateMessage, messageService, messageKeys, type Message, type Attachment } from "@/api/messages";
@@ -852,6 +852,7 @@ export default function ChannelDetailPage() {
                             className={`flex gap-3 items-start ${isOwnMessage ? "flex-row-reverse" : ""}`}
                           >
                             <Avatar className="h-9 w-9 shrink-0 border border-border/60 relative -mt-3.5">
+                              <AvatarImage src={message.user_avatar ? buildAuthenticatedFileUrl(message.user_avatar) : undefined} />
                               <AvatarFallback className={isOwnMessage ? "bg-primary/10 text-primary font-bold" : "bg-muted text-foreground"}>
                                 {getInitials(message.user_name)}
                               </AvatarFallback>

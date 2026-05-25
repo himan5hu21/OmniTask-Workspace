@@ -38,7 +38,7 @@ export class MessageService {
       page, limit,
       where: { channel_id: channelId },
       include: {
-        sender: { select: { id: true, name: true, email: true } },
+        sender: { select: { id: true, name: true, email: true, avatar_url: true } },
         attachments: true
       },
       orderBy: { created_at: 'desc' }
@@ -52,6 +52,7 @@ export class MessageService {
         content: msg.text,
         user_id: msg.sender_id,
         user_name: msg.sender.name,
+        user_avatar: msg.sender.avatar_url ? StorageService.getFileUrl(msg.sender.avatar_url) : undefined,
         created_at: msg.created_at,
         updated_at: msg.updated_at,
         attachments: msg.attachments.map((att: any) => ({
@@ -86,7 +87,7 @@ export class MessageService {
  
     const message = await messageRepo.create(
       { text: content, channel_id: channelId, sender_id: userId },
-      { include: { sender: { select: { id: true, name: true, email: true } } } }
+      { include: { sender: { select: { id: true, name: true, email: true, avatar_url: true } } } }
     );
  
     if (messageInput.attachments?.length) {
@@ -97,7 +98,7 @@ export class MessageService {
       { id: message.id },
       {
         include: {
-          sender: { select: { id: true, name: true, email: true } },
+          sender: { select: { id: true, name: true, email: true, avatar_url: true } },
           attachments: true
         }
       }
@@ -109,6 +110,7 @@ export class MessageService {
       channel_id: fullMessage.channel_id,
       user_id: fullMessage.sender_id,
       user_name: fullMessage.sender.name,
+      user_avatar: fullMessage.sender.avatar_url ? StorageService.getFileUrl(fullMessage.sender.avatar_url) : undefined,
       created_at: fullMessage.created_at,
       updated_at: fullMessage.updated_at,
       attachments: fullMessage.attachments.map((att: any) => ({
@@ -192,7 +194,7 @@ export class MessageService {
       { id: messageId },
       {
         include: {
-          sender: { select: { id: true, name: true, email: true } },
+          sender: { select: { id: true, name: true, email: true, avatar_url: true } },
           attachments: true
         }
       }
@@ -204,6 +206,7 @@ export class MessageService {
       channel_id: fullMessage.channel_id,
       user_id: fullMessage.sender_id,
       user_name: fullMessage.sender.name,
+      user_avatar: fullMessage.sender.avatar_url ? StorageService.getFileUrl(fullMessage.sender.avatar_url) : undefined,
       created_at: fullMessage.created_at,
       updated_at: fullMessage.updated_at,
       attachments: fullMessage.attachments.map((att: any) => ({
@@ -297,7 +300,7 @@ export class MessageService {
         { id: attachment.channel_message_id },
         {
           include: {
-            sender: { select: { id: true, name: true, email: true } },
+            sender: { select: { id: true, name: true, email: true, avatar_url: true } },
             attachments: true,
           },
         }
@@ -310,6 +313,7 @@ export class MessageService {
           channel_id: fullMessage.channel_id,
           user_id: fullMessage.sender_id,
           user_name: fullMessage.sender.name,
+          user_avatar: fullMessage.sender.avatar_url ? StorageService.getFileUrl(fullMessage.sender.avatar_url) : undefined,
           created_at: fullMessage.created_at,
           updated_at: fullMessage.updated_at,
           attachments: fullMessage.attachments.map((att: any) => ({
@@ -521,6 +525,7 @@ export class MessageService {
         content: msg.text,
         user_id: msg.sender_id,
         user_name: msg.sender.name,
+        user_avatar: msg.sender.avatar_url ? StorageService.getFileUrl(msg.sender.avatar_url) : undefined,
         created_at: msg.created_at,
         updated_at: msg.updated_at,
         attachments: msg.attachments.map((att: any) => ({
@@ -561,7 +566,7 @@ export class MessageService {
 
     const message = await prisma.directMessage.create({
       data: { text: content ?? null, conversation_id: conversationId, sender_id: senderId },
-      include: { sender: { select: { id: true, name: true, email: true } } }
+      include: { sender: { select: { id: true, name: true, email: true, avatar_url: true } } }
     });
 
     if (messageInput.attachments?.length) {
@@ -571,7 +576,7 @@ export class MessageService {
     const fullMessage = await prisma.directMessage.findUnique({
       where: { id: message.id },
       include: {
-        sender: { select: { id: true, name: true, email: true } },
+        sender: { select: { id: true, name: true, email: true, avatar_url: true } },
         attachments: true
       }
     });
@@ -584,6 +589,7 @@ export class MessageService {
       conversation_id: fullMessage.conversation_id,
       user_id: fullMessage.sender_id,
       user_name: fullMessage.sender.name,
+      user_avatar: fullMessage.sender.avatar_url ? StorageService.getFileUrl(fullMessage.sender.avatar_url) : undefined,
       created_at: fullMessage.created_at,
       updated_at: fullMessage.updated_at,
       attachments: fullMessage.attachments.map((att: any) => ({
@@ -629,7 +635,7 @@ export class MessageService {
     const fullMessage = await prisma.directMessage.findUnique({
       where: { id: messageId },
       include: {
-        sender: { select: { id: true, name: true, email: true } },
+        sender: { select: { id: true, name: true, email: true, avatar_url: true } },
         attachments: true
       }
     });
@@ -642,6 +648,7 @@ export class MessageService {
       conversation_id: fullMessage.conversation_id,
       user_id: fullMessage.sender_id,
       user_name: fullMessage.sender.name,
+      user_avatar: fullMessage.sender.avatar_url ? StorageService.getFileUrl(fullMessage.sender.avatar_url) : undefined,
       created_at: fullMessage.created_at,
       updated_at: fullMessage.updated_at,
       attachments: fullMessage.attachments.map((att: any) => ({

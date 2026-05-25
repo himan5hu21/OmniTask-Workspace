@@ -37,6 +37,7 @@ import {
   MoreHorizontal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buildAuthenticatedFileUrl } from "@/lib/file-url";
 import { useBoard, useBoardListTasks, useMoveTask, useReorderLists, useUpdateTask, BoardList, Task } from "@/api/tasks";
 import { useAbility } from "@casl/react";
 import { AbilityContext } from "@/lib/casl";
@@ -267,7 +268,7 @@ function TaskCard({
                   <Tooltip key={assignment.user_id}>
                     <TooltipTrigger asChild>
                       <Avatar className="w-5.5 h-5.5 border-2 border-kanban-card ring-offset-background">
-                        <AvatarImage src={assignment.user?.avatar_url || ""} />
+                        <AvatarImage src={assignment.user?.avatar_url ? buildAuthenticatedFileUrl(assignment.user.avatar_url) : ""} />
                         <AvatarFallback className="text-[8px] font-bold bg-secondary">
                           {assignment.user?.name?.substring(0, 2).toUpperCase() || "U"}
                         </AvatarFallback>

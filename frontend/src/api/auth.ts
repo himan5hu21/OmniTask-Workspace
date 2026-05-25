@@ -35,6 +35,11 @@ export type RegisterInput = {
   password?: string;
 };
 
+export type ChangePasswordInput = {
+  currentPassword: string;
+  newPassword: string;
+};
+
 export type ProfileResponse = ApiSuccess<AuthUser>;
 export type AuthResponse = ApiSuccess<AuthPayload>;
 
@@ -74,6 +79,22 @@ export const authService = {
 
   resetPassword: async (data: { token: string; password: string }): Promise<ApiSuccess<null>> => {
     return apiRequest.post<ApiSuccess<null>>("/auth/reset-password", data);
+  },
+
+  updateProfile: async (data: FormData): Promise<ProfileResponse> => {
+    return apiRequest.patch<ProfileResponse>("/auth/profile", data, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
+
+  changePassword: async (data: ChangePasswordInput): Promise<ApiSuccess<null>> => {
+    return apiRequest.patch<ApiSuccess<null>>("/auth/change-password", data);
+  },
+
+  deactivateAccount: async (): Promise<ApiSuccess<null>> => {
+    return apiRequest.delete<ApiSuccess<null>>("/auth/deactivate");
   },
 };
 
@@ -197,6 +218,44 @@ export const useResetPasswordMutation = () => {
   return useMutation({
     mutationKey: ["resetPassword"],
     mutationFn: authService.resetPassword,
+  });
+};
+
+export const useUpdateProfileMutation = () => {
+  const queryClient = useQueryClient();
+  const setUser = useAuthStore((state) => state.setUser);
+
+  return useMutation({
+    mutationKey: ["updateProfile"],
+    mutationFn: authService.updateProfile,
+    onSuccess: (data) => {
+      if (data.data) {
+        setUser(data.data);
+        queryClient.setQueryData(authKeys.profile(), data);
+      }
+    },
+  });
+};
+
+export const useChangePasswordMutation = () => {
+  return useMutation({
+    mutationKey: ["changePassword"],
+    mutationFn: authService.changePassword,
+  });
+};
+
+export const useDeactivateAccountMutation = () => {
+  const queryClient = useQueryClient();
+  const clearSession = useAuthStore((state) => state.clearSession);
+
+  return useMutation({
+    mutationKey: ["deactivateAccount"],
+    mutationFn: authService.deactivateAccount,
+    onSuccess: () => {
+      deleteToken();
+      clearSession();
+      queryClient.removeQueries({ queryKey: authKeys.all });
+    },
   });
 };
 

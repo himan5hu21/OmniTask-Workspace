@@ -7,6 +7,9 @@ const normalizeFileUrl = (fileUrl?: string | null) => {
 
   try {
     const parsed = new URL(fileUrl);
+    if (parsed.pathname.startsWith("/uploads/")) {
+      return parsed.pathname;
+    }
     return `${parsed.origin}${parsed.pathname}`;
   } catch {
     return fileUrl.split("?")[0] || "";

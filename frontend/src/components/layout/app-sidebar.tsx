@@ -21,7 +21,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useOrganizationMembers, type OrganizationMember } from "@/api/organizations";
 import { useAuthProfile, useLogoutMutation } from "@/api/auth"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -48,6 +48,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { cn, getInitials } from "@/lib/utils"
+import { buildAuthenticatedFileUrl } from "@/lib/file-url"
 import { useUIStore } from "@/store/ui.store"
 import { useUnreadStore } from "@/store/unread.store"
 const InviteMemberDialog = dynamic(
@@ -316,6 +317,7 @@ export function AppSidebar({
             collapsed ? "h-10 w-10" : "h-8 w-8",
             "group-hover:border-primary/30"
           )}>
+            <AvatarImage src={user?.avatar_url ? buildAuthenticatedFileUrl(user.avatar_url) : undefined} className="object-cover" />
             <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-xs transition-colors group-hover:bg-primary/20">
               {userInitials}
             </AvatarFallback>
@@ -344,6 +346,7 @@ export function AppSidebar({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-3 px-2 py-2 text-left text-sm">
                 <Avatar className="h-9 w-9 rounded-lg border border-sidebar-border/70">
+                  <AvatarImage src={user?.avatar_url ? buildAuthenticatedFileUrl(user.avatar_url) : undefined} className="object-cover" />
                   <AvatarFallback className="rounded-lg bg-primary/10 text-primary font-semibold text-xs">
                     {userInitials}
                   </AvatarFallback>
@@ -359,7 +362,10 @@ export function AppSidebar({
             <DropdownMenuSeparator className="my-1.5" />
           </>
         )}
-        <DropdownMenuItem className="cursor-pointer rounded-lg py-2">
+        <DropdownMenuItem 
+          className="cursor-pointer rounded-lg py-2"
+          onClick={() => useUIStore.getState().openProfileSettings()}
+        >
           <Settings className="mr-2 h-4 w-4" />
           <span>Account Settings</span>
         </DropdownMenuItem>
@@ -634,6 +640,7 @@ export function AppSidebar({
                                   <Link href={`/messages/${conv.id}${organizationId ? `?orgId=${organizationId}` : ""}`} className="flex items-center gap-2">
                                       <div className="relative shrink-0">
                                         <Avatar className="h-6 w-6 rounded-md border border-primary/20 bg-primary/10">
+                                          <AvatarImage src={conv.otherUser.avatar_url ? buildAuthenticatedFileUrl(conv.otherUser.avatar_url) : undefined} />
                                           <AvatarFallback className="bg-transparent text-primary font-bold text-[9px] shadow-sm uppercase">
                                             {getInitials(conv.otherUser.name)}
                                           </AvatarFallback>
@@ -736,6 +743,7 @@ export function AppSidebar({
                       <Link href={`/messages/${conv.id}`} className="flex items-center gap-3">
                         <div className="relative shrink-0">
                           <Avatar className="h-6 w-6 rounded-md border border-primary/20 bg-primary/10">
+                            <AvatarImage src={conv.otherUser.avatar_url ? buildAuthenticatedFileUrl(conv.otherUser.avatar_url) : undefined} />
                             <AvatarFallback className="bg-transparent text-primary font-bold text-[9px] shadow-sm uppercase">
                               {getInitials(conv.otherUser.name)}
                             </AvatarFallback>

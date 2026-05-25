@@ -73,7 +73,6 @@ export class StorageService {
 
   static getFileUrl(relativePath: string) {
     if (!relativePath) return '';
-    const baseUrl = this.getPublicBaseUrl();
 
     if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
       return relativePath;
@@ -83,7 +82,7 @@ export class StorageService {
       ? relativePath
       : `/uploads/${relativePath.replace(/^\/+/, '')}`;
 
-    return `${baseUrl}${normalizedPath}`;
+    return normalizedPath;
   }
 
   static getUploadPath(relativePath: string) {

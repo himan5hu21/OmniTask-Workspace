@@ -10,6 +10,7 @@ import { useOrgChannels } from "@/api/channels";
 import { OrbitalLoader } from "@/components/ui/orbital-loader";
 import { AbilityProvider } from "@/components/providers/AbilityProvider";
 import OrganizationSettingsModal from "@/components/organizations/organization-settings-modal";
+import UserProfileSettingsModal from "@/components/layout/user-profile-settings-modal";
 
 // Layout for the main authenticated app area
 
@@ -70,6 +71,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         </SidebarInset>
       </SidebarProvider>
       <OrganizationSettingsModal />
+      <UserProfileSettingsModal />
     </AbilityProvider>
   );
 }

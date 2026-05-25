@@ -66,7 +66,6 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     ...createSchema({
       description: 'Update user profile',
       tags: ['Auth'],
-      body: authController.updateProfileSchema,
     }),
   }, authController.updateProfile); 
   

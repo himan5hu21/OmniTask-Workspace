@@ -107,7 +107,7 @@ export class NotificationService {
         entity_id: input.entityId,
         title: input.title,
         body: input.body,
-        metadata: input.metadata ?? undefined,
+        metadata: (input.metadata as any) ?? null,
       },
       include: {
         actor: { select: { id: true, name: true, email: true, avatar_url: true } },
@@ -285,7 +285,9 @@ export class NotificationService {
     for (const pattern of patterns) {
       let match: RegExpExecArray | null;
       while ((match = pattern.exec(content)) !== null) {
-        ids.add(match[1]);
+        if (match[1]) {
+          ids.add(match[1]);
+        }
       }
     }
 

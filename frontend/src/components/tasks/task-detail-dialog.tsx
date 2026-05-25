@@ -37,7 +37,7 @@ import {
   Clock,
 } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import { buildAuthenticatedDownloadUrl, buildAuthenticatedFileUrl } from "@/lib/file-url";
 import { TiptapEditor } from "@/components/TiptapEditor";
 
@@ -134,6 +134,7 @@ interface ChannelMember {
   user_id: string;
   name: string;
   avatar_url?: string | null;
+  email?: string;
 }
 
 type DraftState = {
@@ -211,9 +212,9 @@ function SingleAssigneeSelector({
                 !disabled && "hover:ring-2 hover:ring-primary transition-all",
                 size === "sm" ? "w-7 h-7" : size === "xs" ? "w-6 h-6" : "w-5 h-5"
               )}>
-                <AvatarImage src={currentAssignee.avatar_url || ""} />
+                <AvatarImage src={currentAssignee.avatar_url ? buildAuthenticatedFileUrl(currentAssignee.avatar_url) : ""} />
                 <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary uppercase">
-                  {currentAssignee.name?.substring(0, 2)}
+                  {getInitials(currentAssignee.name)}
                 </AvatarFallback>
               </Avatar>
             </TooltipTrigger>
@@ -268,12 +269,17 @@ function SingleAssigneeSelector({
               className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-lg hover:bg-muted"
             >
               <Avatar className="w-6 h-6">
-                <AvatarImage src={member.avatar_url || undefined} />
+                <AvatarImage src={member.avatar_url ? buildAuthenticatedFileUrl(member.avatar_url) : undefined} />
                 <AvatarFallback className="text-[8px] font-bold">
-                  {member.name.substring(0, 2).toUpperCase()}
+                  {getInitials(member.name)}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-xs font-medium flex-1">{member.name}</span>
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="text-xs font-medium truncate">{member.name}</span>
+                {member.email && (
+                  <span className="text-[10px] text-muted-foreground truncate">{member.email}</span>
+                )}
+              </div>
               {currentAssignee?.id === member.user_id && <Check size={14} className="text-primary" />}
             </DropdownMenuItem>
           ))}
@@ -1319,10 +1325,15 @@ export function TaskDetailDialog({
                                       className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
                                     >
                                       <Avatar className="w-6 h-6">
-                                        <AvatarImage src={member.avatar_url} />
-                                        <AvatarFallback className="text-[10px] font-bold">{member.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                        <AvatarImage src={member.avatar_url ? buildAuthenticatedFileUrl(member.avatar_url) : undefined} />
+                                        <AvatarFallback className="text-[10px] font-bold">{getInitials(member.name)}</AvatarFallback>
                                       </Avatar>
-                                      <span className="text-xs font-medium flex-1">{member.name}</span>
+                                      <div className="flex flex-col flex-1 min-w-0">
+                                        <span className="text-xs font-medium truncate">{member.name}</span>
+                                        {member.email && (
+                                          <span className="text-[10px] text-muted-foreground truncate">{member.email}</span>
+                                        )}
+                                      </div>
                                       {isAssigned && <Check size={14} className="text-primary" />}
                                     </DropdownMenuItem>
                                   );
@@ -1629,8 +1640,8 @@ export function TaskDetailDialog({
                                       canUpdateManage ? "cursor-pointer hover:border-red-500" : ""
                                     )}>
                                       <Avatar className="w-full h-full">
-                                        <AvatarImage src={a.user?.avatar_url} />
-                                        <AvatarFallback className="text-[10px] font-bold">{a.user?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                        <AvatarImage src={a.user?.avatar_url ? buildAuthenticatedFileUrl(a.user.avatar_url) : undefined} />
+                                        <AvatarFallback className="text-[10px] font-bold">{getInitials(a.user?.name)}</AvatarFallback>
                                       </Avatar>
                                     </div>
                                   );
@@ -1660,8 +1671,8 @@ export function TaskDetailDialog({
                                           <div className="flex flex-col gap-3">
                                             <div className="flex items-center gap-2">
                                               <Avatar className="w-8 h-8">
-                                                <AvatarImage src={a.user?.avatar_url} />
-                                                <AvatarFallback className="text-[10px] font-bold">{a.user?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                                <AvatarImage src={a.user?.avatar_url ? buildAuthenticatedFileUrl(a.user.avatar_url) : undefined} />
+                                                <AvatarFallback className="text-[10px] font-bold">{getInitials(a.user?.name)}</AvatarFallback>
                                               </Avatar>
                                               <div className="flex flex-col min-w-0">
                                                 <span className="text-xs font-bold truncate">{a.user?.name}</span>
@@ -1744,10 +1755,15 @@ export function TaskDetailDialog({
                                           className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
                                         >
                                           <Avatar className="w-6 h-6">
-                                            <AvatarImage src={member.avatar_url} />
-                                            <AvatarFallback className="text-[10px] font-bold">{member.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                            <AvatarImage src={member.avatar_url ? buildAuthenticatedFileUrl(member.avatar_url) : undefined} />
+                                            <AvatarFallback className="text-[10px] font-bold">{getInitials(member.name)}</AvatarFallback>
                                           </Avatar>
-                                          <span className="text-xs font-medium flex-1">{member.name}</span>
+                                          <div className="flex flex-col flex-1 min-w-0">
+                                            <span className="text-xs font-medium truncate">{member.name}</span>
+                                            {member.email && (
+                                              <span className="text-[10px] text-muted-foreground truncate">{member.email}</span>
+                                            )}
+                                          </div>
                                           {isAssigned && <Check size={14} className="text-primary" />}
                                         </DropdownMenuItem>
                                       );
@@ -2450,9 +2466,9 @@ export function TaskDetailDialog({
                         <div key={comment.id} className="flex gap-2">
                           <div className="w-8 h-8 rounded-full bg-muted overflow-hidden border border-background shrink-0">
                             <Avatar className="w-full h-full">
-                              <AvatarImage src={comment.user?.avatar_url} />
+                              <AvatarImage src={comment.user?.avatar_url ? buildAuthenticatedFileUrl(comment.user.avatar_url) : undefined} />
                               <AvatarFallback className="text-[10px] font-bold uppercase">
-                                {comment.user?.name?.substring(0, 2) || "U"}
+                                {getInitials(comment.user?.name, "U")}
                               </AvatarFallback>
                             </Avatar>
                           </div>

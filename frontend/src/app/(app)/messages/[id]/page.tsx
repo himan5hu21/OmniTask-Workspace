@@ -7,7 +7,7 @@ import Spinner from "@/components/Loading";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthProfile } from "@/api/auth";
 import { useDirectMessages, useCreateDirectMessage, useConversations, messageService, type Message, type Attachment } from "@/api/messages";
 import { getSocket } from "@/socket/socket";
@@ -820,6 +820,7 @@ export default function DirectMessagePage() {
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <Avatar className="h-8 w-8 rounded-lg border border-primary/20 bg-primary/10 select-none">
+              <AvatarImage src={otherUser?.avatar_url ? buildAuthenticatedFileUrl(otherUser.avatar_url) : undefined} />
               <AvatarFallback className="bg-transparent text-primary font-bold text-xs uppercase">
                 {getInitials(otherUserName)}
               </AvatarFallback>
