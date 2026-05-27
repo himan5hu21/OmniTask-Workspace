@@ -11,7 +11,7 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@11.1.3 --activate
 
 # 5. Dependency files copy karo
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-workspace.yaml* pnpm-lock.yaml* ./
 
 # 6. Dependencies install karo
 RUN pnpm install
