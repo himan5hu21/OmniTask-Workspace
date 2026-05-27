@@ -1,4 +1,4 @@
-version: '1.0'
+version: '3.8'
 
 services:
   db:
@@ -13,6 +13,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: .
@@ -33,9 +38,11 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
       - CLIENT_URL=${CLIENT_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
       - SOCKET_CORS_ORIGIN=${SOCKET_CORS_ORIGIN}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     # Command override: Container start thay tyare pehla Prisma generate kare ane pachi dev server chalu kare
     command: sh -c "pnpm run db:generate && pnpm run dev"
 

@@ -20,7 +20,7 @@ RUN pnpm install
 COPY . .
 
 # 8. Generate Prisma client & Compile Typescript code
-RUN pnpm run build
+RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" pnpm run build
 
 # 9. Port expose karo
 EXPOSE 8000
