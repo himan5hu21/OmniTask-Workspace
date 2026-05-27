@@ -19,8 +19,11 @@ RUN pnpm install
 # 7. Aakho code copy karo
 COPY . .
 
-# 8. Port expose karo
+# 8. Generate Prisma client & Compile Typescript code
+RUN pnpm run build
+
+# 9. Port expose karo
 EXPOSE 8000
 
-# 9. Default command (docker-compose mathi aane override karishu)
-CMD ["pnpm", "run", "dev"]
+# 10. Start production server
+CMD ["pnpm", "start"]
