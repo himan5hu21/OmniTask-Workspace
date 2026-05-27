@@ -1,5 +1,5 @@
-# 1. Base Image Node 20 (LTS)
-FROM node:20-alpine
+# 1. Base Image Node 22 (LTS)
+FROM node:22-alpine
 
 # 2. Prisma mate OpenSSL install karvu jaruri che (Alpine ma default nathi hotu)
 RUN apk add --no-cache openssl
@@ -8,7 +8,7 @@ RUN apk add --no-cache openssl
 WORKDIR /app
 
 # 4. pnpm enable karo (package.json na packageManager field pramane)
-RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+RUN corepack enable && corepack prepare pnpm@11.1.3 --activate
 
 # 5. Dependency files copy karo
 COPY package.json pnpm-lock.yaml* ./
