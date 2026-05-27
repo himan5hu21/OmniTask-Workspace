@@ -244,6 +244,10 @@ export class MessageService {
       for (const attachment of attachments) {
         await StorageService.deleteFile(attachment.file_url);
       }
+      // Also delete the database records for the attachments since the message is soft-deleted and cascade won't trigger
+      await db.messageAttachment.deleteMany({
+        where: { channel_message_id: messageId }
+      });
     } catch (e: any) {
       console.error('[Delete Message Attachments Error]', e?.message ?? e);
     }

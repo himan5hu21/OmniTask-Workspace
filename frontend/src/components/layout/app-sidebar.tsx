@@ -292,12 +292,6 @@ export function AppSidebar({
       icon: Settings,
       active: pathname === "/settings",
     },
-    {
-      href: "/help",
-      label: "Help",
-      icon: CircleHelp,
-      active: pathname === "/help",
-    },
   ]
 
   const renderUserMenu = (collapsed = false) => (

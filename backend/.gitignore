@@ -37,3 +37,6 @@ coverage
 
 # upload
 upload/
+
+# Agent Skills dependencies
+.agents/

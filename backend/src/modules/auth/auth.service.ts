@@ -175,8 +175,9 @@ export class AuthService {
     if (updateData.avatar_url) {
       const currentUser = await userRepo.getById(userId, { select: { avatar_url: true } });
       if (currentUser?.avatar_url && currentUser.avatar_url !== updateData.avatar_url) {
-        // Only delete if it's a local file (contains a slash and doesn't start with http)
-        if (currentUser.avatar_url.includes('/') && !currentUser.avatar_url.startsWith('http')) {
+        const isLocalFile = currentUser.avatar_url.includes('/') && !currentUser.avatar_url.startsWith('http');
+        const isCloudinary = currentUser.avatar_url.includes('res.cloudinary.com');
+        if (isLocalFile || isCloudinary) {
           await StorageService.deleteFile(currentUser.avatar_url);
         }
       }

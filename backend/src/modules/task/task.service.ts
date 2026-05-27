@@ -2,6 +2,7 @@ import { taskRepository } from '@/repositories/task.repository';
 import { boardListRepository } from '@/repositories/board-list.repository';
 import { prisma } from '@/lib/database';
 import { activityService } from './activity.service';
+import { StorageService } from '@/lib/storage';
 
 export class TaskService {
   private getBoardTaskSelect() {
@@ -178,6 +179,18 @@ export class TaskService {
   }
 
   async deleteTask(id: string) {
+    // Fetch and delete physical task attachment files from Cloudinary/storage
+    try {
+      const attachments = await prisma.taskAttachment.findMany({
+        where: { task_id: id }
+      });
+      for (const attachment of attachments) {
+        await StorageService.deleteFile(attachment.file_url);
+      }
+    } catch (e: any) {
+      console.error('[Delete Task Attachments Error]', e?.message ?? e);
+    }
+
     return taskRepository.hardDelete(id);
   }
 

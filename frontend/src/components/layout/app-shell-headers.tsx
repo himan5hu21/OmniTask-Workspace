@@ -33,13 +33,6 @@ export function DashboardHeader() {
           <p className="text-sm font-semibold text-foreground">Dashboard</p>
           <p className="text-xs text-muted-foreground">Your organizations and collaboration spaces</p>
         </div>
-        <div className="relative ml-auto w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search workspaces..."
-            className="h-11 rounded-full border-transparent bg-muted/50 pl-10 shadow-none transition-all hover:border-border focus-visible:ring-2 focus-visible:ring-primary/20"
-          />
-        </div>
       </div>
 
       <div className="ml-auto flex items-center gap-2">
@@ -84,12 +77,6 @@ export function OrganizationHeader({
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-all">
-          <Search className="h-5 w-5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-all">
-          <CircleHelp className="h-5 w-5" />
-        </Button>
         {onSettingsClick && (
           <Button 
             variant="ghost" 

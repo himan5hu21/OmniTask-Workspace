@@ -657,6 +657,40 @@ export default function DirectMessagePage() {
 
     const remainingAttachments = parentMessage.attachments?.filter(a => a.id !== attachmentId) || [];
 
+    // Check if the message text content is empty or contains only HTML boilerplate
+    const isTextEmpty = !parentMessage.content || 
+                        parentMessage.content.trim() === "" || 
+                        parentMessage.content.replace(/<[^>]*>/g, '').trim() === "";
+
+    // If it's the last attachment and there's no text content, delete the entire message
+    if (remainingAttachments.length === 0 && isTextEmpty) {
+      // Optimistic UI Update
+      setLocalOverrides((prev) => ({
+        ...prev,
+        [parentMessage.id]: {
+          isDeleted: true,
+        },
+      }));
+
+      // Trigger Direct Message Delete API call in background
+      messageService.deleteDirectMessage(parentMessage.id)
+        .then(() => {
+          toast.success("Message deleted successfully");
+        })
+        .catch((err) => {
+          console.error("Failed to delete empty DM:", err);
+          toast.error("Failed to delete message: " + (err.response?.data?.message || err.message));
+          // Rollback optimistic update
+          setLocalOverrides((prev) => {
+            const copy = { ...prev };
+            delete copy[parentMessage.id];
+            return copy;
+          });
+        });
+      return;
+    }
+
+    // Otherwise, normal attachment deletion logic
     // Optimistic UI Update
     setLocalOverrides((prev) => ({
       ...prev,
@@ -672,7 +706,7 @@ export default function DirectMessagePage() {
       })
       .catch((err) => {
         console.error("Failed to delete attachment:", err);
-        toast.error("Failed to delete attachment");
+        toast.error("Failed to delete attachment: " + (err.response?.data?.message || err.message));
         // Rollback optimistic update
         setLocalOverrides((prev) => {
           const copy = { ...prev };
