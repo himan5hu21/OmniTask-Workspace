@@ -40,19 +40,28 @@ const nextConfig: NextConfig = {
         port: '8000',
         pathname: '/uploads/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'api.omnitask.himanshudev.dpdns.org',
+        pathname: '/uploads/**',
+      },
     ],
   },
 
   // ✅ Proxy API requests to backend
   async rewrites() {
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL
+      ? process.env.NEXT_PUBLIC_API_URL.replace('/api/v1', '')
+      : 'http://localhost:8000';
+
     return [
       {
         source: '/omni-api/:path*',
-        destination: 'http://localhost:8000/api/v1/:path*',
+        destination: `${BACKEND_URL}/api/v1/:path*`,
       },
       {
         source: '/uploads/:path*',
-        destination: 'http://localhost:8000/uploads/:path*',
+        destination: `${BACKEND_URL}/uploads/:path*`,
       },
     ];
   },
