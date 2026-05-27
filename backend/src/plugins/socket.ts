@@ -101,7 +101,8 @@ const socketPlugin: FastifyPluginAsync = async (fastify, options) => {
       origin: process.env.CLIENT_URL || 'http://localhost:3000', // Allow frontend origin
       credentials: true, // Allow cookies/credentials
       methods: ['GET', 'POST'],
-    }
+    },
+    transports: ['websocket'],
   });
 
   socketIO = io;

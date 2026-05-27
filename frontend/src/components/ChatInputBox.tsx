@@ -372,11 +372,7 @@ export default function ChatInputBox({
               title="Attach file"
               disabled={isPending || isSending}
             >
-              {isPending || isSending ? (
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              ) : (
-                <Paperclip className="h-4 w-4" />
-              )}
+              <Paperclip className="h-4 w-4" />
             </Button>
           )}
 

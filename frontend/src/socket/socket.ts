@@ -19,7 +19,10 @@ export const getSocket = () => {
 
     socket = io(SOCKET_URL, {
       withCredentials: true,
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
       autoConnect: true,
       auth: {
         token: token ? `Bearer ${token}` : null,
