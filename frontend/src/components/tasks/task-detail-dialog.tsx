@@ -1737,7 +1737,7 @@ export function TaskDetailDialog({
                         };
                       })
                     }
-                    className="w-full bg-transparent border border-border rounded-md px-3 py-2 text-xl font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full bg-transparent border border-border rounded-md px-3 py-1 text-xl font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                   <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={cancelTitleEdit}>
                     Cancel
@@ -1753,8 +1753,8 @@ export function TaskDetailDialog({
                     canUpdateBasic ? "cursor-text" : "cursor-default"
                   )}
                   onClick={() => {
-                    if (!canUpdateBasic) return;
-                    beginTitleEdit();
+                    // if (!canUpdateBasic) return;
+                    // beginTitleEdit();
                   }}
                 >
                   {titleDraft.lastServerValue || task.title}

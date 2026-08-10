@@ -114,14 +114,20 @@ export class AuthService {
       include: { user: true }
     });
 
-    if (!tokenDoc || tokenDoc.revoked || tokenDoc.expires_at < new Date()) {
+    if (!tokenDoc || tokenDoc.expires_at < new Date()) {
       throw new AppError('Invalid or expired refresh token', HttpStatus.UNAUTHORIZED);
     }
 
-    // Mark current token as revoked (rotation)
-    await prisma.refreshToken.delete({
-      where: { id: tokenDoc.id }
-    });
+    if (!tokenDoc.revoked) {
+      // Mark current token as revoked with a 30-second grace period for concurrent requests
+      await prisma.refreshToken.update({
+        where: { id: tokenDoc.id },
+        data: {
+          revoked: true,
+          expires_at: new Date(Date.now() + 30 * 1000) // Grace period of 30 seconds
+        }
+      });
+    }
 
     // Generate new pair
     return this.generateTokenPair(
