@@ -103,6 +103,13 @@ export class AuthService {
         expires_at: expiresAt
       }
     });
+
+    // Automatically clean up expired refresh tokens in the background to keep the DB clean
+    prisma.refreshToken.deleteMany({
+      where: {
+        expires_at: { lt: new Date() }
+      }
+    }).catch(err => console.error("[AuthService] Failed to clean up expired refresh tokens:", err));
   }
 
   // 5. Refresh Access Token (Rotation)
