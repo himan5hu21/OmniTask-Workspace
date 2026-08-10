@@ -898,7 +898,7 @@ export default function DirectMessagePage() {
               <div className="space-y-4">
                 {isFetchingNextPage ? (
                   <div className="flex items-center justify-center py-2 text-muted-foreground">
-                    <Spinner size="sm" />
+                    <Spinner size="sm" className="bg-transparent" />
                   </div>
                 ) : null}
                 {allMessages.map((msg) => {

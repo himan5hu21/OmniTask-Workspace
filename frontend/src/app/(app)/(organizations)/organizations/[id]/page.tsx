@@ -7,7 +7,7 @@ import { useIsMounted } from "@/hooks/useIsMounted";
 import {
   Hash,
   Plus,
-  UserPlus,
+  Mail,
 } from "lucide-react";
 import Spinner from "@/components/Loading";
 
@@ -52,7 +52,11 @@ export default function OrganizationDetailPage() {
   if (!isMounted) return null;
 
   if (isLoadingOrganization) {
-    return <Spinner size="md" />;
+    return (
+      <div className="flex h-full flex-1 items-center justify-center">
+        <Spinner size="md" />
+      </div>
+    );
   }
 
   if (!organization) {
@@ -70,25 +74,25 @@ export default function OrganizationDetailPage() {
     <div className="flex h-full flex-1 items-center justify-center">
       <div className="flex max-w-[480px] flex-col items-center p-8 text-center">
         {/* Hero Icon */}
-        <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-muted/50 shadow-sm transition-all hover:scale-105">
-          <Hash className="h-10 w-10 text-primary" />
+        <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-white border border-border/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] select-none">
+          <Hash className="h-10 w-10 text-[#4F6EF7] stroke-[1.8]" />
         </div>
         
         {/* Welcome Text */}
-        <h2 className="mb-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+        <h2 className="mb-3 text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
           Welcome to {organization.name}
         </h2>
         
         {/* Helper Text */}
-        <p className="mb-8 max-w-[400px] text-base leading-relaxed text-muted-foreground">
-          Select a channel from the sidebar to start collaborating, or create a new one to get your team aligned.
+        <p className="mb-8 max-w-[420px] text-sm leading-relaxed text-muted-foreground font-semibold">
+          This is your organization&apos;s digital headquarters. Select a channel from the sidebar to start collaborating, or create a new one to organize a specific topic.
         </p>
         
         {/* CTA Buttons */}
         <div className="flex flex-row gap-4">
           <Can I="create" a="Channel">
             <Button 
-              className="h-12 gap-2 rounded-xl px-6 text-sm font-semibold shadow-md transition-all hover:-translate-y-px hover:shadow-lg active:-translate-y-px"
+              className="h-11 gap-2 bg-[#4F6EF7] hover:bg-[#3b5bdb] text-white rounded-xl px-6 text-sm font-semibold shadow-xs transition-all hover:-translate-y-px hover:shadow-md active:-translate-y-px active:scale-[0.98]"
               onClick={() => setIsCreateChannelOpen(true)}
             >
               <Plus className="h-4 w-4" />
@@ -98,10 +102,10 @@ export default function OrganizationDetailPage() {
           <Can I="invite" a="Member">
             <Button 
               variant="outline"
-              className="h-12 gap-2 rounded-xl px-6 text-sm font-semibold transition-all hover:bg-muted/50 active:scale-[0.98]"
+              className="h-11 gap-2 rounded-xl px-6 text-sm font-semibold border-border text-foreground transition-all hover:bg-muted/50 active:scale-[0.98]"
               onClick={() => setIsInviteDialogOpen(true)}
             >
-              <UserPlus className="h-4 w-4" />
+              <Mail className="h-4 w-4 text-muted-foreground" />
               Invite Members
             </Button>
           </Can>

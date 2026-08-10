@@ -103,15 +103,15 @@
   
   --radius: 0.625rem;
   
-  /* Sidebar Matches Dashboard Styles */
-  --sidebar: oklch(0.98 0.01 260); /* Slate-50 */
-  --sidebar-foreground: oklch(0.2 0.02 260);
-  --sidebar-primary: oklch(0.511 0.262 275.75);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.94 0.01 260);
-  --sidebar-accent-foreground: oklch(0.511 0.262 275.75);
-  --sidebar-border: oklch(0.92 0.01 260);
-  --sidebar-ring: oklch(0.511 0.262 275.75);
+  /* Sidebar — Option 1: Soft Tinted Indigo */
+  --sidebar: #f1f3ff;                         /* Soft light indigo-blue */
+  --sidebar-foreground: #2d3748;               /* Dark slate text for high readability */
+  --sidebar-primary: #4f6ef7;                  /* Brand indigo accent */
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e2e6fe;                   /* Lighter indigo for hover/active */
+  --sidebar-accent-foreground: #4f6ef7;        /* Brand indigo text on hover */
+  --sidebar-border: #e0e5ff;                   /* Light indigo border border */
+  --sidebar-ring: #4f6ef7;
 
   --code-block-bg: oklch(0.22 0.02 260);
   --code-block-border: oklch(0.32 0.03 260);
@@ -171,14 +171,15 @@
   --chart-4: oklch(0.8 0.1 150);
   --chart-5: oklch(0.9 0.1 100);
   
-  --sidebar: oklch(0.15 0.02 260);
-  --sidebar-foreground: oklch(0.98 0.01 260);
-  --sidebar-primary: oklch(0.585 0.233 277.11);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.22 0.02 260);
-  --sidebar-accent-foreground: oklch(0.98 0.01 260);
-  --sidebar-border: oklch(0.25 0.02 260);
-  --sidebar-ring: oklch(0.585 0.233 277.11);
+  /* Sidebar Dark Mode — Option 1: Dark Navy Indigo */
+  --sidebar: #141626;
+  --sidebar-foreground: #c8cde8;
+  --sidebar-primary: #6c8aff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1f2236;
+  --sidebar-accent-foreground: #e2e4f7;
+  --sidebar-border: #252840;
+  --sidebar-ring: #6c8aff;
 
   --code-block-bg: oklch(0.2 0.02 260);
   --code-block-border: oklch(0.32 0.03 260);

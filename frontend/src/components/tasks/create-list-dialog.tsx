@@ -81,7 +81,7 @@ export function CreateListDialog({
             e.preventDefault();
             handleCreateList();
           }}
-          className="space-y-4 py-4"
+          className="space-y-4"
         >
           <div className="space-y-2">
             <Label htmlFor="list-name" className="text-foreground font-semibold text-sm">Name</Label>

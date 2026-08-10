@@ -147,7 +147,7 @@ function FileAttachment({
   }
 
   return (
-    <div className="mt-2 flex items-center gap-3 rounded-xl border border-border/80 bg-background/60 hover:bg-background/90 p-3 shadow-sm hover:shadow-md transition-all duration-200 min-w-[240px] max-w-[320px] group/file">
+    <div className="flex items-center gap-3 rounded-lg border border-border/80 bg-background/60 hover:bg-background/90 p-3 shadow-sm hover:shadow-md transition-all duration-200 min-w-[240px] max-w-[320px] group/file">
       {/* Clickable Card Body for viewing files in new tab */}
       <a
         href={fileUrl}
@@ -184,7 +184,7 @@ function FileAttachment({
         <a
           href={fileUrl}
           download={attachment.file_name}
-          className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-all duration-150 cursor-pointer"
+          className="flex h-8 w-8 items-center just ify-center rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-all duration-150 cursor-pointer"
           title="Download File"
           onClick={(e) => {
             e.stopPropagation();
@@ -871,7 +871,7 @@ export default function ChannelDetailPage() {
                     <div className="space-y-4">
                       {isFetchingNextPage ? (
                         <div className="flex items-center justify-center py-2 text-muted-foreground">
-                          <Spinner size="sm" />
+                          <Spinner size="sm" className="bg-transparent" />
                         </div>
                       ) : null}
                       {allMessages.map((message) => {
@@ -903,8 +903,8 @@ export default function ChannelDetailPage() {
                               <ContextMenuTrigger asChild>
                                 <div
                                   className={`min-w-0 max-w-[85%] px-4 py-2.5 pr-4 transition-all relative group ${isOwnMessage
-                                      ? "rounded-2xl rounded-tr-none bg-primary/10 text-foreground cursor-context-menu"
-                                      : "rounded-2xl rounded-tl-none bg-muted/95 text-foreground"
+                                      ? "rounded-lg rounded-tr-none bg-primary/10 text-foreground cursor-context-menu"
+                                      : "rounded-lg rounded-tl-none bg-muted/95 text-foreground"
                                     }`}
                                 >
                                   {/* WhatsApp Speech Bubble Tail */}

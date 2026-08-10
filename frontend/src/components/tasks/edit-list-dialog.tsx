@@ -74,7 +74,7 @@ export function EditListDialog({
             e.preventDefault();
             handleUpdateList();
           }}
-          className="space-y-4 py-4"
+          className="space-y-4"
         >
           <div className="space-y-2">
             <Label htmlFor="edit-list-name" className="text-foreground font-semibold text-sm">Name</Label>

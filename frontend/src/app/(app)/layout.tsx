@@ -49,7 +49,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <SidebarProvider 
         className="h-svh overflow-hidden bg-sidebar"
         style={{ 
-          "--sidebar-width": isOrganizationContext ? "20rem" : "16rem",
+          "--sidebar-width": "16rem",
         } as React.CSSProperties}
       >
         <AppSidebar 
@@ -64,7 +64,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           onAddChannel={() => orgId && router.push(`/organizations/${orgId}`)}
           className="border-r-0!"
         />
-        <SidebarInset className="m-2 ml-1 flex min-h-0 flex-col overflow-hidden rounded-lg border">
+        <SidebarInset className="flex min-h-0 flex-col overflow-hidden bg-background">
           <main className="flex flex-col min-h-0 flex-1 overflow-hidden">
             {children}
           </main>

@@ -82,7 +82,7 @@ export function CreateChannelDialog({
             e.preventDefault();
             handleCreateChannel();
           }}
-          className="space-y-4 py-4"
+          className="space-y-4  "
         >
           <div className="space-y-2">
             <Label htmlFor="channel-name" className="text-foreground font-semibold text-sm">Name</Label>
@@ -99,12 +99,12 @@ export function CreateChannelDialog({
             {channelNameError ? <p className="text-xs text-destructive">{channelNameError}</p> : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="ghost" size="default" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button 
               type="submit"
-              size="sm"
+              size="default"
               disabled={createChannelMutation.isPending || !channelName.trim()}
             >
               {createChannelMutation.isPending ? <ButtonSpinner /> : "Create"}

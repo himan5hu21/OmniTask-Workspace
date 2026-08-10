@@ -102,7 +102,7 @@ export function InviteMemberDialog({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="sm:max-w-md rounded-2xl border-border bg-card shadow-2xl p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-md rounded-2xl border-border bg-card shadow-2xl overflow-hidden">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Link2 className="h-5 w-5 text-primary" />
@@ -120,7 +120,7 @@ export function InviteMemberDialog({
               e.preventDefault();
               handleGenerateLink();
             }}
-            className="p-6 space-y-6"
+            className="space-y-6"
           >
             {/* Email Field */}
             <div className="space-y-2.5">
@@ -138,7 +138,7 @@ export function InviteMemberDialog({
                   }}
                   placeholder="colleague@example.com"
                   className={cn(
-                    "h-12 pl-10 rounded-xl bg-background border-border transition-all focus-visible:ring-4 focus-visible:ring-primary/10 focus-visible:border-primary focus-visible:ring-offset-0",
+                    "pl-10 bg-background border-border transition-all focus-visible:ring-4 focus-visible:ring-primary/10 focus-visible:border-primary focus-visible:ring-offset-0",
                     inviteEmailError && "border-destructive/50 focus-visible:ring-destructive/10 focus-visible:border-destructive"
                   )}
                   autoFocus
@@ -157,7 +157,7 @@ export function InviteMemberDialog({
                 Select Role
               </Label>
               <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as OrgRole)}>
-                <SelectTrigger className="h-12! px-4 rounded-xl bg-background border-border shadow-sm hover:border-primary/30 focus:ring-4 focus:ring-primary/10 transition-all outline-hidden">
+                <SelectTrigger className="bg-background border-border shadow-sm hover:border-primary/30 focus:ring-4 focus:ring-primary/10 transition-all outline-hidden">
                   <div className="hidden" style={{ display: "none" }}>
                     <SelectValue />
                   </div>
@@ -170,8 +170,8 @@ export function InviteMemberDialog({
                     </span>
                   </div>
                 </SelectTrigger>
-                <SelectContent position="popper" className="rounded-xl p-2 bg-card border-border shadow-2xl">
-                  <SelectItem value={ORG_ROLES.ADMIN} textValue="Admin" className="rounded-lg p-3 focus:bg-blue-500/10 cursor-pointer">
+                <SelectContent position="popper">
+                  <SelectItem value={ORG_ROLES.ADMIN} textValue="Admin" className="p-3 focus:bg-blue-500/10 cursor-pointer">
                     <div className="flex items-center gap-3">
                       <Shield className="h-4 w-4 text-blue-500" />
                       <div className="flex flex-col items-start">
@@ -180,7 +180,7 @@ export function InviteMemberDialog({
                       </div>
                     </div>
                   </SelectItem>
-                  <SelectItem value={ORG_ROLES.MEMBER} textValue="Member" className="rounded-lg p-3 focus:bg-emerald-500/10 mt-1 cursor-pointer">
+                  <SelectItem value={ORG_ROLES.MEMBER} textValue="Member" className="p-3 focus:bg-emerald-500/10 mt-1 cursor-pointer">
                     <div className="flex items-center gap-3">
                       <Users className="h-4 w-4 text-emerald-500" />
                       <div className="flex flex-col items-start">
@@ -189,7 +189,7 @@ export function InviteMemberDialog({
                       </div>
                     </div>
                   </SelectItem>
-                  <SelectItem value={ORG_ROLES.GUEST} textValue="Guest" className="rounded-lg p-3 focus:bg-muted mt-1 cursor-pointer">
+                  <SelectItem value={ORG_ROLES.GUEST} textValue="Guest" className="p-3 focus:bg-muted mt-1 cursor-pointer">
                     <div className="flex items-center gap-3">
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       <div className="flex flex-col items-start">
@@ -207,14 +207,14 @@ export function InviteMemberDialog({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-11 rounded-xl px-6 font-semibold text-muted-foreground hover:text-foreground transition-all"
+                size="default"
                 onClick={() => handleClose(false)}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="h-11 rounded-xl px-8 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20 transition-all active:scale-95 min-w-[160px]"
+                size={"default"}
                 disabled={generateLinkMutation.isPending || !inviteEmail.trim()}
               >
                 {generateLinkMutation.isPending ? (

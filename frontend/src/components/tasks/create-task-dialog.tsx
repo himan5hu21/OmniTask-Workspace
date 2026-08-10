@@ -84,7 +84,7 @@ export function CreateTaskDialog({
             e.preventDefault();
             handleCreateTask();
           }}
-          className="space-y-4 py-4"
+          className="space-y-4"
         >
           <div className="space-y-2">
             <Label htmlFor="task-title" className="text-foreground font-semibold text-sm">Title</Label>

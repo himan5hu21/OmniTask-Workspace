@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useIsMounted } from "@/hooks/useIsMounted";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   DragOverlay,
@@ -38,10 +39,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buildAuthenticatedFileUrl } from "@/lib/file-url";
-import { useBoard, useBoardListTasks, useMoveTask, useReorderLists, useUpdateTask, BoardList, Task } from "@/api/tasks";
+import { useBoard, useBoardListTasks, useMoveTask, useReorderLists, useUpdateTask, BoardList, Task, taskKeys } from "@/api/tasks";
 import { useAbility } from "@casl/react";
 import { AbilityContext } from "@/lib/casl";
 import Spinner from "@/components/Loading";
+import { toast } from "sonner";
 import { useAuthProfile } from "@/api/auth";
 import { useTaskRealtime } from "@/hooks/useTaskRealtime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -102,6 +104,25 @@ const getPriorityStyles = (priority?: string | null) => {
 
 // --- Sub-components ---
 
+// --- Helper for Column Dot Colors ---
+const getColumnCircleColor = (name: string) => {
+  const lower = name.toLowerCase();
+  if (lower.includes("todo") || lower.includes("to do")) return "bg-indigo-400/80 dark:bg-indigo-400";
+  if (lower.includes("progress") || lower.includes("in progress")) return "bg-blue-500/80 dark:bg-blue-500";
+  if (lower.includes("qa") || lower.includes("test")) return "bg-emerald-400/80 dark:bg-emerald-400";
+  return "bg-slate-400/80 dark:bg-slate-400";
+};
+
+// --- Helper for Today Date Check ---
+const isToday = (dateStr?: string | null) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  const today = new Date();
+  return d.getDate() === today.getDate() &&
+         d.getMonth() === today.getMonth() &&
+         d.getFullYear() === today.getFullYear();
+};
+
 function TaskCard({
   task,
   isOverlay,
@@ -112,6 +133,7 @@ function TaskCard({
   canDeleteTask = true,
   canUpdateTaskBasic = true,
   canEditTask = true,
+  onToggleStatus,
 }: {
   task: Task;
   isOverlay?: boolean;
@@ -122,6 +144,7 @@ function TaskCard({
   canDeleteTask?: boolean;
   canUpdateTaskBasic?: boolean;
   canEditTask?: boolean;
+  onToggleStatus?: (taskId: string, currentStatus: string) => void;
 }) {
   const { mutate: updateTask } = useUpdateTask(channelId);
 
@@ -148,27 +171,34 @@ function TaskCard({
 
   const pStyle = getPriorityStyles(task.priority);
   const isDone = task.status === "COMPLETED";
-  const hasFooterContent = !!(task.due_date || task._count?.comments || (task.checklists?.length ?? 0) > 0 || (task.assignments?.length ?? 0) > 0);
+
+  const totalChecklistItems = task.checklists?.reduce((sum, cl) => sum + (cl.items?.length ?? 0), 0) ?? 0;
+  const completedChecklistItems = task.checklists?.reduce((sum, cl) => sum + (cl.items?.filter(item => item.is_completed).length ?? 0), 0) ?? 0;
+  const checklistPercent = totalChecklistItems > 0 ? Math.round((completedChecklistItems / totalChecklistItems) * 100) : 0;
+
+  const hasFooterContent = !!(task.due_date || task._count?.comments || (task.assignments?.length ?? 0) > 0);
 
   const cardContent = (
     <div
       onClick={() => !isOverlay && onOpenDetail && onOpenDetail(task)}
       className={cn(
-        "bg-kanban-card border rounded-lg p-2.5 transition-all group relative overflow-hidden cursor-pointer",
+        "bg-card border rounded-xl p-4 transition-all group relative overflow-hidden cursor-pointer",
         isDragging && !isOverlay ? "opacity-30" : "opacity-100",
-        isOverlay ? "border-primary shadow-2xl scale-[1.02] rotate-1" : "border-kanban-border hover:border-kanban-border-hover hover:bg-kanban-card-hover",
-        isDone && "opacity-70"
+        isOverlay
+          ? "border-primary shadow-2xl scale-[1.02] rotate-1"
+          : "border-border/80 hover:border-border/100 hover:shadow-md",
+        isDone && "opacity-75"
       )}
     >
       {/* Top Action Buttons (Edit/Delete) */}
-      <div className="absolute top-1.5 right-2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all transform translate-y-[-4px] group-hover:translate-y-0 z-20">
+      <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all transform translate-y-[-4px] group-hover:translate-y-0 z-20">
         {canEditTask && (
           <button
             onClick={(e) => {
               e.stopPropagation();
               if (onEditRequest) onEditRequest(task);
             }}
-            className="p-1.5 rounded-md bg-kanban-card border border-kanban-border hover:border-kanban-border-hover text-kanban-text-secondary hover:text-primary transition-all shadow-sm"
+            className="p-1.5 rounded-md bg-card border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-all shadow-xs"
             title="Edit task"
           >
             <Pencil size={12} />
@@ -180,7 +210,7 @@ function TaskCard({
               e.stopPropagation();
               if (onDeleteRequest) onDeleteRequest(task);
             }}
-            className="p-1.5 rounded-md bg-kanban-card border border-kanban-border hover:border-red-500/50 text-kanban-text-secondary hover:text-red-500 transition-all shadow-sm"
+            className="p-1.5 rounded-md bg-card border border-border hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all shadow-xs"
             title="Delete task"
           >
             <Trash2 size={12} />
@@ -188,101 +218,138 @@ function TaskCard({
         )}
       </div>
 
-      <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg opacity-60 group-hover:opacity-100", pStyle.bg)} />
+      {/* Priority colored indicator bar on the left */}
+      <div className={cn(
+        "absolute left-0 top-0 bottom-0 w-1 rounded-l-xl opacity-80 group-hover:opacity-100 transition-opacity",
+        isDone ? "bg-emerald-500" : pStyle.bg
+      )} />
 
-      <div className="pl-1 pr-1">
-        {/* Top Row: Checkbox and Priority (or Title if no priority) */}
-        <div className={cn("flex items-center h-5 relative", (task.priority || hasFooterContent) && "mb-1.5")}>
-          {/* Toggle Checkbox Button - Absolute and animated */}
+      <div>
+        {/* Toggle Checkbox Button - Subtly floats left in title row */}
+        <div className="flex items-start gap-2.5">
           <button
             onClick={(e) => {
               e.stopPropagation();
               if (!canUpdateTaskBasic) return;
-              updateTask({
-                id: task.id,
-                data: { status: task.status === "COMPLETED" ? "OPEN" : "COMPLETED" }
-              });
+              if (onToggleStatus) {
+                onToggleStatus(task.id, task.status);
+              } else {
+                updateTask({
+                  id: task.id,
+                  data: { status: task.status === "COMPLETED" ? "OPEN" : "COMPLETED" }
+                });
+              }
             }}
             disabled={!canUpdateTaskBasic}
             className={cn(
-              "absolute left-0 shrink-0 w-4.5 h-4.5 rounded-full border flex items-center justify-center transition-all duration-300 z-10",
+              "shrink-0 w-4 h-4 rounded-md border flex items-center justify-center transition-all duration-300 mt-1 cursor-pointer",
               !canUpdateTaskBasic && "pointer-events-none opacity-60",
               isDone
-                ? "bg-green-500 border-green-500 text-white opacity-100"
-                : "border-kanban-border hover:border-primary text-transparent hover:text-primary/50 bg-kanban-card opacity-0 group-hover:opacity-100 transform -translate-x-1 group-hover:translate-x-0"
+                ? "bg-emerald-500 border-emerald-500 text-white opacity-100"
+                : "border-border/80 hover:border-[#4F6EF7] text-transparent hover:text-[#4F6EF7]/80 bg-background"
             )}
           >
-            <Check size={10} strokeWidth={4} className={cn(isDone ? "scale-100" : "scale-0 hover:scale-100 transition-transform")} />
+            <Check size={9} strokeWidth={4} />
           </button>
 
-          {/* Priority Badge - Moves right on hover if checkbox appears */}
-          <div className={cn(
-            "transition-all duration-300 flex-1 min-w-0",
-            !isDone ? "group-hover:translate-x-6" : "translate-x-6"
-          )}>
-            {task.priority ? (
-              <span className={cn("px-2 py-0.5 rounded-md text-[9px] tracking-wider uppercase font-bold shrink-0", pStyle.badgeBg, pStyle.text)}>
-                {task.priority}
-              </span>
-            ) : (
-              <h3 className={cn("text-[13px] font-medium leading-tight truncate pr-4", isDone ? "line-through text-kanban-text-secondary" : "text-kanban-text-primary")}>
-                {task.title}
-              </h3>
+          <div className="flex-1 min-w-0">
+            {/* Labels and Priorities Header Row */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-2">
+              {task.priority && (
+                <span className={cn("px-2 py-0.5 rounded-md text-[9px] tracking-wider uppercase font-extrabold shrink-0 flex items-center gap-1", pStyle.badgeBg, pStyle.text)}>
+                  {task.priority === "URGENT" && <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />}
+                  {task.priority}
+                </span>
+              )}
+              {task.labels?.map(({ label }) => (
+                <span
+                  key={label.id}
+                  className="px-2 py-0.5 rounded-md text-[9px] font-bold select-none uppercase tracking-wider"
+                  style={{
+                    backgroundColor: label.color ? `${label.color}15` : 'rgba(148, 163, 184, 0.1)',
+                    color: label.color || '#64748b',
+                  }}
+                >
+                  {label.name}
+                </span>
+              ))}
+            </div>
+
+            {/* Task Title */}
+            <h3 className={cn("text-[13.5px] font-bold tracking-tight leading-snug mb-1 pr-6", isDone ? "line-through text-muted-foreground/80" : "text-foreground")}>
+              {task.title}
+            </h3>
+
+            {/* Task Description */}
+            {task.description && (
+              <p className="text-[11px] text-muted-foreground/90 leading-relaxed line-clamp-2 mb-2 pr-2">
+                {task.description}
+              </p>
+            )}
+
+            {/* Checklist Progress Indicators */}
+            {totalChecklistItems > 0 && (
+              checklistPercent > 0 ? (
+                <div className="mb-2.5 bg-muted/20 dark:bg-muted/10 p-2 rounded-lg border border-border/40 select-none max-w-[95%]">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground mb-1 select-none">
+                    <span>Checklist progress</span>
+                    <span>{checklistPercent}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-muted dark:bg-muted/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#4F6EF7] rounded-full transition-all duration-500"
+                      style={{ width: `${checklistPercent}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-muted-foreground mb-2.5 bg-muted/30 px-2 py-0.5 rounded-md border border-border/30 w-max select-none">
+                  <CheckSquare size={13} className="text-muted-foreground/80" />
+                  <span>{completedChecklistItems}/{totalChecklistItems}</span>
+                </div>
+              )
+            )}
+
+            {/* Footer Details: Date, Comments, Assignees */}
+            {hasFooterContent && (
+              <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-border/30">
+                <div className="flex items-center gap-3 text-muted-foreground">
+                  {task.due_date && (
+                    <div className={cn("flex items-center gap-1 text-[10.5px] font-bold select-none", isToday(task.due_date) ? "text-rose-500" : "text-muted-foreground")}>
+                      <Calendar size={13} className="opacity-75 shrink-0" />
+                      <span>{isToday(task.due_date) ? "Today" : new Date(task.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                    </div>
+                  )}
+                  {task._count?.comments ? (
+                    <div className="flex items-center gap-1 text-[10.5px] font-bold select-none">
+                      <MessageSquare size={13} className="opacity-75 shrink-0" />
+                      <span>{task._count.comments}</span>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="flex -space-x-1.5 shrink-0">
+                  <TooltipProvider>
+                    {task.assignments?.map((assignment) => (
+                      <Tooltip key={assignment.user_id}>
+                        <TooltipTrigger asChild>
+                          <Avatar className="w-5.5 h-5.5 border-2 border-card ring-offset-background shrink-0">
+                            <AvatarImage src={assignment.user?.avatar_url ? buildAuthenticatedFileUrl(assignment.user.avatar_url) : ""} />
+                            <AvatarFallback className="text-[8px] font-extrabold bg-muted text-foreground">
+                              {assignment.user?.name?.substring(0, 2).toUpperCase() || "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-[10px] font-bold">
+                          {assignment.user?.name}
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </TooltipProvider>
+                </div>
+              </div>
             )}
           </div>
         </div>
-
-        {/* Title Below Priority (only if priority exists) */}
-        {task.priority && (
-          <h3 className={cn("text-[13px] font-medium leading-tight mb-2 pr-4", isDone ? "line-through text-kanban-text-secondary" : "text-kanban-text-primary")}>
-            {task.title}
-          </h3>
-        )}
-
-
-        {hasFooterContent && (
-          <div className="flex justify-between items-center mt-auto pt-0.5">
-            <div className="flex items-center gap-2.5 text-kanban-text-secondary">
-              {task.due_date && (
-                <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                  <Calendar size={13} className="opacity-70" />
-                  <span>{new Date(task.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                </div>
-              )}
-              {task._count?.comments ? (
-                <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                  <MessageSquare size={13} className="opacity-70" />
-                  <span>{task._count.comments}</span>
-                </div>
-              ) : null}
-              {(task.checklists?.length ?? 0) > 0 && (
-                <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                  <CheckSquare size={13} className="opacity-70" />
-                  <span>{task.checklists?.length}</span>
-                </div>
-              )}
-            </div>
-            <div className="flex -space-x-1.5">
-              <TooltipProvider>
-                {task.assignments?.map((assignment) => (
-                  <Tooltip key={assignment.user_id}>
-                    <TooltipTrigger asChild>
-                      <Avatar className="w-5.5 h-5.5 border-2 border-kanban-card ring-offset-background">
-                        <AvatarImage src={assignment.user?.avatar_url ? buildAuthenticatedFileUrl(assignment.user.avatar_url) : ""} />
-                        <AvatarFallback className="text-[8px] font-bold bg-secondary">
-                          {assignment.user?.name?.substring(0, 2).toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="text-[10px] font-bold">
-                      {assignment.user?.name}
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </TooltipProvider>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -317,6 +384,7 @@ function BoardColumn({
   isLoadingTasks = false,
   isFetchingTasks = false,
   onLoadMore,
+  onToggleStatus,
 }: {
   list: BoardListState;
   tasks: Task[];
@@ -338,6 +406,7 @@ function BoardColumn({
   isLoadingTasks?: boolean;
   isFetchingTasks?: boolean;
   onLoadMore?: (listId: string) => void;
+  onToggleStatus?: (taskId: string, currentStatus: string) => void;
 }) {
   const {
     setNodeRef,
@@ -367,7 +436,7 @@ function BoardColumn({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "bg-kanban-column border border-kanban-border rounded-[10px] w-[300px] shrink-0 grid grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100vh-120px)] shadow-sm transition-shadow",
+        "bg-[#f8fafc]/55 dark:bg-[#0f172a]/20 border border-border/80 rounded-2xl w-[320px] shrink-0 grid grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100vh-120px)] shadow-[0_2px_12px_rgba(0,0,0,0.015)] transition-all duration-200",
         isDragging ? "opacity-50" : "opacity-100"
       )}
     >
@@ -376,20 +445,21 @@ function BoardColumn({
         {...attributes}
         {...listeners}
         className={cn(
-          "p-4 flex justify-between items-center border-b border-kanban-border shrink-0",
+          "p-4 flex justify-between items-center border-b border-border/50 shrink-0",
           canUpdateList ? "cursor-grab active:cursor-grabbing" : "cursor-default"
         )}
       >
-        <div className="flex items-center gap-2 text-kanban-text-primary">
-          <h2 className="text-[14px] font-bold tracking-tight">{list.name}</h2>
-          <span className="bg-kanban-badge text-kanban-text-tertiary px-2 py-0.5 rounded-full text-[11px] font-bold">
+        <div className="flex items-center gap-2.5 text-foreground select-none">
+          <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", getColumnCircleColor(list.name))} />
+          <h2 className="text-[13.5px] font-extrabold tracking-tight">{list.name}</h2>
+          <span className="bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full text-[10px] font-extrabold">
             {totalTaskCount}
           </span>
         </div>
         {(canUpdateList || canDeleteList) && (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <button className="text-kanban-text-secondary hover:text-kanban-text-primary transition-colors focus:outline-none">
+              <button className="text-muted-foreground hover:text-foreground transition-colors focus:outline-none cursor-pointer">
                 <MoreHorizontal size={18} />
               </button>
             </DropdownMenuTrigger>
@@ -420,10 +490,10 @@ function BoardColumn({
       {/* Task List with ScrollArea */}
       <ScrollArea className="min-h-0 w-full overflow-hidden">
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-          <div className="p-3 flex flex-col gap-2.5 min-h-[100px] pb-4">
+          <div className="p-3.5 flex flex-col gap-3 min-h-25 pb-5">
             {isLoadingTasks && tasks.length === 0 ? (
-              <div className="flex items-center justify-center py-8 text-kanban-text-secondary">
-                <Spinner size="sm" />
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <Spinner size="sm" className="bg-transparent" />
               </div>
             ) : null}
             {tasks.map((task) => (
@@ -437,11 +507,15 @@ function BoardColumn({
                 canDeleteTask={canDeleteTask}
                 canUpdateTaskBasic={canUpdateTaskBasic}
                 canEditTask={canEditTask}
+                onToggleStatus={onToggleStatus}
               />
             ))}
             {!isLoadingTasks && tasks.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-kanban-border px-3 py-6 text-center text-xs font-medium text-kanban-text-secondary">
-                No cards yet
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-background/30 px-4 py-8 text-center select-none">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/40 text-muted-foreground mb-2">
+                  <CheckSquare className="h-4.5 w-4.5 opacity-60" />
+                </div>
+                <p className="text-xs font-semibold text-muted-foreground">No tasks in {list.name.toLowerCase()}</p>
               </div>
             ) : null}
             {hasMoreTasks ? (
@@ -449,7 +523,7 @@ function BoardColumn({
                 type="button"
                 onClick={() => onLoadMore?.(list.id)}
                 disabled={isFetchingTasks}
-                className="flex w-full items-center justify-center rounded-md border border-dashed border-kanban-border px-3 py-2 text-[12px] font-semibold text-kanban-text-secondary transition-colors hover:border-kanban-border-hover hover:text-kanban-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center rounded-xl border border-dashed border-border/80 px-3 py-2 text-[12px] font-semibold text-muted-foreground transition-colors hover:border-border/100 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
               >
                 {isFetchingTasks ? "Loading more..." : `Load more cards (${tasks.length}/${totalTaskCount})`}
               </button>
@@ -461,17 +535,17 @@ function BoardColumn({
 
       {/* Add Card Footer */}
       {canCreateTask && (
-        <div className="p-3 pt-2 shrink-0 border-t border-kanban-border/50">
+        <div className="p-3 pt-2 shrink-0 border-t border-border/40 bg-[#f8fafc]/30 dark:bg-transparent rounded-b-2xl">
           <CreateTaskDialog
             orgId={orgId}
             channelId={channelId}
             listId={list.id}
             trigger={
               <button
-                className="w-full flex items-center gap-2 text-kanban-text-secondary hover:text-kanban-text-primary hover:bg-kanban-card-hover transition-all rounded-md py-2 px-2.5 text-[12px] font-semibold group"
+                className="w-full flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all rounded-lg py-2 px-2.5 text-xs font-bold border border-transparent hover:border-border/50 cursor-pointer group"
               >
-                <Plus size={16} className="text-kanban-text-secondary group-hover:text-primary transition-colors" />
-                Add a card
+                <Plus size={15} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                <span>Add Task</span>
               </button>
             }
           />
@@ -494,6 +568,8 @@ export default function TaskBoard() {
   const [taskPageSizes, setTaskPageSizes] = useState<Record<string, number>>({});
   const { mutate: moveTask } = useMoveTask(channelId);
   const { mutate: reorderLists } = useReorderLists();
+  const { mutateAsync: updateTaskAsync } = useUpdateTask(channelId);
+  const queryClient = useQueryClient();
   const listTaskQueries = useBoardListTasks(lists, taskPageSizes, { enabled: !!channelId });
 
   const mergedLists = useMemo<BoardListState[]>(() => {
@@ -571,6 +647,71 @@ export default function TaskBoard() {
   const handleEditRequest = (task: Task) => {
     setTaskToEdit(task);
     setIsEditTaskModalOpen(true);
+  };
+
+  const handleToggleTaskStatus = async (taskId: string, currentStatus: string) => {
+    if (!canUpdateTaskBasic) return;
+    const newStatus = currentStatus === 'COMPLETED' ? 'OPEN' : 'COMPLETED';
+
+    // 1. Snapshot for recovery
+    const detailQueryKey = taskKeys.detail(taskId);
+    const detailSnapshot = queryClient.getQueryData(detailQueryKey);
+
+    const list = localLists.find(l => l.tasks?.some(t => t.id === taskId));
+    const listId = list?.id;
+    const limit = listId ? (taskPageSizes[listId] ?? TASKS_PAGE_SIZE) : TASKS_PAGE_SIZE;
+    const listQueryKey = listId ? taskKeys.listTasks(listId, limit) : null;
+    const listSnapshot = listQueryKey ? queryClient.getQueryData(listQueryKey) : null;
+
+    // Save previous local state
+    const previousLocalLists = localLists;
+
+    // 2. Optimistically update local state
+    setLocalLists(prev => prev.map(col => ({
+      ...col,
+      tasks: col.tasks?.map(t => t.id === taskId ? { ...t, status: newStatus } : t) ?? []
+    })));
+
+    // 3. Optimistically update query caches
+    if (listQueryKey) {
+      queryClient.setQueryData(listQueryKey, (old: unknown) => {
+        const listData = old as { success?: boolean; data?: { tasks: Task[] } } | undefined;
+        if (!listData || !listData.success || !listData.data) return old;
+        return {
+          ...listData,
+          data: {
+            ...listData.data,
+            tasks: listData.data.tasks.map((t: Task) =>
+              t.id === taskId ? { ...t, status: newStatus } : t
+            ),
+          },
+        };
+      });
+    }
+
+    queryClient.setQueryData(detailQueryKey, (old: unknown) => {
+      const detailData = old as { success?: boolean; data?: Task } | undefined;
+      if (!detailData || !detailData.success || !detailData.data) return old;
+      return {
+        ...detailData,
+        data: {
+          ...detailData.data,
+          status: newStatus,
+        },
+      };
+    });
+
+    try {
+      await updateTaskAsync({ id: taskId, data: { status: newStatus } });
+    } catch {
+      // Revert everything
+      setLocalLists(previousLocalLists);
+      if (listQueryKey) {
+        queryClient.setQueryData(listQueryKey, listSnapshot);
+      }
+      queryClient.setQueryData(detailQueryKey, detailSnapshot);
+      toast.error("Failed to update task status. Please try again.");
+    }
   };
 
   const ability = useAbility(AbilityContext);
@@ -846,6 +987,7 @@ export default function TaskBoard() {
                   isLoadingTasks={Boolean(list.isTasksLoading)}
                   isFetchingTasks={Boolean(list.isTasksFetching)}
                   onLoadMore={handleLoadMoreTasks}
+                  onToggleStatus={handleToggleTaskStatus}
                 />
               ))}
             </SortableContext>

@@ -69,9 +69,12 @@ import {
   useCreateLabel,
   useDeleteLabel,
   useTaskActivities,
+  taskKeys,
   TaskUser,
+  TaskPriority,
   type TaskActivity,
 } from "@/api/tasks";
+import { useQueryClient } from "@tanstack/react-query";
 import { useChannelMembers } from "@/api/channels";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -293,28 +296,46 @@ function SingleAssigneeSelector({
  * CommentInput Component
  * Keeps typing state local to reduce full TaskDetailDialog re-renders.
  */
-function CommentInput({ onSubmit }: { onSubmit: (content: string) => void }) {
+function CommentInput({ onSubmit }: { onSubmit: (content: string) => Promise<void> }) {
   const [comment, setComment] = useState("");
-  const handleSubmit = () => {
-    if (!comment.trim()) return;
-    onSubmit(comment);
-    setComment("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!comment.trim() || isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSubmit(comment);
+      setComment("");
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
   };
+
   return (
     <div className="bg-muted/10 border border-border rounded-lg focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all flex flex-col">
       <textarea
         value={comment}
+        disabled={isSaving}
         onChange={(e) => setComment(e.target.value)}
-        className="w-full bg-transparent border-none p-3 focus:ring-0 text-sm text-foreground placeholder-muted-foreground resize-none h-20 focus:outline-none"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSubmit();
+          }
+        }}
+        className="w-full bg-transparent border-none p-3 focus:ring-0 text-sm text-foreground placeholder-muted-foreground resize-none h-20 focus:outline-none disabled:opacity-60"
         placeholder="Write a comment..."
       />
       <div className="flex items-center justify-end p-1 bg-card border-t border-border rounded-b-lg">
         <Button
           onClick={handleSubmit}
-          disabled={!comment.trim()}
+          disabled={!comment.trim() || isSaving}
           size="sm"
-          className="text-[13px] font-medium px-4 py-1.5 h-auto flex items-center gap-1"
+          className="text-[13px] font-medium px-4 py-1.5 h-auto flex items-center gap-1.5"
         >
+          {isSaving && <ButtonSpinner className="h-3 w-3" />}
           Comment
         </Button>
       </div>
@@ -423,24 +444,45 @@ function AddSubtaskForm({
   onSubmit,
   onCancel
 }: {
-  onSubmit: (title: string) => void;
+  onSubmit: (title: string) => Promise<void>;
   onCancel: () => void;
 }) {
   const [title, setTitle] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = () => {
-    if (!title.trim()) return;
-    onSubmit(title);
-    setTitle("");
-    setTimeout(() => inputRef.current?.focus(), 0);
+  const handleSubmit = async () => {
+    if (!title.trim() || isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSubmit(title);
+      setTitle("");
+      onCancel();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent) => {
+    const currentTarget = e.currentTarget;
+    setTimeout(() => {
+      if (!currentTarget.contains(document.activeElement) && !title.trim()) {
+        onCancel();
+      }
+    }, 50);
   };
 
   return (
-    <div className="flex flex-col gap-2 p-2 border border-primary/40 rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-200 mt-1">
+    <div
+      onBlur={handleBlur}
+      className="flex flex-col p-2 border border-primary/40 rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-200 mt-1"
+    >
       <Textarea
         ref={inputRef}
-        className="text-sm bg-transparent border-none px-1 py-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:border-none text-foreground placeholder-muted-foreground min-h-[60px] resize-none rounded-none"
+        disabled={isSaving}
+        className="text-sm bg-transparent border-none px-1 py-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:border-none text-foreground placeholder-muted-foreground/75 min-h-8 h-8 resize-none rounded-none disabled:opacity-60 w-full disabled:bg-transparent"
         placeholder="What needs to be done?"
         value={title}
         autoFocus
@@ -453,28 +495,31 @@ function AddSubtaskForm({
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSubmit();
+            if (!isSaving) handleSubmit();
           }
-          if (e.key === 'Escape') {
+          if (e.key === 'Escape' && !isSaving) {
             onCancel();
           }
         }}
       />
-      <div className="flex items-center justify-end gap-2">
+      <div className="border-t border-border/60 my-1" />
+      <div className="flex items-center justify-end gap-2 animate-in fade-in duration-200">
         <Button
           variant="ghost"
           size="sm"
           onClick={onCancel}
-          className="h-8 text-xs text-muted-foreground hover:text-foreground"
+          disabled={isSaving}
+          className="h-8 text-xs font-semibold rounded-lg px-3 text-muted-foreground hover:text-foreground hover:bg-muted/40"
         >
           Cancel
         </Button>
         <Button
           size="sm"
           onClick={handleSubmit}
-          disabled={!title.trim()}
-          className="h-8 text-xs px-4"
+          disabled={isSaving || !title.trim()}
+          className="h-8 text-xs font-semibold rounded-lg px-4 bg-[#4F6EF7] text-white hover:bg-[#435fd9] flex items-center justify-center gap-1.5 transition-colors shadow-xs disabled:opacity-50"
         >
+          {isSaving && <ButtonSpinner />}
           Add Subtask
         </Button>
       </div>
@@ -490,24 +535,45 @@ function AddChecklistItemForm({
   onSubmit,
   onCancel
 }: {
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string) => Promise<void>;
   onCancel: () => void;
 }) {
   const [text, setText] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = () => {
-    if (!text.trim()) return;
-    onSubmit(text);
-    setText("");
-    setTimeout(() => inputRef.current?.focus(), 0);
+  const handleSubmit = async () => {
+    if (!text.trim() || isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSubmit(text);
+      setText("");
+      onCancel();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent) => {
+    const currentTarget = e.currentTarget;
+    setTimeout(() => {
+      if (!currentTarget.contains(document.activeElement) && !text.trim()) {
+        onCancel();
+      }
+    }, 50);
   };
 
   return (
-    <div className="flex flex-col gap-2 p-2 border border-primary/40 rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-200 mt-1">
+    <div
+      onBlur={handleBlur}
+      className="flex flex-col p-2 border border-primary/40 rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-200 mt-1"
+    >
       <Textarea
         ref={inputRef}
-        className="text-sm bg-transparent border-none px-1 py-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:border-none text-foreground placeholder-muted-foreground min-h-[60px] resize-none rounded-none"
+        disabled={isSaving}
+        className="text-sm bg-transparent border-none px-1 py-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:border-none text-foreground placeholder-muted-foreground/75 resize-none rounded-none disabled:opacity-60 w-full min-h-8 h-8 disabled:bg-transparent"
         placeholder="What needs to be done?"
         value={text}
         autoFocus
@@ -520,28 +586,31 @@ function AddChecklistItemForm({
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSubmit();
+            if (!isSaving) handleSubmit();
           }
-          if (e.key === 'Escape') {
+          if (e.key === 'Escape' && !isSaving) {
             onCancel();
           }
         }}
       />
-      <div className="flex items-center justify-end gap-2">
+      <div className="border-t border-border/60 my-1" />
+      <div className="flex items-center justify-end gap-2 animate-in fade-in duration-200">
         <Button
           variant="ghost"
           size="sm"
           onClick={onCancel}
-          className="h-8 text-xs text-muted-foreground hover:text-foreground"
+          disabled={isSaving}
+          className="h-8 text-xs font-semibold rounded-lg px-3 text-muted-foreground hover:text-foreground hover:bg-muted/40"
         >
           Cancel
         </Button>
         <Button
           size="sm"
           onClick={handleSubmit}
-          disabled={!text.trim()}
-          className="h-8 text-xs px-4"
+          disabled={isSaving || !text.trim()}
+          className="h-8 text-xs font-semibold rounded-lg px-4 bg-[#4F6EF7] text-white hover:bg-[#435fd9] flex items-center justify-center gap-1.5 transition-colors shadow-xs disabled:opacity-50"
         >
+          {isSaving && <ButtonSpinner />}
           Add Item
         </Button>
       </div>
@@ -554,19 +623,22 @@ function ControlledInlineTextareaEditor({
   onChange,
   onSubmit,
   onCancel,
-  placeholder = "Enter value..."
+  placeholder = "Enter value...",
+  isLoading = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
   placeholder?: string;
+  isLoading?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-2 p-2 border border-primary/40 rounded-lg bg-card animate-in fade-in slide-in-from-top-2 duration-200">
+    <div className="flex flex-col gap-2 p-2 border border-border/80 rounded-xl bg-muted/20 dark:bg-muted/5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all duration-200 animate-in fade-in slide-in-from-top-2 mt-1">
       <Textarea
         autoFocus
-        className="text-sm bg-transparent border-none px-1 py-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:border-none text-foreground placeholder-muted-foreground min-h-[60px] resize-none rounded-none"
+        disabled={isLoading}
+        className="text-sm bg-transparent border-none px-1 py-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:border-none text-foreground placeholder-muted-foreground min-h-8 h-8 resize-none rounded-none disabled:opacity-60 w-full"
         value={value}
         placeholder={placeholder}
         onInput={(e) => {
@@ -578,16 +650,18 @@ function ControlledInlineTextareaEditor({
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (value.trim()) onSubmit();
+            if (value.trim() && !isLoading) onSubmit();
           }
-          if (e.key === 'Escape') onCancel();
+          if (e.key === 'Escape' && !isLoading) onCancel();
         }}
       />
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} className="h-8 text-xs text-muted-foreground hover:text-foreground">
+      <div className="border-t border-border/60 my-1" />
+      <div className="flex items-center justify-end gap-2 animate-in fade-in duration-200">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={isLoading} className="h-8 text-xs text-muted-foreground hover:text-foreground">
           Cancel
         </Button>
-        <Button size="sm" onClick={onSubmit} disabled={!value.trim()} className="h-8 text-xs px-4">
+        <Button size="sm" onClick={onSubmit} disabled={isLoading || !value.trim()} className="h-8 text-xs px-4 flex items-center justify-center gap-1.5">
+          {isLoading && <ButtonSpinner />}
           Save
         </Button>
       </div>
@@ -671,6 +745,43 @@ function AddChecklistDialog({
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleCreate}>Add</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * ConfirmDeleteLabelDialog Component
+ * Prompts the user to confirm deleting a label.
+ */
+function ConfirmDeleteLabelDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+  labelName,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+  labelName: string;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-106.25 bg-card border-border shadow-2xl rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-foreground">Delete Label</DialogTitle>
+          <DialogDescription className="text-muted-foreground text-sm mt-2">
+            Are you sure you want to delete label &quot;{labelName}&quot;? This will remove it from all tasks. This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="ghost" className="hover:bg-muted font-semibold text-xs" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" className="font-semibold text-xs" onClick={onConfirm}>
+            Delete
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -774,29 +885,29 @@ export function TaskDetailDialog({
    */
   const { task, isLoading } = useTask(taskId, { enabled: open });
   const { comments } = useTaskComments(taskId, { enabled: open });
-  const { mutate: updateTask } = useUpdateTask(channelId, taskId);
-  const { mutate: createComment } = useCreateComment();
-  const { mutate: deleteTask } = useDeleteTask(channelId, taskId);
-  const { mutate: assignUser } = useAssignUser(taskId);
-  const { mutate: unassignUser } = useUnassignUser(taskId);
+  const { mutate: updateTask, mutateAsync: updateTaskAsync } = useUpdateTask(channelId, taskId);
+  const { mutateAsync: createCommentAsync } = useCreateComment();
+  const { mutateAsync: deleteTaskAsync } = useDeleteTask(channelId, taskId);
+  const { mutateAsync: assignUserAsync } = useAssignUser(taskId);
+  const { mutateAsync: unassignUserAsync } = useUnassignUser(taskId);
   const { mutate: addAttachment, isPending: isAddingAttachment } = useAddAttachment(taskId);
   const { mutate: deleteAttachment } = useDeleteAttachment(taskId);
   const { members: channelMembers } = useChannelMembers(channelId);
-
+ 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeTaskIdRef = useRef<string | null>(taskId);
   const openDialogRef = useRef(open);
   const dirtyFieldsRef = useRef<Record<string, boolean>>({});
-  const { mutate: updateChecklistItem } = useUpdateChecklistItem(taskId);
-  const { mutate: deleteChecklistItem } = useDeleteChecklistItem(taskId);
-  const { mutate: updateChecklist } = useUpdateChecklist(taskId);
-  const { mutate: deleteChecklist } = useDeleteChecklist(taskId);
+  const { mutate: updateChecklistItem, mutateAsync: updateChecklistItemAsync } = useUpdateChecklistItem(taskId);
+  const { mutateAsync: deleteChecklistItemAsync } = useDeleteChecklistItem(taskId);
+  const { mutateAsync: updateChecklistAsync } = useUpdateChecklist(taskId);
+  const { mutateAsync: deleteChecklistAsync } = useDeleteChecklist(taskId);
   const { mutateAsync: addChecklistItemAsync } = useAddChecklistItem(taskId);
   const { mutateAsync: createChecklistAsync } = useCreateChecklist();
   const { mutateAsync: createSubtaskAsync } = useCreateSubtask(taskId);
   const { labels: allOrgLabels } = useLabels(task?.org_id || "", { enabled: !!task?.org_id });
-  const { mutate: assignLabel } = useAssignLabel(taskId);
-  const { mutate: unassignLabel } = useUnassignLabel(taskId);
+  const { mutateAsync: assignLabelAsync } = useAssignLabel(taskId);
+  const { mutateAsync: unassignLabelAsync } = useUnassignLabel(taskId);
   const { mutate: createLabel } = useCreateLabel(task?.org_id || "");
   const { mutate: deleteLabel } = useDeleteLabel(task?.org_id || "");
 
@@ -850,6 +961,13 @@ export function TaskDetailDialog({
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingChecklistId, setEditingChecklistId] = useState<string | null>(null);
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [savingSubtaskIds, setSavingSubtaskIds] = useState<Record<string, boolean>>({});
+  const [savingChecklistItemIds, setSavingChecklistItemIds] = useState<Record<string, boolean>>({});
+  const [deletingSubtaskIds, setDeletingSubtaskIds] = useState<Record<string, boolean>>({});
+  const [deletingChecklistItemIds, setDeletingChecklistItemIds] = useState<Record<string, boolean>>({});
+  const [optimisticChecklistItems, setOptimisticChecklistItems] = useState<Record<string, boolean>>({});
+  const [optimisticSubtaskStatus, setOptimisticSubtaskStatus] = useState<Record<string, string>>({});
+  const queryClient = useQueryClient();
   const [checklistDrafts, setChecklistDrafts] = useSyncedState(
     checklistServerState,
     () => ({} as Record<string, DraftState>),
@@ -904,6 +1022,7 @@ export function TaskDetailDialog({
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const [isCreatingLabel, setIsCreatingLabel] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [labelToDelete, setLabelToDelete] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     activeTaskIdRef.current = taskId;
@@ -1032,8 +1151,21 @@ export function TaskDetailDialog({
   };
 
   // Submits a new comment to the task activity feed
-  const handleAddComment = (content: string) => {
-    createComment({ id: taskId, data: { content } });
+  const handleAddComment = async (content: string): Promise<void> => {
+    await createCommentAsync({ id: taskId, data: { content } });
+  };
+
+  // Helper: snapshot + patch task cache
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const patchTaskCache = (patcher: (data: any) => any) => {
+    const snapshot = queryClient.getQueryData(taskKeys.detail(taskId));
+    queryClient.setQueryData(taskKeys.detail(taskId), (old: unknown) => {
+      if (!old || typeof old !== 'object' || !(old as { success?: boolean }).success) return old;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = (old as { data: any }).data;
+      return { ...old as object, data: patcher(data) };
+    });
+    return snapshot;
   };
 
   // Adds one or multiple subtasks (supports multi-line input)
@@ -1041,94 +1173,528 @@ export function TaskDetailDialog({
     const lines = title.split('\n').map(l => l.trim()).filter(l => l !== "");
     try {
       for (const line of lines) {
-        await createSubtaskAsync({
-          parentId: taskId,
-          data: { title: line }
-        });
+        const response = await createSubtaskAsync({ parentId: taskId, data: { title: line } });
+        if (response.success && response.data) {
+          const newSubtask = response.data;
+          queryClient.setQueryData(taskKeys.detail(taskId), (old: unknown) => {
+            if (!old || typeof old !== 'object' || !(old as { success?: boolean }).success) return old;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const oldData = (old as { data: any }).data;
+            return {
+              ...old as object,
+              data: {
+                ...oldData,
+                subtasks: [...(oldData.subtasks ?? []), newSubtask]
+              }
+            };
+          });
+        }
       }
     } catch (error) {
-      console.error("Failed to add subtask:", error);
+      toast.error("Failed to add subtask. Please try again.");
+      throw error;
     }
   };
 
-  // Creates a new checklist container
-  const handleCreateNewChecklist = async (title: string) => {
-    try {
-      await createChecklistAsync({ id: taskId, data: { title } });
-      setIsAddChecklistDialogOpen(false);
-    } catch (error) {
-      console.error("Failed to create checklist:", error);
-    }
-  };
+
 
   // Adds one or multiple items to a specific checklist
   const handleAddChecklistItem = async (checklistId: string, text: string) => {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l !== "");
     try {
       for (const line of lines) {
-        await addChecklistItemAsync({
-          checklistId,
-          data: { text: line }
-        });
+        const response = await addChecklistItemAsync({ checklistId, data: { text: line } });
+        if (response.success && response.data) {
+          const newItem = response.data;
+          queryClient.setQueryData(taskKeys.detail(taskId), (old: unknown) => {
+            if (!old || typeof old !== 'object' || !(old as { success?: boolean }).success) return old;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const oldData = (old as { data: any }).data;
+            return {
+              ...old as object,
+              data: {
+                ...oldData,
+                checklists: oldData.checklists?.map((cl: { id: string; items?: unknown[] }) =>
+                  cl.id === checklistId
+                    ? { ...cl, items: [...(cl.items ?? []), newItem] }
+                    : cl
+                )
+              }
+            };
+          });
+        }
       }
     } catch (error) {
-      console.error("Failed to add checklist item:", error);
+      toast.error("Failed to add checklist item. Please try again.");
+      throw error;
     }
   };
 
-  // Updates the title of an existing checklist
-  const handleUpdateChecklistTitle = (checklistId: string, title: string) => {
-    updateChecklist({ id: checklistId, data: { title } });
+  // Updates the title of an existing checklist — optimistic
+  const handleUpdateChecklistTitle = async (checklistId: string, title: string) => {
     setEditingChecklistId(null);
     dirtyFieldsRef.current[`checklist:${checklistId}`] = false;
-    setChecklistDrafts((prev) => ({
-      ...prev,
-      [checklistId]: {
-        ...(prev[checklistId] ?? createDraftState(title)),
-        value: title,
-        lastServerValue: title,
-        baseValue: title,
-        isEditing: false,
-        isDirty: false,
-      },
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      checklists: data.checklists?.map((cl: { id: string }) =>
+        cl.id === checklistId ? { ...cl, title, name: title } : cl
+      ),
     }));
+    try {
+      await updateChecklistAsync({ id: checklistId, data: { title } });
+      setChecklistDrafts((prev) => ({
+        ...prev,
+        [checklistId]: {
+          ...(prev[checklistId] ?? createDraftState(title)),
+          value: title,
+          lastServerValue: title,
+          baseValue: title,
+          isEditing: false,
+          isDirty: false,
+        },
+      }));
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to update checklist title. Please try again.");
+    }
   };
 
-  // Updates the title of an existing subtask
-  const handleUpdateSubtaskTitle = (subtaskId: string, title: string) => {
-    updateTask({ id: subtaskId, data: { title } });
-    setEditingSubtaskId(null);
-    dirtyFieldsRef.current[`subtask:${subtaskId}`] = false;
-    setSubtaskDrafts((prev) => ({
-      ...prev,
-      [subtaskId]: {
-        ...(prev[subtaskId] ?? createDraftState(title)),
-        value: title,
-        lastServerValue: title,
-        baseValue: title,
-        isEditing: false,
-        isDirty: false,
-      },
+  // Updates the title of an existing subtask — optimistic
+  const handleUpdateSubtaskTitle = async (subtaskId: string, title: string) => {
+    setSavingSubtaskIds(prev => ({ ...prev, [subtaskId]: true }));
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      subtasks: data.subtasks?.map((st: { id: string }) =>
+        st.id === subtaskId ? { ...st, title } : st
+      ),
     }));
+    try {
+      await updateTaskAsync({ id: subtaskId, data: { title } });
+      setEditingSubtaskId(null);
+      dirtyFieldsRef.current[`subtask:${subtaskId}`] = false;
+      setSubtaskDrafts((prev) => ({
+        ...prev,
+        [subtaskId]: {
+          ...(prev[subtaskId] ?? createDraftState(title)),
+          value: title,
+          lastServerValue: title,
+          baseValue: title,
+          isEditing: false,
+          isDirty: false,
+        },
+      }));
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to update subtask. Please try again.");
+    } finally {
+      setSavingSubtaskIds(prev => ({ ...prev, [subtaskId]: false }));
+    }
   };
 
-  // Updates the text of a checklist item
-  const handleUpdateItemTitle = (itemId: string, text: string) => {
-    updateChecklistItem({ itemId, data: { text } });
-    setEditingItemId(null);
-    dirtyFieldsRef.current[`item:${itemId}`] = false;
-    setItemDrafts((prev) => ({
-      ...prev,
-      [itemId]: {
-        ...(prev[itemId] ?? createDraftState(text)),
-        value: text,
-        lastServerValue: text,
-        baseValue: text,
-        isEditing: false,
-        isDirty: false,
-      },
+  // Updates the text of a checklist item — optimistic
+  const handleUpdateItemTitle = async (itemId: string, text: string) => {
+    setSavingChecklistItemIds(prev => ({ ...prev, [itemId]: true }));
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      checklists: data.checklists?.map((cl: { items?: Array<{ id: string }> }) => ({
+        ...cl,
+        items: cl.items?.map((it) => it.id === itemId ? { ...it, text } : it),
+      })),
     }));
+    try {
+      await updateChecklistItemAsync({ itemId, data: { text } });
+      setEditingItemId(null);
+      dirtyFieldsRef.current[`item:${itemId}`] = false;
+      setItemDrafts((prev) => ({
+        ...prev,
+        [itemId]: {
+          ...(prev[itemId] ?? createDraftState(text)),
+          value: text,
+          lastServerValue: text,
+          baseValue: text,
+          isEditing: false,
+          isDirty: false,
+        },
+      }));
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to update item. Please try again.");
+    } finally {
+      setSavingChecklistItemIds(prev => ({ ...prev, [itemId]: false }));
+    }
   };
+
+  // Deletes a subtask — optimistic
+  const handleDeleteSubtask = async (subtaskId: string) => {
+    setDeletingSubtaskIds(prev => ({ ...prev, [subtaskId]: true }));
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      subtasks: data.subtasks?.filter((st: { id: string }) => st.id !== subtaskId),
+    }));
+    try {
+      await deleteTaskAsync(subtaskId);
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to delete subtask. Please try again.");
+    } finally {
+      setDeletingSubtaskIds(prev => ({ ...prev, [subtaskId]: false }));
+    }
+  };
+
+  // Deletes a checklist item — optimistic
+  const handleDeleteChecklistItem = async (itemId: string) => {
+    setDeletingChecklistItemIds(prev => ({ ...prev, [itemId]: true }));
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      checklists: data.checklists?.map((cl: { items?: Array<{ id: string }> }) => ({
+        ...cl,
+        items: cl.items?.filter((it) => it.id !== itemId),
+      })),
+    }));
+    try {
+      await deleteChecklistItemAsync(itemId);
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to delete item. Please try again.");
+    } finally {
+      setDeletingChecklistItemIds(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  const handleToggleChecklistItem = (itemId: string, currentIsCompleted: boolean) => {
+    if (!canUpdateBasic) return;
+    const newValue = !currentIsCompleted;
+    // 1. Optimistically update local state for instant UI
+    setOptimisticChecklistItems(prev => ({ ...prev, [itemId]: newValue }));
+    // 2. Also patch the query cache directly so refetch doesn't cause flicker
+    queryClient.setQueryData(taskKeys.detail(taskId), (old: unknown) => {
+      if (!old || typeof old !== 'object' || !(old as { success?: boolean }).success) return old;
+      const data = (old as { data: { checklists?: Array<{ items?: Array<{ id: string; is_completed: boolean }> }> } }).data;
+      return {
+        ...old as object,
+        data: {
+          ...data,
+          checklists: data.checklists?.map((cl) => ({
+            ...cl,
+            items: cl.items?.map((it) =>
+              it.id === itemId ? { ...it, is_completed: newValue } : it
+            ),
+          })),
+        },
+      };
+    });
+    updateChecklistItemAsync({ itemId, data: { is_completed: newValue } })
+      .then(() => {
+        // Clear optimistic entry — cache was already patched so no flicker
+        setOptimisticChecklistItems(prev => {
+          const next = { ...prev };
+          delete next[itemId];
+          return next;
+        });
+      })
+      .catch(() => {
+        // Revert both optimistic state and cache patch
+        setOptimisticChecklistItems(prev => ({ ...prev, [itemId]: currentIsCompleted }));
+        queryClient.setQueryData(taskKeys.detail(taskId), (old: unknown) => {
+          if (!old || typeof old !== 'object' || !(old as { success?: boolean }).success) return old;
+          const data = (old as { data: { checklists?: Array<{ items?: Array<{ id: string; is_completed: boolean }> }> } }).data;
+          return {
+            ...old as object,
+            data: {
+              ...data,
+              checklists: data.checklists?.map((cl) => ({
+                ...cl,
+                items: cl.items?.map((it) =>
+                  it.id === itemId ? { ...it, is_completed: currentIsCompleted } : it
+                ),
+              })),
+            },
+          };
+        });
+      });
+  };
+
+  const handleToggleSubtaskStatus = (subtaskId: string, currentStatus: string) => {
+    if (!canUpdateBasic) return;
+    const newStatus = currentStatus === 'COMPLETED' ? 'OPEN' : 'COMPLETED';
+    // Optimistically update local state
+    setOptimisticSubtaskStatus(prev => ({ ...prev, [subtaskId]: newStatus }));
+    // Patch query cache directly to prevent flicker on refetch
+    queryClient.setQueryData(taskKeys.detail(taskId), (old: unknown) => {
+      if (!old || typeof old !== 'object' || !(old as { success?: boolean }).success) return old;
+      const data = (old as { data: { subtasks?: Array<{ id: string; status: string }> } }).data;
+      return {
+        ...old as object,
+        data: {
+          ...data,
+          subtasks: data.subtasks?.map((st) =>
+            st.id === subtaskId ? { ...st, status: newStatus } : st
+          ),
+        },
+      };
+    });
+    updateTaskAsync({ id: subtaskId, data: { status: newStatus } })
+      .then(() => {
+        setOptimisticSubtaskStatus(prev => {
+          const next = { ...prev };
+          delete next[subtaskId];
+          return next;
+        });
+      })
+      .catch(() => {
+        // Revert
+        setOptimisticSubtaskStatus(prev => ({ ...prev, [subtaskId]: currentStatus }));
+        queryClient.setQueryData(taskKeys.detail(taskId), (old: unknown) => {
+          if (!old || typeof old !== 'object' || !(old as { success?: boolean }).success) return old;
+          const data = (old as { data: { subtasks?: Array<{ id: string; status: string }> } }).data;
+          return {
+            ...old as object,
+            data: {
+              ...data,
+              subtasks: data.subtasks?.map((st) =>
+                st.id === subtaskId ? { ...st, status: currentStatus } : st
+              ),
+            },
+          };
+        });
+      });
+  };
+
+  const handleUpdatePriority = async (priority: TaskPriority | null) => {
+    if (!canUpdateManage) return;
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      priority,
+    }));
+    try {
+      await updateTaskAsync({ id: taskId, data: { priority } });
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to update priority. Please try again.");
+    }
+  };
+
+  const handleUpdateDueDate = async (date: Date | null | undefined) => {
+    if (!canUpdateManage) return;
+    const due_date = date ? date.toISOString() : null;
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      due_date,
+    }));
+    try {
+      await updateTaskAsync({ id: taskId, data: { due_date } });
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to update due date. Please try again.");
+    }
+  };
+
+  const assignUser = async (variables: { id: string; data: { user_id: string } }) => {
+    if (!canUpdateManage) return;
+    const isParent = variables.id === taskId;
+    const member = channelMembers?.find(m => m.user_id === variables.data.user_id);
+    if (!member) return;
+    
+    let snapshot: unknown = null;
+    if (isParent) {
+      const newAssignment = {
+        user_id: variables.data.user_id,
+        role: member.role,
+        user: {
+          id: member.user_id,
+          name: member.name,
+          avatar_url: member.avatar_url,
+          email: member.email,
+        }
+      };
+      snapshot = patchTaskCache((data) => ({
+        ...data,
+        assignments: [...(data.assignments ?? []), newAssignment],
+      }));
+    } else {
+      snapshot = patchTaskCache((data) => ({
+        ...data,
+        subtasks: data.subtasks?.map((st: { id: string; assignments?: unknown[] }) =>
+          st.id === variables.id
+            ? {
+                ...st,
+                assignments: [
+                  {
+                    user_id: variables.data.user_id,
+                    role: member.role,
+                    user: {
+                      id: member.user_id,
+                      name: member.name,
+                      avatar_url: member.avatar_url,
+                      email: member.email,
+                    }
+                  }
+                ]
+              }
+            : st
+        )
+      }));
+    }
+
+    try {
+      await assignUserAsync(variables);
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to assign member. Please try again.");
+    }
+  };
+
+  const unassignUser = async (variables: { id: string; userId: string }) => {
+    if (!canUpdateManage) return;
+    const isParent = variables.id === taskId;
+    let snapshot: unknown = null;
+    if (isParent) {
+      snapshot = patchTaskCache((data) => ({
+        ...data,
+        assignments: data.assignments?.filter((a: { user_id: string }) => a.user_id !== variables.userId),
+      }));
+    } else {
+      snapshot = patchTaskCache((data) => ({
+        ...data,
+        subtasks: data.subtasks?.map((st: { id: string; assignments?: unknown[] }) =>
+          st.id === variables.id
+            ? { ...st, assignments: [] }
+            : st
+        )
+      }));
+    }
+
+    try {
+      await unassignUserAsync(variables);
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to unassign member. Please try again.");
+    }
+  };
+
+  const assignLabel = async (variables: { id: string; data: { label_id: string } }) => {
+    if (!canUpdateManage) return;
+    const label = allOrgLabels?.find(l => l.id === variables.data.label_id);
+    if (!label) return;
+    const newLabel = {
+      label: {
+        id: variables.data.label_id,
+        name: label.name,
+        color: label.color,
+      }
+    };
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      labels: [...(data.labels ?? []), newLabel],
+    }));
+    try {
+      await assignLabelAsync(variables);
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to assign label. Please try again.");
+    }
+  };
+
+  const unassignLabel = async (variables: { id: string; labelId: string }) => {
+    if (!canUpdateManage) return;
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      labels: data.labels?.filter((tl: { label: { id: string } }) => tl.label.id !== variables.labelId),
+    }));
+    try {
+      await unassignLabelAsync(variables);
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to unassign label. Please try again.");
+    }
+  };
+
+  const handleCreateNewChecklist = async (title: string) => {
+    setIsAddChecklistDialogOpen(false);
+    const tempChecklist = {
+      id: `__temp_cl_${Date.now()}`,
+      title,
+      name: title,
+      assignee_id: null,
+      assignee: null,
+      items: [],
+    };
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      checklists: [...(data.checklists ?? []), tempChecklist],
+    }));
+    try {
+      await createChecklistAsync({ id: taskId, data: { title } });
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to create checklist. Please try again.");
+    }
+  };
+
+  const updateChecklist = async (variables: { id: string; data: { title?: string; assignee_id?: string | null } }) => {
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      checklists: data.checklists?.map((cl: { id: string; name?: string; title?: string; assignee_id?: string | null; assignee?: unknown }) => {
+        if (cl.id !== variables.id) return cl;
+        const nextCl = { ...cl };
+        if (variables.data.title !== undefined) {
+          nextCl.title = variables.data.title;
+          nextCl.name = variables.data.title;
+        }
+        if (variables.data.assignee_id !== undefined) {
+          const assignee = variables.data.assignee_id ? channelMembers?.find(m => m.user_id === variables.data.assignee_id) : null;
+          nextCl.assignee_id = variables.data.assignee_id;
+          nextCl.assignee = assignee
+            ? {
+                id: assignee.user_id,
+                name: assignee.name,
+                avatar_url: assignee.avatar_url,
+              }
+            : null;
+        }
+        return nextCl;
+      }),
+    }));
+    try {
+      await updateChecklistAsync(variables);
+      if (variables.data.title !== undefined) {
+        setChecklistDrafts((prev) => ({
+          ...prev,
+          [variables.id]: {
+            ...(prev[variables.id] ?? createDraftState(variables.data.title!)),
+            value: variables.data.title!,
+            lastServerValue: variables.data.title!,
+            baseValue: variables.data.title!,
+            isEditing: false,
+            isDirty: false,
+          },
+        }));
+      }
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to update checklist. Please try again.");
+    }
+  };
+
+  const deleteChecklist = async (id: string) => {
+    const snapshot = patchTaskCache((data) => ({
+      ...data,
+      checklists: data.checklists?.filter((cl: { id: string }) => cl.id !== id),
+    }));
+    try {
+      await deleteChecklistAsync(id);
+    } catch {
+      queryClient.setQueryData(taskKeys.detail(taskId), snapshot);
+      toast.error("Failed to delete checklist. Please try again.");
+    }
+  };
+
+  const handleAssignUser = (userId: string) => assignUser({ id: taskId, data: { user_id: userId } });
+  const handleUnassignUser = (userId: string) => unassignUser({ id: taskId, userId });
+  const handleAssignLabel = (labelId: string) => assignLabel({ id: taskId, data: { label_id: labelId } });
+  const handleUnassignLabel = (labelId: string) => unassignLabel({ id: taskId, labelId });
+  const handleUpdateChecklistAssignee = (checklistId: string, userId: string | null) => updateChecklist({ id: checklistId, data: { assignee_id: userId } });
+  const handleDeleteChecklist = (checklistId: string) => deleteChecklist(checklistId);
 
   /* 
    * LOADING STATE
@@ -1250,9 +1816,7 @@ export function TaskDetailDialog({
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                if (confirm(`Are you sure you want to delete label "${label.name}"? This will remove it from all tasks.`)) {
-                                                  deleteLabel(label.id);
-                                                }
+                                                setLabelToDelete({ id: label.id, name: label.name });
                                               }}
                                               className="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500 rounded-md hover:bg-red-50"
                                             >
@@ -1319,8 +1883,8 @@ export function TaskDetailDialog({
                                     <DropdownMenuItem
                                       key={member.user_id}
                                       onClick={() => isAssigned
-                                        ? unassignUser({ id: taskId, userId: member.user_id })
-                                        : assignUser({ id: taskId, data: { user_id: member.user_id } })
+                                        ? handleUnassignUser(member.user_id)
+                                        : handleAssignUser(member.user_id)
                                       }
                                       className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
                                     >
@@ -1368,19 +1932,19 @@ export function TaskDetailDialog({
                             </Badge>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="w-40 rounded-xl bg-card border-border shadow-xl">
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'URGENT' } })} className="flex items-center gap-2 cursor-pointer focus:bg-rose-500/10 text-rose-500 py-2">
+                            <DropdownMenuItem onClick={() => handleUpdatePriority('URGENT')} className="flex items-center gap-2 cursor-pointer focus:bg-rose-500/10 text-rose-500 py-2">
                               <span className="text-xs font-bold uppercase tracking-wider">Urgent</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'HIGH' } })} className="flex items-center gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 py-2">
+                            <DropdownMenuItem onClick={() => handleUpdatePriority('HIGH')} className="flex items-center gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 py-2">
                               <span className="text-xs font-bold uppercase tracking-wider">High</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'MEDIUM' } })} className="flex items-center gap-2 cursor-pointer focus:bg-amber-500/10 text-amber-500 py-2">
+                            <DropdownMenuItem onClick={() => handleUpdatePriority('MEDIUM')} className="flex items-center gap-2 cursor-pointer focus:bg-amber-500/10 text-amber-500 py-2">
                               <span className="text-xs font-bold uppercase tracking-wider">Medium</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: 'LOW' } })} className="flex items-center gap-2 cursor-pointer focus:bg-blue-500/10 text-blue-500 py-2">
+                            <DropdownMenuItem onClick={() => handleUpdatePriority('LOW')} className="flex items-center gap-2 cursor-pointer focus:bg-blue-500/10 text-blue-500 py-2">
                               <span className="text-xs font-bold uppercase tracking-wider">Low</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateTask({ id: taskId, data: { priority: null } })} className="flex items-center gap-2 cursor-pointer focus:bg-muted py-2">
+                            <DropdownMenuItem onClick={() => handleUpdatePriority(null)} className="flex items-center gap-2 cursor-pointer focus:bg-muted py-2">
                               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">None</span>
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -1440,7 +2004,7 @@ export function TaskDetailDialog({
                               mode="single"
                               selected={task.due_date ? new Date(task.due_date) : undefined}
                               onSelect={(date) => {
-                                updateTask({ id: taskId, data: { due_date: date ? date.toISOString() : null } });
+                                handleUpdateDueDate(date);
                               }}
                               disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                             />
@@ -1450,7 +2014,7 @@ export function TaskDetailDialog({
                                   variant="ghost"
                                   size="sm"
                                   className="text-[10px] h-6 text-red-500 hover:text-red-600 hover:bg-red-50"
-                                  onClick={() => updateTask({ id: taskId, data: { due_date: null } })}
+                                  onClick={() => handleUpdateDueDate(null)}
                                 >
                                   Clear Date
                                 </Button>
@@ -1525,7 +2089,7 @@ export function TaskDetailDialog({
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      unassignLabel({ id: taskId, labelId: tl.label.id });
+                                      handleUnassignLabel(tl.label.id);
                                     }}
                                     className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500"
                                   >
@@ -1556,18 +2120,18 @@ export function TaskDetailDialog({
                                                 tabIndex={0}
                                                 onClick={() => {
                                                   if (isAssigned) {
-                                                    unassignLabel({ id: taskId, labelId: label.id });
+                                                    handleUnassignLabel(label.id);
                                                   } else {
-                                                    assignLabel({ id: taskId, data: { label_id: label.id } });
+                                                    handleAssignLabel(label.id);
                                                   }
                                                 }}
                                                 onKeyDown={(e) => {
                                                   if (e.key === 'Enter' || e.key === ' ') {
                                                     e.preventDefault();
                                                     if (isAssigned) {
-                                                      unassignLabel({ id: taskId, labelId: label.id });
+                                                      handleUnassignLabel(label.id);
                                                     } else {
-                                                      assignLabel({ id: taskId, data: { label_id: label.id } });
+                                                      handleAssignLabel(label.id);
                                                     }
                                                   }
                                                 }}
@@ -1707,7 +2271,7 @@ export function TaskDetailDialog({
                                                 size="sm"
                                                 variant="destructive"
                                                 className="flex-1 h-8 text-[11px] font-bold rounded-md"
-                                                onClick={() => unassignUser({ id: taskId, userId: a.user_id })}
+                                                onClick={() => handleUnassignUser(a.user_id)}
                                               >
                                                 Remove
                                               </Button>
@@ -1749,8 +2313,8 @@ export function TaskDetailDialog({
                                         <DropdownMenuItem
                                           key={member.user_id}
                                           onClick={() => isAssigned
-                                            ? unassignUser({ id: taskId, userId: member.user_id })
-                                            : assignUser({ id: taskId, data: { user_id: member.user_id } })
+                                            ? handleUnassignUser(member.user_id)
+                                            : handleAssignUser(member.user_id)
                                           }
                                           className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
                                         >
@@ -2062,26 +2626,21 @@ export function TaskDetailDialog({
                               }));
                             }}
                             placeholder="What needs to be done?"
+                            isLoading={!!savingSubtaskIds[subtask.id]}
                           />
                         ) : (
-                          <div key={subtask.id} className="flex items-center gap-2 py-1.5 px-3 border border-border rounded-lg bg-muted/5 hover:bg-muted/10 hover:border-primary/20 transition-all group">
+                          <div key={subtask.id} className="flex items-center gap-2 px-2 bg-transparent hover:bg-muted/5 rounded-lg transition-all group">
                             <button
-                              onClick={() => {
-                                if (!canUpdateBasic) return;
-                                updateTask({
-                                  id: subtask.id,
-                                  data: { status: subtask.status === 'COMPLETED' ? 'OPEN' : 'COMPLETED' }
-                                });
-                              }}
-                              aria-label={subtask.status === 'COMPLETED' ? "Mark incomplete" : "Mark complete"}
+                              onClick={() => handleToggleSubtaskStatus(subtask.id, subtask.status)}
+                              aria-label={(optimisticSubtaskStatus[subtask.id] ?? subtask.status) === 'COMPLETED' ? "Mark incomplete" : "Mark complete"}
                               disabled={!canUpdateBasic}
                               className={cn(
                                 "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
                                 !canUpdateBasic && "pointer-events-none opacity-60",
-                                subtask.status === 'COMPLETED' ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"
+                                (optimisticSubtaskStatus[subtask.id] ?? subtask.status) === 'COMPLETED' ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"
                               )}
                             >
-                              {subtask.status === 'COMPLETED' && <Check size={12} strokeWidth={3} />}
+                              {(optimisticSubtaskStatus[subtask.id] ?? subtask.status) === 'COMPLETED' && <Check size={12} strokeWidth={3} />}
                             </button>
 
                             <span
@@ -2127,14 +2686,25 @@ export function TaskDetailDialog({
                                 }}
                               />
                               {canDeleteTask && (
-                                <div className="overflow-hidden max-w-0 group-hover:max-w-8 transition-all duration-200 ease-in-out">
+                                <div className={cn(
+                                  "overflow-hidden transition-all duration-200 ease-in-out",
+                                  deletingSubtaskIds[subtask.id] ? "max-w-8" : "max-w-0 group-hover:max-w-8"
+                                )}>
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
-                                    onClick={() => deleteTask(subtask.id)}
+                                    className={cn(
+                                      "h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10",
+                                      deletingSubtaskIds[subtask.id] && "text-red-500 bg-red-500/10 disabled:opacity-100"
+                                    )}
+                                    disabled={deletingSubtaskIds[subtask.id]}
+                                    onClick={() => handleDeleteSubtask(subtask.id)}
                                   >
-                                    <Trash2 size={16} />
+                                    {deletingSubtaskIds[subtask.id] ? (
+                                      <ButtonSpinner className="h-3 w-3" />
+                                    ) : (
+                                      <Trash2 size={16} />
+                                    )}
                                   </Button>
                                 </div>
                               )}
@@ -2239,7 +2809,7 @@ export function TaskDetailDialog({
                               currentAssignee={checklist.assignee}
                               members={channelMembers}
                               disabled={!canUpdateManage}
-                              onSelect={(userId) => updateChecklist({ id: checklist.id, data: { assignee_id: userId } })}
+                              onSelect={(userId) => handleUpdateChecklistAssignee(checklist.id, userId)}
                               alwaysVisible
                             />
                             <motion.div>
@@ -2270,7 +2840,7 @@ export function TaskDetailDialog({
                                         size="sm"
                                         variant="destructive"
                                         className="flex-1 h-8 text-[11px] font-bold rounded-md"
-                                        onClick={() => deleteChecklist(checklist.id)}
+                                        onClick={() => handleDeleteChecklist(checklist.id)}
                                       >
                                         Delete
                                       </Button>
@@ -2331,23 +2901,21 @@ export function TaskDetailDialog({
                                   }));
                                 }}
                                 placeholder="What needs to be done?"
+                                isLoading={!!savingChecklistItemIds[item.id]}
                               />
                             ) : (
-                              <div key={item.id} className="flex items-center gap-2 py-1.5 px-3 border border-border rounded-lg bg-muted/5 hover:bg-muted/10 hover:border-primary/20 transition-all group">
+                              <div key={item.id} className="flex items-center gap-2 py-1.5 px-2 bg-transparent hover:bg-muted/5 rounded-lg transition-all group">
                                 <button
-                                  onClick={() => {
-                                    if (!canUpdateBasic) return;
-                                    updateChecklistItem({ itemId: item.id, data: { is_completed: !item.is_completed } });
-                                  }}
-                                  aria-label={item.is_completed ? "Mark incomplete" : "Mark complete"}
+                                  onClick={() => handleToggleChecklistItem(item.id, item.is_completed)}
+                                  aria-label={(optimisticChecklistItems[item.id] ?? item.is_completed) ? "Mark incomplete" : "Mark complete"}
                                   disabled={!canUpdateBasic}
                                   className={cn(
                                     "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
                                     !canUpdateBasic && "pointer-events-none opacity-60",
-                                    item.is_completed ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"
+                                    (optimisticChecklistItems[item.id] ?? item.is_completed) ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"
                                   )}
                                 >
-                                  {item.is_completed && <Check size={12} strokeWidth={3} />}
+                                  {(optimisticChecklistItems[item.id] ?? item.is_completed) && <Check size={12} strokeWidth={3} />}
                                 </button>
 
                                  <span
@@ -2371,7 +2939,7 @@ export function TaskDetailDialog({
                                   className={cn(
                                     "text-sm flex-1 whitespace-pre-wrap wrap-break-words transition-all",
                                     canUpdateManage ? "cursor-text" : "cursor-default",
-                                    item.is_completed ? "text-muted-foreground line-through" : "text-foreground"
+                                    (optimisticChecklistItems[item.id] ?? item.is_completed) ? "text-muted-foreground line-through" : "text-foreground"
                                   )}
                                 >
                                   {item.text}
@@ -2386,14 +2954,25 @@ export function TaskDetailDialog({
                                     onSelect={(userId) => updateChecklistItem({ itemId: item.id, data: { assignee_id: userId } })}
                                   />
                                   {canUpdateManage && (
-                                    <div className="w-0 opacity-0 group-hover:w-8 group-hover:opacity-100 transition-all duration-300 ease-out overflow-hidden flex items-center justify-center shrink-0">
+                                    <div className={cn(
+                                      "transition-all duration-300 ease-out overflow-hidden flex items-center justify-center shrink-0",
+                                      deletingChecklistItemIds[item.id] ? "w-8 opacity-100" : "w-0 opacity-0 group-hover:w-8 group-hover:opacity-100"
+                                    )}>
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 shrink-0"
-                                        onClick={() => deleteChecklistItem(item.id)}
+                                        className={cn(
+                                          "h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 shrink-0",
+                                          deletingChecklistItemIds[item.id] && "text-red-500 bg-red-500/10 disabled:opacity-100"
+                                        )}
+                                        disabled={deletingChecklistItemIds[item.id]}
+                                        onClick={() => handleDeleteChecklistItem(item.id)}
                                       >
-                                        <Trash2 size={16} />
+                                        {deletingChecklistItemIds[item.id] ? (
+                                          <ButtonSpinner className="h-3 w-3" />
+                                        ) : (
+                                          <Trash2 size={16} />
+                                        )}
                                       </Button>
                                     </div>
                                   )}
@@ -2512,6 +3091,20 @@ export function TaskDetailDialog({
         open={isAddChecklistDialogOpen}
         onOpenChange={setIsAddChecklistDialogOpen}
         onCreate={handleCreateNewChecklist}
+      />
+
+      <ConfirmDeleteLabelDialog
+        open={labelToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setLabelToDelete(null);
+        }}
+        onConfirm={() => {
+          if (labelToDelete) {
+            deleteLabel(labelToDelete.id);
+            setLabelToDelete(null);
+          }
+        }}
+        labelName={labelToDelete?.name || ""}
       />
     </>
   );

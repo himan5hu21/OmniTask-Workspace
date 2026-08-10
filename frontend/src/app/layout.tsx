@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AppQueryProvider } from "@/lib/query-client";
 import { OrbitalLoader } from "@/components/ui/orbital-loader";
 import { OfflineOverlay } from "@/components/ui/offline-overlay";
+import { ServerStartupOverlay } from "@/components/ui/server-startup-overlay";
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
@@ -31,6 +32,7 @@ export default function RootLayout({
           <div id="app-content" className="flex-1 flex flex-col h-full min-h-0 transition-[filter] duration-300">
             {children}
             <OfflineOverlay />
+            <ServerStartupOverlay />
           </div>
           <Toaster position="top-center" />
         </AppQueryProvider>

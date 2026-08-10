@@ -24,6 +24,7 @@ export default function ChannelLayout({ children }: { children: React.ReactNode 
         organizationId={orgId}
         channelId={channelId}
         channelName={channel?.name}
+        organizationName={organization?.name}
       />
       <div className="min-h-0 flex flex-1 overflow-hidden">
         {children}

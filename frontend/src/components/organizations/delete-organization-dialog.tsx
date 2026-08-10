@@ -85,7 +85,7 @@ export function DeleteOrganizationDialog({
           </Button>
           <Button 
             variant="destructive"
-            className="rounded-lg px-6 font-bold shadow-lg shadow-destructive/20"
+            className="rounded-lg px-6 font-bold"
             onClick={handleDelete}
             disabled={deleteOrgMutation.isPending}
           >
