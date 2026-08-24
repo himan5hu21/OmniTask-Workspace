@@ -81,6 +81,7 @@ import {
   type Channel
 } from '@/api/channels';
 
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useIsMounted } from '@/hooks/useIsMounted';
 import { AbilityContext } from '@/lib/casl';
 import { InviteMemberDialog } from '@/components/organizations/invite-member-dialog';
@@ -346,7 +347,7 @@ export default function OrganizationSettingsModal() {
         {/* Right Content Area */}
         <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
           {/* Header */}
-          <div className="px-6 pr-15 h-[72px] border-b border-border flex items-center justify-between shrink-0">
+          <div className="px-4 md:px-6 md:pr-15 h-[72px] border-b border-border flex items-center justify-between shrink-0">
             <h1 className="text-lg font-bold tracking-tight text-foreground">
               {activeTab === 'members' && "Manage Members"}
               {activeTab === 'channels' && "Workspace Channels"}
@@ -381,7 +382,7 @@ export default function OrganizationSettingsModal() {
 
           {/* Main Content Scroll Area */}
           <ScrollArea className="flex-1">
-            <div className="px-6 py-2 space-y-6">
+            <div className="px-4 md:px-6 py-2 space-y-6">
             {activeTab === 'members' && (
               <div className="space-y-6">
                 {/* Search Bar */}
@@ -397,8 +398,8 @@ export default function OrganizationSettingsModal() {
                   </div>
                 </div>
 
-                {/* Member List Table */}
-                <div className="border border-border rounded-xl overflow-hidden bg-card/30">
+                {/* Desktop View: Table */}
+                <div className="hidden md:block border border-border rounded-xl overflow-hidden bg-card/30">
                   <Table>
                     <TableHeader className="bg-muted/50">
                       <TableRow className="hover:bg-transparent border-border">
@@ -534,10 +535,126 @@ export default function OrganizationSettingsModal() {
                   </Table>
                 </div>
 
+                {/* Mobile View: Cards */}
+                <div className="md:hidden space-y-3">
+                  {isLoadingMembers ? (
+                    <div className="flex justify-center py-8">
+                      <OrbitalLoader size="md" className="text-muted-foreground" />
+                    </div>
+                  ) : members.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground bg-card/30 rounded-xl border border-border">
+                      No members found.
+                    </div>
+                  ) : (
+                    members.map((member) => (
+                      <div key={member.id} className="p-4 border border-border rounded-xl bg-card/30 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Avatar className="h-8 w-8 border border-border shrink-0">
+                              <AvatarImage src={member.avatar_url ? buildAuthenticatedFileUrl(member.avatar_url) : undefined} />
+                              <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary uppercase">
+                                {member.name?.charAt(0) || "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold truncate flex items-center gap-1.5">
+                                {member.name || "Unnamed"}
+                                {member.user_id === user?.id && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">(You)</span>
+                                )}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
+                            </div>
+                          </div>
+                          {canRemoveMembers && member.role !== 'OWNER' && member.user_id !== user?.id && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => handleRemoveMember(member.user_id, member.name || "member")}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
+                          <span className="text-muted-foreground">
+                            Joined {isMounted && member.joined_at ? new Date(member.joined_at).toLocaleDateString() : '-'}
+                          </span>
+                          <div>
+                            {canManageRoles && member.role !== 'OWNER' && member.user_id !== user?.id ? (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className={cn(
+                                    "inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border border-border bg-background",
+                                    member.role === 'ADMIN' && "text-blue-500",
+                                    member.role === 'MEMBER' && "text-emerald-500",
+                                    member.role === 'GUEST' && "text-muted-foreground"
+                                  )}>
+                                    {member.role}
+                                    <ChevronDown className="h-3 w-3 opacity-50" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-64 rounded-xl p-2 bg-card border-border shadow-2xl">
+                                  <div className="px-2 py-1.5 mb-1">
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Change Role</p>
+                                  </div>
+                                  <DropdownMenuItem 
+                                    className="flex flex-col items-start gap-0.5 rounded-lg p-2 cursor-pointer focus:bg-blue-500/10"
+                                    onClick={() => updateRoleMutation.mutate({ orgId, userId: member.user_id, data: { role: ORG_ROLES.ADMIN } })}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Shield className="h-3.5 w-3.5 text-blue-500" />
+                                      <span className="text-sm font-bold text-foreground">Admin</span>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">Full access to manage members, channels and settings.</p>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="flex flex-col items-start gap-0.5 rounded-lg p-2 cursor-pointer focus:bg-emerald-500/10 mt-1"
+                                    onClick={() => updateRoleMutation.mutate({ orgId, userId: member.user_id, data: { role: ORG_ROLES.MEMBER } })}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Users className="h-3.5 w-3.5 text-emerald-500" />
+                                      <span className="text-sm font-bold text-foreground">Member</span>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">Standard access to workspace channels and tools.</p>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="flex flex-col items-start gap-0.5 rounded-lg p-2 cursor-pointer focus:bg-muted mt-1"
+                                    onClick={() => updateRoleMutation.mutate({ orgId, userId: member.user_id, data: { role: ORG_ROLES.GUEST } })}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <span className="text-sm font-bold text-foreground">Guest</span>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">Limited access to specific channels and projects.</p>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : (
+                              <div className={cn(
+                                "inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                                member.role === 'OWNER' && "bg-amber-500/10 text-amber-500 border border-amber-500/20",
+                                member.role === 'ADMIN' && "bg-blue-500/10 text-blue-500",
+                                member.role === 'MEMBER' && "bg-emerald-500/10 text-emerald-500",
+                                member.role === 'GUEST' && "bg-muted text-muted-foreground"
+                              )}>
+                                {member.role === 'OWNER' && <ShieldAlert className="h-3 w-3" />}
+                                {member.role}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
                 {/* Pagination */}
                 {pagination && pagination.totalPages > 1 && (
-                  <div className="flex items-center justify-between px-2 py-4 border-t border-border mt-4">
-                    <p className="text-xs text-muted-foreground">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-4 border-t border-border mt-4">
+                    <p className="text-xs text-muted-foreground text-center sm:text-left">
                       Showing <span className="font-medium">{(page - 1) * limit + 1}</span> to <span className="font-medium">{Math.min(page * limit, pagination.total)}</span> of <span className="font-medium">{pagination.total}</span> members
                     </p>
                     <Pagination className="w-auto mx-0">
@@ -550,18 +667,24 @@ export default function OrganizationSettingsModal() {
                           />
                         </PaginationItem>
                         
-                        {[...Array(pagination.totalPages)].map((_, i) => (
-                          <PaginationItem key={i}>
-                            <PaginationLink 
-                              href="#" 
-                              onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
-                              isActive={page === i + 1}
-                              className="h-8 w-8 rounded-lg cursor-pointer"
-                            >
-                              {i + 1}
-                            </PaginationLink>
-                          </PaginationItem>
-                        ))}
+                        <div className="hidden sm:flex items-center gap-1">
+                          {[...Array(pagination.totalPages)].map((_, i) => (
+                            <PaginationItem key={i}>
+                              <PaginationLink 
+                                href="#" 
+                                onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
+                                isActive={page === i + 1}
+                                className="h-8 w-8 rounded-lg cursor-pointer"
+                              >
+                                {i + 1}
+                              </PaginationLink>
+                            </PaginationItem>
+                          ))}
+                        </div>
+
+                        <div className="sm:hidden text-xs font-semibold px-3">
+                          Page {page} of {pagination.totalPages}
+                        </div>
 
                         <PaginationItem>
                           <PaginationNext 
@@ -595,8 +718,8 @@ export default function OrganizationSettingsModal() {
                   </div>
                 </div>
 
-                {/* Channel List Table */}
-                <div className="border border-border rounded-xl overflow-hidden bg-card/30 flex flex-col min-h-0">
+                {/* Desktop View: Table */}
+                <div className="hidden md:block border border-border rounded-xl overflow-hidden bg-card/30 flex flex-col min-h-0">
                   <div className="overflow-auto flex-1">
                     <Table>
                       <TableHeader className="bg-muted/50 sticky top-0 z-10">
@@ -685,8 +808,8 @@ export default function OrganizationSettingsModal() {
 
                   {/* Pagination */}
                   {channelPagination && channelPagination.totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-4 border-t border-border bg-muted/20 shrink-0">
-                      <p className="text-[11px] text-muted-foreground">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-4 border-t border-border bg-muted/20 shrink-0">
+                      <p className="text-[11px] text-muted-foreground text-center sm:text-left">
                         Showing <span className="font-medium">{(channelPage - 1) * limit + 1}</span> to <span className="font-medium">{Math.min(channelPage * limit, channelPagination.total)}</span> of <span className="font-medium">{channelPagination.total}</span>
                       </p>
                       <Pagination className="w-auto mx-0">
@@ -715,6 +838,106 @@ export default function OrganizationSettingsModal() {
                     </div>
                   )}
                 </div>
+
+                {/* Mobile View: Cards */}
+                <div className="md:hidden space-y-3">
+                  {isLoadingChannels ? (
+                    <div className="flex justify-center py-8">
+                      <OrbitalLoader size="md" className="text-muted-foreground" />
+                    </div>
+                  ) : channels.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground bg-card/30 rounded-xl border border-border">
+                      No channels found matching your search.
+                    </div>
+                  ) : (
+                    channels.map((channel) => (
+                      <div key={channel.id} className="p-4 border border-border rounded-xl bg-card/30 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary border border-primary/20 shrink-0">
+                              <Hash className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold flex items-center gap-2 truncate">
+                                {channel.name}
+                                {channel.isDefault && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-bold border border-border shrink-0">DEFAULT</span>
+                                )}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Created {isMounted ? new Date(channel.created_at).toLocaleDateString() : '...'}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 text-[11px] font-medium text-muted-foreground shrink-0">
+                            <Users className="h-3 w-3" />
+                            {channel.stats?.memberCount || 0}
+                          </div>
+                        </div>
+
+                        {!channel.isDefault && (canUpdateChannels || canDeleteChannels) && (
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50">
+                            {canUpdateChannels && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="h-8 rounded-lg text-xs font-semibold px-3 gap-1.5 border-border"
+                                onClick={() => openEditChannel(channel)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Edit
+                              </Button>
+                            )}
+                            {canDeleteChannels && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 rounded-lg text-xs font-semibold px-3 gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setChannelToDelete(channel)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Pagination */}
+                {channelPagination && channelPagination.totalPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-4 border-t border-border bg-muted/20 shrink-0">
+                    <p className="text-[11px] text-muted-foreground text-center sm:text-left">
+                      Showing <span className="font-medium">{(channelPage - 1) * limit + 1}</span> to <span className="font-medium">{Math.min(channelPage * limit, channelPagination.total)}</span> of <span className="font-medium">{channelPagination.total}</span>
+                    </p>
+                    <Pagination className="w-auto mx-0">
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious 
+                            href="#" 
+                            onClick={(e) => { e.preventDefault(); if (channelPage > 1) setChannelPage(channelPage - 1); }}
+                            className={cn("cursor-pointer h-7 px-2 rounded-lg text-[11px]", channelPage === 1 && "pointer-events-none opacity-50")}
+                          />
+                        </PaginationItem>
+                        
+                        <PaginationItem>
+                          <span className="text-[11px] font-medium px-2">Page {channelPage} of {channelPagination.totalPages}</span>
+                        </PaginationItem>
+
+                        <PaginationItem>
+                          <PaginationNext 
+                            href="#" 
+                            onClick={(e) => { e.preventDefault(); if (channelPage < channelPagination.totalPages) setChannelPage(channelPage + 1); }}
+                            className={cn("cursor-pointer h-7 px-2 rounded-lg text-[11px]", channelPage === channelPagination.totalPages && "pointer-events-none opacity-50")}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
               </div>
             )}
 

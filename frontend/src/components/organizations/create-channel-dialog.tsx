@@ -72,8 +72,8 @@ export function CreateChannelDialog({
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-sm rounded-xl">
         <DialogHeader>
-          <DialogTitle className="text-lg font-bold">Create Channel</DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogTitle className="text-lg font-bold text-left">Create Channel</DialogTitle>
+          <DialogDescription className="text-xs text-left">
             Initialize a new sector for team communication.
           </DialogDescription>
         </DialogHeader>

@@ -103,12 +103,12 @@ export function InviteMemberDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-md rounded-2xl border-border bg-card shadow-2xl overflow-hidden">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+        <DialogHeader>
+          <DialogTitle className="text-xl text-left font-bold tracking-tight text-foreground flex items-center gap-2">
             <Link2 className="h-5 w-5 text-primary" />
             Invite Team Member
           </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground mt-1.5">
+          <DialogDescription className="text-sm text-left text-muted-foreground mt-1.5">
             Generate a secure invite link to share with your colleague.
           </DialogDescription>
         </DialogHeader>

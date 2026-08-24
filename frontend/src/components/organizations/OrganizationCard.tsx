@@ -138,10 +138,10 @@ export function OrganizationCard({ org, onEdit, onDelete }: OrganizationCardProp
           {org.currentUserRole || 'MEMBER'}
         </span>
         
-        <div className="flex items-center gap-1 text-xs text-muted-foreground font-semibold">
+        {/* <div className="flex items-center gap-1 text-xs text-muted-foreground font-semibold">
           <Users className="h-3.5 w-3.5 text-muted-foreground/75" />
           <span>{memberCount}</span>
-        </div>
+        </div> */}
       </div>
     </div>
   );
@@ -177,10 +177,10 @@ export function OrganizationListRow({ org, onEdit, onDelete }: OrganizationCardP
           {org.currentUserRole || 'MEMBER'}
         </span>
         
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold w-12">
+        {/* <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold w-12">
           <Users className="h-3.5 w-3.5 text-muted-foreground/75" />
           <span>{memberCount}</span>
-        </div>
+        </div> */}
 
         {hasManagementActions && (
           <DropdownMenu>

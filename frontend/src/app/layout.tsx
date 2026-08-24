@@ -12,8 +12,26 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
 export const metadata: Metadata = {
-  title: "OmniTask",
-  description: "Team collaboration, chat, and task management workspace",
+  metadataBase: new URL("https://omnitask.himanshudev.dpdns.org"),
+  title: {
+    default: "OmniTask | High-Performance Team Collaboration, Chat & Task Workspace",
+    template: "%s | OmniTask"
+  },
+  description: "OmniTask is a high-performance productivity suite and collaborative workspace designed for software engineering teams. Real-time chat, nested task hierarchies, and instant sync keep your team aligned.",
+  keywords: [
+    "OmniTask",
+    "Team Collaboration",
+    "Task Management",
+    "Real-time Chat",
+    "Developer Productivity Suite",
+    "Agile Software",
+    "Nested Tasks",
+    "Team Workspaces"
+  ],
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

@@ -369,8 +369,8 @@ export function ChannelSettingsModal({
                           </div>
                         </div>
 
-                        {/* Member List Table */}
-                        <div className="border border-border rounded-xl overflow-hidden bg-card/30">
+                        {/* Desktop View: Table */}
+                        <div className="hidden md:block border border-border rounded-xl overflow-hidden bg-card/30">
                           <Table>
                             <TableHeader className="bg-muted/50">
                               <TableRow className="hover:bg-transparent border-border">
@@ -496,10 +496,122 @@ export function ChannelSettingsModal({
                           </Table>
                         </div>
 
+                        {/* Mobile View: Cards */}
+                        <div className="md:hidden space-y-3">
+                          {isLoadingMembers ? (
+                            <div className="flex justify-center py-8">
+                              <Spinner size="md" />
+                            </div>
+                          ) : members.length === 0 ? (
+                            <div className="text-center py-8 text-sm text-muted-foreground bg-card/30 rounded-xl border border-border">
+                              No members found.
+                            </div>
+                          ) : (
+                            members.map((member) => (
+                              <div key={member.id} className="p-4 border border-border rounded-xl bg-card/30 space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <Avatar className="h-8 w-8 border border-border shrink-0">
+                                      <AvatarImage src={member.avatar_url ? buildAuthenticatedFileUrl(member.avatar_url) : undefined} />
+                                      <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary uppercase">
+                                        {member.name?.charAt(0) || "U"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-bold truncate flex items-center gap-1.5">
+                                        {member.name || "Unnamed"}
+                                        {member.user_id === user?.id && (
+                                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">(You)</span>
+                                        )}
+                                      </p>
+                                      <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
+                                    </div>
+                                  </div>
+                                  {canRemoveMembers && member.user_id !== organization?.owner_id && member.user_id !== user?.id && (
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                                      onClick={() => setMemberToRemove({ id: member.user_id, name: member.name || "member" })}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
+                                  <span className="text-muted-foreground font-semibold">Channel Role</span>
+                                  <div>
+                                    {canChangeRoles && member.user_id !== user?.id && member.user_id !== organization?.owner_id ? (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <button className={cn(
+                                            "inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border border-border bg-background",
+                                            member.role === CHANNEL_ROLES.MANAGER && "text-primary border-primary/20",
+                                            member.role === CHANNEL_ROLES.CONTRIBUTOR && "text-blue-500 border-blue-500/20",
+                                            member.role === CHANNEL_ROLES.VIEWER && "text-muted-foreground"
+                                          )}>
+                                            {member.role}
+                                            <ChevronDown className="h-3 w-3 opacity-50" />
+                                          </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-64 rounded-xl p-2 bg-card border-border shadow-2xl">
+                                          <div className="px-2 py-1.5 mb-1">
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Change Role</p>
+                                          </div>
+                                          <DropdownMenuItem 
+                                            className="flex flex-col items-start gap-0.5 rounded-lg p-2 cursor-pointer focus:bg-primary/10"
+                                            onClick={() => updateRoleMutation.mutate({ channelId, userId: member.user_id, data: { role: CHANNEL_ROLES.MANAGER } })}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <ShieldAlert className="h-3.5 w-3.5 text-primary" />
+                                              <span className="text-sm font-bold text-foreground">Manager</span>
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground leading-relaxed">Full management access to the channel.</p>
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem 
+                                            className="flex flex-col items-start gap-0.5 rounded-lg p-2 cursor-pointer focus:bg-blue-500/10 mt-1"
+                                            onClick={() => updateRoleMutation.mutate({ channelId, userId: member.user_id, data: { role: CHANNEL_ROLES.CONTRIBUTOR } })}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
+                                              <span className="text-sm font-bold text-foreground">Contributor</span>
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground leading-relaxed">Can send messages and create tasks.</p>
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem 
+                                            className="flex flex-col items-start gap-0.5 rounded-lg p-2 cursor-pointer focus:bg-muted mt-1"
+                                            onClick={() => updateRoleMutation.mutate({ channelId, userId: member.user_id, data: { role: CHANNEL_ROLES.VIEWER } })}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                                              <span className="text-sm font-bold text-foreground">Viewer</span>
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground leading-relaxed">Read-only access to messages.</p>
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    ) : (
+                                      <div className={cn(
+                                        "inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                                        member.role === CHANNEL_ROLES.MANAGER && "bg-primary/10 text-primary",
+                                        member.role === CHANNEL_ROLES.CONTRIBUTOR && "bg-blue-500/10 text-blue-500",
+                                        member.role === CHANNEL_ROLES.VIEWER && "bg-muted text-muted-foreground"
+                                      )}>
+                                        {member.role}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
                         {/* Pagination */}
                         {pagination && pagination.totalPages > 1 && (
-                          <div className="flex items-center justify-between px-2 py-4 border-t border-border mt-4">
-                            <p className="text-xs text-muted-foreground">
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-4 border-t border-border mt-4">
+                            <p className="text-xs text-muted-foreground text-center sm:text-left">
                               Showing <span className="font-medium">{(page - 1) * limit + 1}</span> to <span className="font-medium">{Math.min(page * limit, pagination.total)}</span> of <span className="font-medium">{pagination.total}</span> members
                             </p>
                             <Pagination className="w-auto mx-0">
@@ -512,18 +624,24 @@ export function ChannelSettingsModal({
                                   />
                                 </PaginationItem>
                                 
-                                {[...Array(pagination.totalPages)].map((_, i) => (
-                                  <PaginationItem key={i}>
-                                    <PaginationLink 
-                                      href="#" 
-                                      onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
-                                      isActive={page === i + 1}
-                                      className="h-8 w-8 rounded-lg cursor-pointer"
-                                    >
-                                      {i + 1}
-                                    </PaginationLink>
-                                  </PaginationItem>
-                                ))}
+                                <div className="hidden sm:flex items-center gap-1">
+                                  {[...Array(pagination.totalPages)].map((_, i) => (
+                                    <PaginationItem key={i}>
+                                      <PaginationLink 
+                                        href="#" 
+                                        onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
+                                        isActive={page === i + 1}
+                                        className="h-8 w-8 rounded-lg cursor-pointer"
+                                      >
+                                        {i + 1}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  ))}
+                                </div>
+
+                                <div className="sm:hidden text-xs font-semibold px-3">
+                                  Page {page} of {pagination.totalPages}
+                                </div>
 
                                 <PaginationItem>
                                   <PaginationNext 

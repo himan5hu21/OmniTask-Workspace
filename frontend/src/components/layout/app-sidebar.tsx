@@ -12,6 +12,7 @@ import {
   Settings,
   UserPlus,
   Zap,
+  X,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -36,6 +37,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { cn, getInitials } from "@/lib/utils"
 import { buildAuthenticatedFileUrl } from "@/lib/file-url"
@@ -87,6 +89,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const pathname = usePathname()
   const { user } = useAuthProfile()
+  const { isMobile, setOpenMobile } = useSidebar()
 
 
 
@@ -311,14 +314,26 @@ export function AppSidebar({
       <Sidebar className={cn("space-y-3", className)}>
         {/* Workspace Clickable Header */}
         <SidebarHeader className="h-20 shrink-0 flex items-center px-4">
-          <Link href="/dashboard" className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-sidebar-accent/50 transition-colors cursor-pointer select-none">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground font-bold text-sm shadow-sm uppercase">
-              {organizationInitial}
-            </div>
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="truncate text-sm font-bold text-sidebar-foreground">{organizationName || "Workspace"}</span>
-            </div>
-          </Link>
+          <div className="flex items-center justify-between w-full">
+            <Link href="/dashboard" className="flex items-center gap-3 min-w-0 flex-1 p-2 rounded-xl hover:bg-sidebar-accent/50 transition-colors cursor-pointer select-none">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-primary to-primary/80 text-primary-foreground font-bold text-sm shadow-sm uppercase">
+                {organizationInitial}
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="truncate text-md font-bold text-sidebar-foreground">{organizationName || "Workspace"}</span>
+              </div>
+            </Link>
+            {isMobile && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 rounded-lg"
+                onClick={() => setOpenMobile(false)}
+              >
+                <X className="size-5" />
+              </Button>
+            )}
+          </div>
         </SidebarHeader>
 
         <ScrollArea className="flex-1">
@@ -504,6 +519,16 @@ export function AppSidebar({
               <span className="text-[10px] text-muted-foreground font-semibold leading-none mt-1 select-none">Productivity Suite</span>
             </div>
           </div>
+          {isMobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 rounded-lg"
+              onClick={() => setOpenMobile(false)}
+            >
+              <X className="size-5" />
+            </Button>
+          )}
         </div>
       </SidebarHeader>
 

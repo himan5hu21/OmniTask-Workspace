@@ -117,7 +117,7 @@ export default function DashboardPage() {
   const greeting = getGreeting();
 
   return (
-    <div className="w-full max-w-7xl mx-auto py-6 px-8 space-y-8">
+    <div className="w-full max-w-7xl mx-auto py-6 px-4 lg:px-8 space-y-8">
       {/* Top Banner Greeting */}
       <div>
         <h1 className="text-3xl md:text-4xl font-extrabold text-foreground mb-1 tracking-tight">
@@ -164,7 +164,7 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Something went wrong. Please refresh the page and try again.</p>
           </div>
         ) : (
-          <div className={viewMode === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" : "flex flex-col gap-3"}>
+          <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : "flex flex-col gap-3"}>
             
             {/* Active Organizations list */}
             {organizations.map((org) => (
