@@ -92,15 +92,15 @@ export default function LandingPage() {
             </div>
             
             {/* Dashboard Preview Image */}
-            <div className="mt-20 relative w-full aspect-video rounded-xl border border-border overflow-hidden bg-muted shadow-2xl">
+            <div className="mt-20 relative w-full aspect-video rounded-xl border border-border overflow-hidden bg-muted shadow-2xl group">
               <Image
                 alt="Dashboard Interface Preview"
-                className="w-full h-full object-cover opacity-80 mix-blend-luminosity"
-                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop"
+                className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-500"
+                src="/preview-dashboard.jpg"
                 fill
                 priority
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent pointer-events-none"></div>
             </div>
           </section>
 

@@ -14,20 +14,36 @@ const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
 export const metadata: Metadata = {
   metadataBase: new URL("https://omnitask.himanshudev.dpdns.org"),
   title: {
-    default: "OmniTask | High-Performance Team Collaboration, Chat & Task Workspace",
+    default: "OmniTask - Team Collaboration, Tasks & Real-Time Chat",
     template: "%s | OmniTask"
   },
-  description: "OmniTask is a high-performance productivity suite and collaborative workspace designed for software engineering teams. Real-time chat, nested task hierarchies, and instant sync keep your team aligned.",
+  description: "OmniTask is a team collaboration workspace for managing tasks, projects, team chat, and software development workflows in one place.",
   keywords: [
     "OmniTask",
-    "Team Collaboration",
-    "Task Management",
-    "Real-time Chat",
-    "Developer Productivity Suite",
-    "Agile Software",
-    "Nested Tasks",
-    "Team Workspaces"
+    "OmniTask team collaboration",
+    "OmniTask task management",
+    "OmniTask project management",
+    "OmniTask team chat",
+    "team collaboration software",
+    "task management software",
+    "developer productivity",
   ],
+  openGraph: {
+    title: "OmniTask - Team Collaboration, Tasks & Real-Time Chat",
+    description: "OmniTask is a team collaboration workspace for managing tasks, projects, team chat, and software development workflows.",
+    url: "https://omnitask.himanshudev.dpdns.org",
+    siteName: "OmniTask",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "OmniTask Workspace",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
   robots: {
     index: true,
     follow: true,
