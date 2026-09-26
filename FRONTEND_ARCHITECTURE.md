@@ -9,89 +9,84 @@
 This structure follows a feature-based approach for complex modules while maintaining centralized shared resources.
 
 ```text
-src/
-├── app/                              
-│   ├── global-error.tsx              # Catch-all for hydration and runtime errors
+frontend/src/
+├── app/                              # Next.js 16 App Router
 │   ├── (auth)/                       # Grouped auth routes (login, register)
 │   │   ├── login/page.tsx
 │   │   └── register/page.tsx
-│   ├── (app)/                        # Authenticated app routes
-│   │   ├── layout.tsx                # App Shell: Auth, Sync, Offline Banner
-│   │   ├── orgs/page.tsx             # Organization selector
-│   │   └── org/[orgId]/
-│   │       ├── layout.tsx            # Org Shell: Sidebar, Icons
-│   │       ├── channels/page.tsx     
-│   │       ├── channel/[channelId]/  
-│   │       │   ├── layout.tsx        
-│   │       │   └── page.tsx          # Chat + Tasks Tab View
-│   │       └── settings/page.tsx     
-│   └── globals.css                   
+│   ├── (app)/                        # Authenticated app shell
+│   │   ├── (dashboard)/              # Main dashboard & analytics
+│   │   ├── (organizations)/          # Organization views & settings
+│   │   └── (channels)/               # Channel chat & Kanban task views
+│   ├── layout.tsx                    # Root layout & providers
+│   ├── globals.css                   # Global styles & Tailwind v4 tokens
+│   ├── loading.tsx                   # Top-level loading fallback
+│   └── not-found.tsx                 # 404 handler
 │
 ├── components/                       
-│   ├── providers/                    
-│   │   ├── app-providers.tsx         # Root provider wrapper
-│   │   ├── auth-provider.tsx         # Auth state hydration
-│   │   ├── sync-provider.tsx         # Cross-tab state synchronization
-│   │   ├── network-provider.tsx      # Offline detection & mutation queue
-│   │   └── query-provider.tsx        # TanStack Query client configuration
-│   ├── ui/                           # Base UI components (shadcn/ui)
-│   ├── layout/                       
-│   │   └── offline-banner.tsx        # Global offline warning UI
-│   └── shared/                       
-│       ├── states/                   # Common empty states, loaders
-│       ├── form/                     # Shared form fields (Input, Select, etc.)
-│       ├── upload/                   # File upload components
-│       └── rich-text/                # TipTap Renderer + Sanitizer
+│   ├── layout/                       # App Shell, Headers, Sidebar, User Profile Modal
+│   │   ├── app-header.tsx
+│   │   ├── app-sidebar.tsx
+│   │   ├── app-shell-headers.tsx
+│   │   ├── new-dm-dialog.tsx
+│   │   └── user-profile-settings-modal.tsx
+│   ├── organizations/                # Organization & Channel management modals
+│   │   ├── OrganizationCard.tsx
+│   │   ├── organization-settings-modal.tsx
+│   │   ├── channel-management-sheet.tsx
+│   │   ├── create-channel-dialog.tsx
+│   │   └── invite-member-dialog.tsx
+│   ├── tasks/                        # Kanban Board, Task Details, Subtasks, Dialogs
+│   │   ├── TaskBoard.tsx
+│   │   ├── MyTasksView.tsx
+│   │   ├── task-detail-dialog.tsx
+│   │   ├── create-task-dialog.tsx
+│   │   └── create-list-dialog.tsx
+│   ├── notifications/                # In-app notifications list & bell
+│   │   └── notification-list.tsx
+│   ├── providers/                    # Context providers
+│   │   └── AbilityProvider.tsx       # CASL RBAC capability context
+│   ├── ui/                           # Base UI components (Radix UI + Tailwind)
+│   │   ├── orbital-loader.tsx        # Branded loading spinner
+│   │   ├── offline-overlay.tsx       # Network offline detection banner
+│   │   ├── server-startup-overlay.tsx# Cold-start / wake-up detection overlay
+│   │   └── [shadcn components]       # Button, Dialog, Sheet, Table, Tabs, etc.
+│   ├── ChatInputBox.tsx              # Rich-text message composer
+│   └── TiptapEditor.tsx              # WYSIWYG editor with mention & emoji extensions
 │
-├── features/                         # Domain-specific logic and components
-│   ├── activity/                     # Audit logs, activity feeds
-│   ├── auth/                         # Login/Register forms, social auth
-│   ├── channels/                     # Channel creation, member management
-│   ├── chat/                         # Real-time messaging
-│   │   ├── components/               
-│   │   ├── hooks/use-chat-socket.ts  # Socket event handlers with version checks
-│   │   └── store/chat-ui.store.ts    
-│   ├── notifications/                
-│   ├── search/                       
-│   └── tasks/                        # Kanban, Task details, Subtasks
-│       ├── components/               
-│       ├── hooks/use-optimistic-task.ts # Optimistic updates + conflict resolution
-│       └── store/task-filters.store.ts 
+├── hooks/                            # Custom React hooks
+│   ├── useTaskRealtime.ts            # Socket synchronization for Kanban & Tasks
+│   ├── useOnlineStatus.ts            # Network connectivity tracking
+│   ├── useSyncedState.ts             # Cross-component state synchronization
+│   ├── useDebounce.ts                # Input and search debouncing
+│   ├── useIsMounted.ts               # SSR / hydration safety
+│   └── use-mobile.ts                 # Responsive layout breakpoint hook
 │
-├── hooks/                            
-│   ├── use-permissions.ts            # CASL capability checks
-│   ├── use-cross-tab-sync.ts         # BroadcastChannel sync logic
-│   ├── use-infinite-scroll.ts        
-│   ├── use-throttle.ts               # Action throttling (typing, DND)
-│   ├── use-prefetch.ts               # Route & Data prefetching
-│   └── use-cleanup.ts                # Centralized observer/listener teardown
+├── lib/                              # Core utilities & shared logic
+│   ├── casl.ts                       # CASL Ability definition via shared/permission-matrices.ts
+│   ├── query-client.tsx              # TanStack Query client & caching setup
+│   ├── mentions.ts                   # User mention parsing & formatting
+│   ├── file-url.ts                   # Cloudinary / CDN asset URL resolver
+│   ├── form.tsx                      # React Hook Form helpers
+│   └── utils.ts                      # Tailwind merging (clsx + twMerge)
 │
-├── lib/                              
-│   ├── api.ts                        # Axios/Fetch instance with interceptors
-│   ├── query-keys.ts                 # Centralized TanStack Query keys
-│   ├── casl.ts                       # Permission logic (abilities)
-│   ├── feature-flags.ts              # UI fallback mapping for flags
-│   ├── monitoring.ts                 # Sentry, Web Vitals, Custom Analytics
-│   ├── security.ts                   # XSS Sanitizers (DOMPurify)
-│   └── utils.ts                      # Formatting, Tailwind merging
+├── socket/                           
+│   └── socket.ts                     # Socket.IO client instance, reconnection & telemetry
 │
-├── services/                         # API communication layer
-│   ├── auth.service.ts
-│   ├── task.service.ts
-│   └── upload.service.ts             
+├── store/                            # Global client state (Zustand)
+│   ├── auth.store.ts                 # User authentication & session state
+│   ├── notification.store.ts         # In-app notification state
+│   ├── ui.store.ts                   # Modals, sidebars, active view state
+│   └── unread.store.ts               # Unread message & badge tracking
 │
-├── store/                            # Global UI state (Zustand)
-│   └── auth.store.ts                 
+├── types/                            # Frontend TypeScript declarations
+│   ├── api.ts                        # Request/Response DTOs
+│   └── roles.ts                      # Role types & capability mappings
 │
-└── types/                            
-    ├── api.types.ts                  # DTOs and API responses
-    └── models.types.ts               # Domain entities (Task, User, etc.)
-
-tests/                                
-├── e2e/                              # Playwright flows (Login, Create Task)
-├── integration/                      # Hook + Store + Query interplay
-└── unit/                             # Utils, sanitizers, permission checks
+└── api/                              
+    └── api.ts                        # Axios instance, JWT interceptor & auto-refresh logic
 ```
+
 
 ---
 

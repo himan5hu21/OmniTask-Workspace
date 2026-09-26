@@ -27,44 +27,23 @@ This product is essentially a combination of:
 
 ## 2. Current Status In Your Existing Codebase
 
-After checking the workspace, this is already prepared:
+The platform is structured with `frontend` (Next.js 16), `backend` (Fastify), and `shared` logic with full end-to-end integration:
 
-### Backend already started
+### Backend Implementation
+- **Authentication**: JWT auth, Argon2/bcrypt password hashing, refresh token rotation via Prisma, user profile endpoints.
+- **Multi-tenancy & Organizations**: Full CRUD, member invites, role management, cascade operations.
+- **Channels**: CRUD, channel membership, role promotion/demotion.
+- **Real-time Messaging**: Socket.IO authenticated rooms, channel chat, direct messaging (1-on-1), message deletion, unread counters, pagination.
+- **Task Management**: Kanban boards, lists, subtask tree, assignees, priorities, due dates, task activity logs, chat-to-task integration.
+- **Notifications**: In-app notifications for task assignments, mentions, and DMs.
+- **Storage**: Cloudinary file attachment uploads with streaming support and MIME detection.
+- **Permissions**: Hybrid Tier-1 (Org) & Tier-2 (Channel) RBAC matrix via `shared/permission-matrices.ts`.
+- **Database**: Neon PostgreSQL with Prisma ORM 7.x.
 
-- Authentication structure exists.
-- Organization APIs are partially implemented.
-- Channel APIs are partially implemented.
-- Prisma schema is started for:
-  - users
-  - organizations
-  - organization members
-  - channels
-  - channel members
-  - tasks
-  - subtasks
-  - task assignments
-  - channel messages
-  - direct conversations
-  - direct messages
-- Socket plugin exists.
-- Service layer for organizations and channels exists.
-
-### Frontend already started
-
-- Landing page exists.
-- Login and register pages exist.
-- Dashboard exists.
-- Organization listing and create organization UI exist.
-- API service structure exists.
-
-### Major missing or incomplete areas
-
-- Task APIs are mostly placeholder/TODO.
-- Chat flow is not fully implemented end-to-end.
-- Direct message flow is not implemented end-to-end.
-- Organization/channel update-delete flows are not fully documented or connected in UI.
-- Permission system needs to be completed carefully.
-- Notification, search, audit log, file attachment, and production hardening are still missing.
+### Frontend Implementation
+- **Next.js 16 App Router**: React 19, Turbopack, Tailwind CSS, Radix UI, Framer Motion.
+- **Full UI**: Landing page, Login/Register, Dashboard, Org/Channel Management Modals, Tiptap Rich-Text Chat, Kanban Board with Drag-and-Drop, Task Detail Drawer, Notification Sheet, User Settings.
+- **State & Data**: Zustand (auth, unread, UI, notifications), TanStack Query (server state & caching), CASL Ability Provider.
 
 ## 3. Recommended Product Structure
 
@@ -330,7 +309,7 @@ Frontend:
 - [x] Add organization member API
 - [x] Remove organization member API
 - [x] Update organization member role API
-- [ ] Verify onDelete: Cascade in Prisma schema to ensure related channels, tasks, and messages are deleted safely when an organization is removed
+- [x] Verify onDelete: Cascade in Prisma schema to ensure related channels, tasks, and messages are deleted safely when an organization is removed
 
 Backend APIs:
 
@@ -345,10 +324,10 @@ Backend APIs:
 
 Frontend:
 
-- [ ] Organization dashboard
-- [ ] Organization settings page
-- [ ] Member management page
-- [ ] Role management UI
+- [x] Organization dashboard
+- [x] Organization settings page / modal
+- [x] Member management page / dialog
+- [x] Role management UI
 
 Definition of done:
 
@@ -381,10 +360,10 @@ Backend APIs:
 
 Frontend:
 
-- [ ] Channel list in sidebar
-- [ ] Create channel modal
-- [ ] Channel settings page
-- [ ] Channel members page
+- [x] Channel list in sidebar
+- [x] Create channel modal
+- [x] Channel settings page / sheet
+- [x] Channel members page / sheet
 
 Definition of done:
 
@@ -397,32 +376,32 @@ Definition of done:
 - [x] Finalize Socket.IO connection setup
 - [x] Create channel message send API or socket event
 - [x] Create channel message list API
-- [ ] Add pagination for old messages
-- [ ] Add message delivery in real time
-- [ ] Add read tracking if needed
-- [ ] Add edit/delete message rules
-- [ ] Add basic moderation rules
-- [ ] Implement JWT authentication inside Socket.io connection handshake (io.use)
-- [ ] Validate channel membership before allowing a socket client to join a channel:${channelId} room
-- [ ] Add cursor-based or offset-based pagination to the channel messages API to prevent memory overload
+- [x] Add pagination for old messages
+- [x] Add message delivery in real time
+- [x] Add read tracking if needed
+- [x] Add edit/delete message rules
+- [x] Add basic moderation rules
+- [x] Implement JWT authentication inside Socket.io connection handshake (io.use)
+- [x] Validate channel membership before allowing a socket client to join a channel:${channelId} room
+- [x] Add cursor-based or offset-based pagination to the channel messages API to prevent memory overload
 
 Backend APIs / events:
 
 - [x] `GET /channels/:id/messages`
 - [x] `POST /channels/:id/messages`
-- [ ] `PATCH /messages/:id`
-- [ ] `DELETE /messages/:id`
-- [ ] socket `channel:join`
-- [ ] socket `channel:message:send`
-- [ ] socket `channel:message:new`
+- [x] `PATCH /messages/:id`
+- [x] `DELETE /messages/:id`
+- [x] socket `channel:join`
+- [x] socket `channel:message:send`
+- [x] socket `channel:message:new`
 
 Frontend:
 
-- [ ] Channel chat page
-- [ ] Message list
-- [ ] Message composer
-- [ ] Realtime updates
-- [ ] Infinite scroll
+- [x] Channel chat page
+- [x] Message list
+- [x] Message composer (Tiptap with mentions & emojis)
+- [x] Realtime updates
+- [x] Infinite scroll / pagination
 
 Definition of done:
 
@@ -431,27 +410,27 @@ Definition of done:
 
 ## Phase 6. Direct Message Module
 
-- [ ] Create conversation start API
-- [ ] Get all personal conversations API
-- [ ] Get personal message list API
-- [ ] Send personal message API or socket event
-- [ ] Track unread count
-- [ ] Mark messages read
+- [x] Create conversation start API
+- [x] Get all personal conversations API
+- [x] Get personal message list API
+- [x] Send personal message API or socket event
+- [x] Track unread count
+- [x] Mark messages read
 
 Backend APIs:
 
-- [ ] `POST /dm/conversations`
-- [ ] `GET /dm/conversations`
-- [ ] `GET /dm/conversations/:id/messages`
-- [ ] `POST /dm/conversations/:id/messages`
-- [ ] `PATCH /dm/messages/:id/read`
+- [x] `POST /dm/conversations`
+- [x] `GET /dm/conversations`
+- [x] `GET /dm/conversations/:id/messages`
+- [x] `POST /dm/conversations/:id/messages`
+- [x] `PATCH /dm/messages/:id/read`
 
 Frontend:
 
-- [ ] Direct messages list
-- [ ] User search to start chat
-- [ ] Personal chat screen
-- [ ] Unread badge
+- [x] Direct messages list
+- [x] User search to start chat
+- [x] Personal chat screen
+- [x] Unread badge
 
 Definition of done:
 
@@ -460,40 +439,42 @@ Definition of done:
 
 ## Phase 7. Task Management Core
 
-- [ ] Create main task API
-- [ ] Create subtask API
-- [ ] Create child subtask API
-- [ ] Get all tasks of a channel API
-- [ ] Get single task detail API
-- [ ] Update task API
-- [ ] Delete task API
-- [ ] Toggle task/subtask completion
-- [ ] Add assignee API
-- [ ] Remove assignee API
-- [ ] Add due date, priority, status
+- [x] Create main task API
+- [x] Create subtask API
+- [x] Create child subtask API
+- [x] Get all tasks of a channel API
+- [x] Get single task detail API
+- [x] Update task API
+- [x] Delete task API
+- [x] Toggle task/subtask completion
+- [x] Add assignee API
+- [x] Remove assignee API
+- [x] Add due date, priority, status
+- [x] Kanban lists management API (Create, reorder, delete lists)
 
 Backend APIs:
 
-- [ ] `POST /tasks`
-- [ ] `GET /channels/:channelId/tasks`
-- [ ] `GET /tasks/:id`
-- [ ] `PATCH /tasks/:id`
-- [ ] `DELETE /tasks/:id`
-- [ ] `POST /subtasks`
-- [ ] `PATCH /subtasks/:id`
-- [ ] `DELETE /subtasks/:id`
-- [ ] `PATCH /subtasks/:id/toggle`
-- [ ] `POST /subtasks/:id/assign`
-- [ ] `DELETE /subtasks/:id/assign/:userId`
+- [x] `POST /tasks`
+- [x] `GET /channels/:channelId/tasks`
+- [x] `GET /tasks/:id`
+- [x] `PATCH /tasks/:id`
+- [x] `DELETE /tasks/:id`
+- [x] `POST /subtasks`
+- [x] `PATCH /subtasks/:id`
+- [x] `DELETE /subtasks/:id`
+- [x] `PATCH /subtasks/:id/toggle`
+- [x] `POST /subtasks/:id/assign`
+- [x] `DELETE /subtasks/:id/assign/:userId`
 
 Frontend:
 
-- [ ] Task list page inside channel
-- [ ] Task create modal
-- [ ] Nested subtask UI
-- [ ] Task detail drawer/page
-- [ ] Assignee picker
-- [ ] Status/priority filters
+- [x] Task list / Kanban board page inside channel
+- [x] Task create modal
+- [x] Nested subtask UI
+- [x] Task detail drawer/page
+- [x] Assignee picker
+- [x] Status/priority filters
+- [x] Drag and drop task reordering
 
 Definition of done:
 
@@ -505,19 +486,19 @@ Definition of done:
 
 ## Phase 8. Chat To Task Integration
 
-- [ ] Add `source_message_id` relation
-- [ ] Create convert-message-to-task endpoint
-- [ ] Show task creation modal from selected message
-- [ ] Show linked message inside task detail
+- [x] Add `source_message_id` relation
+- [x] Create convert-message-to-task endpoint
+- [x] Show task creation modal from selected message
+- [x] Show linked message inside task detail
 
 Backend APIs:
 
-- [ ] `POST /messages/:id/convert-to-task`
+- [x] `POST /messages/:id/convert-to-task`
 
 Frontend:
 
-- [ ] `Convert to task` action on chat message
-- [ ] linked message preview in task detail
+- [x] `Convert to task` action on chat message
+- [x] linked message preview in task detail
 
 Definition of done:
 
@@ -526,46 +507,46 @@ Definition of done:
 
 ## Phase 9. Notifications Module
 
-- [ ] Create notification table
-- [ ] Trigger notification on:
+- [x] Create notification table
+- [x] Trigger notification on:
   - task assigned
   - message mention
   - DM received
   - task status changed
   - user added to channel
-- [ ] Mark notification as read
-- [ ] Show unread count
+- [x] Mark notification as read
+- [x] Show unread count
 
 Backend APIs:
 
-- [ ] `GET /notifications`
-- [ ] `PATCH /notifications/:id/read`
-- [ ] `PATCH /notifications/read-all`
+- [x] `GET /notifications`
+- [x] `PATCH /notifications/:id/read`
+- [x] `PATCH /notifications/read-all`
 
 Frontend:
 
-- [ ] Notification bell
-- [ ] Notification list panel
+- [x] Notification bell
+- [x] Notification list panel
 
 ## Phase 10. Search And Filters
 
-- [ ] Global search
-- [ ] Search organizations
-- [ ] Search channels
-- [ ] Search messages
-- [ ] Search tasks
-- [ ] Filter tasks by:
+- [x] Global search
+- [x] Search organizations
+- [x] Search channels
+- [x] Search messages
+- [x] Search tasks
+- [x] Filter tasks by:
   - assignee
   - status
   - priority
   - due date
-- [ ] Sort by latest, oldest, deadline, priority
+- [x] Sort by latest, oldest, deadline, priority
 
 ## Phase 11. Activity Logs And Audit
 
-- [ ] Store task activity history
-- [ ] Store organization audit logs
-- [ ] Track:
+- [x] Store task activity history
+- [x] Store organization audit logs
+- [x] Track:
   - task created
   - task assigned
   - status changed
@@ -577,33 +558,33 @@ This is very useful in professional products.
 
 ## Phase 12. File Attachments
 
-- [ ] Upload attachment in channel chat
-- [ ] Upload attachment in direct message
-- [ ] Upload attachment in task comments
-- [ ] Store files in S3 / Cloudinary / local for dev
+- [x] Upload attachment in channel chat
+- [x] Upload attachment in direct message
+- [x] Upload attachment in task comments
+- [x] Store files in Cloudinary / local for dev
 
 ## Phase 13. Testing And Security
 
-- [ ] Unit tests for services
-- [ ] Integration tests for APIs
-- [ ] Permission tests
-- [ ] Validation tests
-- [ ] Rate limiting
-- [ ] Input sanitization
-- [ ] CORS hardening
-- [ ] Secure cookies if using refresh tokens
-- [ ] SQL injection safety review
-- [ ] XSS safety for chat rendering
+- [x] Unit tests for services
+- [x] Integration tests for APIs
+- [x] Permission tests (CASL & Fastify guards)
+- [x] Validation tests (Zod schemas)
+- [x] Rate limiting
+- [x] Input sanitization
+- [x] CORS hardening
+- [x] Secure cookies if using refresh tokens
+- [x] SQL injection safety review (Prisma parameterized queries)
+- [x] XSS safety for chat rendering (DOMPurify / Tiptap safe parsing)
 
 ## Phase 14. Deployment
 
-- [ ] Deploy frontend
-- [ ] Deploy backend
-- [ ] Deploy PostgreSQL
-- [ ] Configure environment variables
-- [ ] Configure domain and HTTPS
-- [ ] Configure logs and monitoring
-- [ ] Configure backups
+- [x] Deploy frontend (Vercel / Custom domain `omnitask.himanshudev.dpdns.org`)
+- [x] Deploy backend (Fly.io / VPS Docker)
+- [x] Deploy PostgreSQL (Neon Serverless DB)
+- [x] Configure environment variables
+- [x] Configure domain and HTTPS (Cloudflare SSL)
+- [x] Configure logs and monitoring
+- [x] Configure backups
 
 ## 8. Recommended Frontend Pages
 
@@ -611,25 +592,25 @@ Create the frontend in this structure.
 
 ### Public pages
 
-- [ ] Landing page
-- [ ] Login page
-- [ ] Register page
+- [x] Landing page
+- [x] Login page
+- [x] Register page
 
 ### App pages
 
-- [ ] Dashboard
-- [ ] Organization page
-- [ ] Organization settings
-- [ ] Organization members
-- [ ] Channel page
-- [ ] Channel settings
-- [ ] Channel members
-- [ ] Channel chat page
-- [ ] Direct messages page
-- [ ] Task board page
-- [ ] Task detail page
-- [ ] Notifications page
-- [ ] User profile page
+- [x] Dashboard
+- [x] Organization page
+- [x] Organization settings
+- [x] Organization members
+- [x] Channel page
+- [x] Channel settings
+- [x] Channel members
+- [x] Channel chat page
+- [x] Direct messages page
+- [x] Task board page
+- [x] Task detail page
+- [x] Notifications page
+- [x] User profile page
 
 ## 9. Recommended Backend Module Structure
 
@@ -861,26 +842,26 @@ If you want a professional SaaS-style name, `OmniTask` is good enough to continu
 
 Use this as your main checklist.
 
-- [ ] Finalize schema and migrations
-- [ ] Finish authentication
-- [ ] Finish organization CRUD
-- [ ] Finish organization member management
-- [ ] Finish channel CRUD
-- [ ] Finish channel member management
-- [ ] Build channel chat
-- [ ] Build direct messages
-- [ ] Build task CRUD
-- [ ] Build nested subtasks
-- [ ] Build task assignment
-- [ ] Build task detail page
-- [ ] Build chat-to-task conversion
-- [ ] Add notifications
-- [ ] Add search and filters
-- [ ] Add task comments and activity
-- [ ] Add file attachments
-- [ ] Add testing
-- [ ] Add security hardening
-- [ ] Deploy frontend, backend, and database
+- [x] Finalize schema and migrations
+- [x] Finish authentication
+- [x] Finish organization CRUD
+- [x] Finish organization member management
+- [x] Finish channel CRUD
+- [x] Finish channel member management
+- [x] Build channel chat
+- [x] Build direct messages
+- [x] Build task CRUD
+- [x] Build nested subtasks
+- [x] Build task assignment
+- [x] Build task detail page
+- [x] Build chat-to-task conversion
+- [x] Add notifications
+- [x] Add search and filters
+- [x] Add task comments and activity
+- [x] Add file attachments
+- [x] Add testing
+- [x] Add security hardening
+- [x] Deploy frontend, backend, and database
 
 ## 19. Important Advice
 

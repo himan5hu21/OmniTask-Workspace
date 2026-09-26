@@ -9,65 +9,51 @@
 This structure separates concerns across modules while centralizing core infrastructure (database, queues, middleware).
 
 ```text
-src/
-├── app.ts                            # Fastify instance & plugin registration
-├── server.ts                         # Server entry point & listener
-│
-├── config/                           
-│   ├── env.ts                        # Type-safe environment variables (Zod)
-│   └── rate-limits.ts                # Per-module rate limit configurations
-│
-├── plugins/                          
-│   ├── db.plugin.ts                  # Extended Prisma Client instantiation
-│   ├── redis.plugin.ts               # Redis connection for caching & idempotency
-│   ├── queue.plugin.ts               # BullMQ connection & job registration
-│   ├── socket.plugin.ts              # Socket.io initialization & middleware
-│   └── swagger.plugin.ts             # OpenAPI/Swagger documentation
+backend/src/
+├── server.ts                         # Fastify server entry point & plugin bootstrap
 │
 ├── modules/                          # Domain-driven feature modules
-│   ├── auth/                         # Authentication & Session logic
-│   ├── organizations/                # Multi-tenant organization management
-│   ├── channels/                     # Channel & Membership logic
-│   ├── tasks/                        # Task, Subtask & Assignment management
-│   │   ├── task.routes.ts            # Fastify route definitions
-│   │   ├── task.controller.ts        # HTTP request handling
-│   │   ├── task.service.ts           # Business logic & Service-layer validation
-│   │   └── task.repository.ts        # Database access layer
-│   └── audit/                        # Activity log querying service
-|   └── storage/                      # File attachment & storage logic
+│   ├── auth/                         # JWT login, register, refresh tokens, password reset
+│   │   ├── auth.routes.ts            # Fastify route definitions
+│   │   ├── auth.controller.ts        # HTTP request handling
+│   │   ├── auth.service.ts           # Authentication business logic
+│   │   ├── auth.repository.ts        # User & Token database queries
+│   │   └── auth.schema.ts            # Zod input/output schemas
+│   ├── organizations/                # Multi-tenant organization CRUD & member management
+│   ├── channels/                     # Channel CRUD, membership & roles
+│   ├── task/                         # Kanban boards, tasks, subtask hierarchy, assignees
+│   ├── message/                      # Channel chat & 1-on-1 direct conversations
+│   ├── notification/                 # In-app notifications & unread summary
+│   └── attachment/                   # File uploads, Cloudinary integration & streaming
 │
-├── common/                           # Shared infrastructure & utilities
-│   ├── database/                     
-│   │   └── prisma-client.ts          # Base Prisma Client configuration
-│   ├── repositories/                 
-│   │   └── base.repository.ts        # Centralized Multi-tenant & Soft-delete logic
-│   ├── middlewares/                  
-│   │   └── auth.middleware.ts        # JWT & Org isolation context
-│   ├── errors/                       
-│   │   └── error-handler.ts          # Global Fastify error interceptor
-│   └── utils/                        
-│       ├── AppError.ts               # Standardized Error class
-│       └── response.ts               # Unified API response builders
+├── plugins/                          # Fastify plugins
+│   ├── socket.ts                     # Socket.IO authenticated server & room manager
+│   └── swagger.ts                    # OpenAPI / Swagger UI documentation
 │
-├── websockets/                       # Real-time communication layer
-│   ├── socket-manager.ts             # [Planned] Room management & broadcasting
-│   └── handlers/                     # [Planned] Domain-specific event handlers
+├── middlewares/                      # HTTP request middlewares
+│   ├── auth.middleware.ts            # JWT authentication & user verification
+│   └── errorHandlers.ts              # Global error handling & Zod validation interceptor
 │
-├── workers/                          # Background job processors (BullMQ)
-│   ├── email.worker.ts               # Transactional email processing
-│   ├── notification.worker.ts        # Push & In-app notification delivery
-│   └── audit.worker.ts               # Async activity log persistence
+├── lib/                              # Infrastructure & third-party integrations
+│   ├── database.ts                   # Neon PostgreSQL Prisma Client singleton
+│   ├── storage.ts                    # Cloudinary upload, destruction & stream helpers
+│   └── email.ts                      # Resend transactional email integration
 │
-├── services/                         # Cross-cutting infrastructure services
-│   └── upload.service.ts             # Secure file uploads (MIME/Magic number checks)
+├── utils/                            # Shared utilities
+│   ├── permissions.ts                # PermissionGuard (Tier-1 Org & Tier-2 Channel checks)
+│   ├── permission-matrices.ts        # Workspace RBAC matrices via shared/permission-matrices.ts
+│   └── logger.ts                     # Pino logger configuration
 │
-└── prisma/                           
-    └── schema.prisma                 # Primary database schema
-
-tests/                                
-├── e2e/                              # Supertest API flow tests
-├── integration/                      # DB Transaction & Socket payload tests
-└── unit/                             # Isolated service & logic testing
+├── routes/                           
+│   └── health.routes.ts              # System health & uptime check
+│
+├── types/                            
+│   └── fastify.d.ts                  # FastifyRequest user payload extensions
+│
+└── prisma/                           # Database Schema & Migrations
+    ├── schema/                       # Modular Prisma schemas (auth, org, task, etc.)
+    ├── migrations/                   # PostgreSQL migration history
+    └── seed.ts                       # Database seeding script
 ```
 
 ---

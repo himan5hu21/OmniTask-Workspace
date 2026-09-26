@@ -32,7 +32,7 @@ This sends the message **only** to users currently in that specific channel's ro
 ## 2. Frontend: The Client (Next.js + Socket.io-client)
 
 ### Client Instance
-- **File**: `frontend/src/lib/socket.ts`
+- **File**: `frontend/src/socket/socket.ts`
 - Uses a singleton pattern (`getSocket()`) to ensure only one socket connection is active at a time.
 - Configured with `withCredentials: true` to allow session handling.
 
