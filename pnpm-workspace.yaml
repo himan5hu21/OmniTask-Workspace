@@ -1,0 +1,25 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  '@prisma/engines': true
+  bcrypt: true
+  esbuild: true
+  fastify-socket.io: true
+  prisma: true
+  msw: true
+  sharp: true
+  unrs-resolver: true
+
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - bcrypt
+  - esbuild
+  - fastify-socket.io
+  - msw
+  - prisma
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver

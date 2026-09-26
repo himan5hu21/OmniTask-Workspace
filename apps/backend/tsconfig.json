@@ -6,8 +6,7 @@
     "moduleResolution": "bundler",
 
     /* Paths */
-    "rootDir": "./",
-    "outDir": "./dist",
+    "noEmit": true,
     "paths": {
       "@/*": ["./src/*"],
       "@/controllers/*": ["./src/modules/*"],
@@ -20,7 +19,9 @@
       "@/utils/*": ["./src/utils/*"],
       "@/config/*": ["./src/config/*"],
       "@/lib/*": ["./src/lib/*"],
-      "@/generated/*": ["./prisma/generated/*"]
+      "@/generated/*": ["./prisma/generated/*"],
+      "@omnitask/shared": ["../../packages/shared"],
+      "@omnitask/shared/*": ["../../packages/shared/*"]
     },
 
     /* Strictness */

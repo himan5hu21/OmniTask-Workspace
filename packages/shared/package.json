@@ -1,0 +1,25 @@
+{
+  "name": "@omnitask/shared",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./index.ts",
+  "module": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "import": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./permission-matrices": {
+      "types": "./permission-matrices.ts",
+      "import": "./permission-matrices.ts",
+      "default": "./permission-matrices.ts"
+    },
+    "./types/api": {
+      "types": "./types/api.ts",
+      "import": "./types/api.ts",
+      "default": "./types/api.ts"
+    }
+  }
+}

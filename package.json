@@ -1,0 +1,19 @@
+{
+  "name": "omni-task-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "pnpm run -r --parallel --if-present dev",
+    "dev:backend": "pnpm --filter omnitask-backend dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "build": "pnpm run -r --if-present build",
+    "build:backend": "pnpm --filter omnitask-backend build",
+    "build:frontend": "pnpm --filter frontend build",
+    "lint": "pnpm run -r --if-present lint",
+    "clean": "pnpm run -r --if-present clean"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.1.3"
+}

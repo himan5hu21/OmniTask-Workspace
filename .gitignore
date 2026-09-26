@@ -1,58 +1,42 @@
 # Dependencies
 node_modules/
-frontend/node_modules/
-backend/node_modules/
+**/node_modules/
+.pnpm-store/
 /.pnp
 .pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 
-# Testing
+# Testing & Coverage
 /coverage
-frontend/coverage/
-backend/coverage/
+**/coverage/
 
 # Next.js
-/.next/
-/out/
+.next/
+apps/*/.next/
+out/
+apps/*/out/
 next-env.d.ts
-frontend/.next/
-frontend/out/
 
-# Production
-/build
-frontend/build/
-backend/build/
+# Production & Builds
+dist/
+apps/*/dist/
+packages/*/dist/
+build/
+apps/*/build/
 
-# Misc
-.DS_Store
-*.pem
-
-# Debug
+# Debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# Environment variables (NEVER commit these)
+# Environment variables
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-frontend/.env
-frontend/.env.local
-frontend/.env.development.local
-frontend/.env.test.local
-frontend/.env.production.local
-backend/.env
-backend/.env.local
-backend/.env.development.local
-backend/.env.test.local
-backend/.env.production.local
+apps/*/.env*
+packages/*/.env*
 
 # Vercel
 .vercel
@@ -61,24 +45,23 @@ backend/.env.production.local
 *.tsbuildinfo
 
 # Prisma
-/prisma/generated/
-/prisma/generated/
-backend/prisma/generated/
-backend/src/generated/
+**/prisma/generated/
+**/src/generated/
 
-# IDE
+# IDE & OS
+.DS_Store
+Thumbs.db
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+*.pem
 
-# OS
-Thumbs.db
+# Uploads
+uploads/
+apps/*/uploads/
 
 
 /public.md
-
-# uploads
-uploads/
-backend/uploads/
+/ACCOUNTS.md

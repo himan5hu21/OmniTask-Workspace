@@ -1,4 +1,4 @@
-import { ORG_PERMISSIONS, CHANNEL_PERMISSIONS } from './permission-matrices';
+import { ORG_PERMISSIONS, CHANNEL_PERMISSIONS } from '@omnitask/shared';
 
 export class PermissionGuard {
   // Tier 1 Checks

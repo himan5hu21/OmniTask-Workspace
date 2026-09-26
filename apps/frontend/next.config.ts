@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: false, // dev me extra render hataega
+  transpilePackages: ["@omnitask/shared"],
 
   // ✅ Small but useful optimizations
   compress: true,

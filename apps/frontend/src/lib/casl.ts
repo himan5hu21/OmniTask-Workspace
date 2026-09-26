@@ -1,7 +1,7 @@
 import { AbilityBuilder, createMongoAbility, MongoAbility } from '@casl/ability';
 import { createContext } from 'react';
 import { createContextualCan } from '@casl/react';
-import { ORG_PERMISSIONS, CHANNEL_PERMISSIONS, OrgRole, ChannelRole } from './permission-matrices';
+import { ORG_PERMISSIONS, CHANNEL_PERMISSIONS, OrgRole, ChannelRole } from '@omnitask/shared';
 
 export type Actions = 'create' | 'read' | 'update' | 'delete' | 'manage' | 'invite' | 'remove' | 'promote' | 'leave' | 'view' | 'change' | 'add' | 'send' | 'list' | 'comment' | 'attachment' | 'update-basic' | 'update-manage';
 export type Subjects = 'Organization' | 'Channel' | 'Member' | 'Task' | 'Message' | 'Settings' | 'Label' | 'Board' | 'all';
