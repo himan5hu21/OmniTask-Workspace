@@ -1,5 +1,5 @@
 import "dotenv/config";
-import Fastify from 'fastify';
+import Fastify, { LogController } from 'fastify';
 import cors from '@fastify/cors';
 import socketPlugin from '@/plugins/socket';
 import authRoutes from '@/modules/auth/auth.routes';
@@ -47,7 +47,9 @@ let shuttingDown = false;
 
 const buildServer = async () => {
   const app = Fastify({
-    disableRequestLogging: true,
+    logController: new LogController({
+      disableRequestLogging: true
+    }),
     forceCloseConnections: true,
     logger: isProd
       ? {
@@ -93,7 +95,7 @@ const buildServer = async () => {
       fileSize: 50 * 1024 * 1024, // 50MB
     },
   });
-  
+
   await app.register(cookie, {
     secret: process.env.COOKIE_SECRET || 'omnitask-secret',
   });
@@ -308,7 +310,7 @@ const buildServer = async () => {
   app.addHook('preHandler', async (request, reply) => {
     // Skip auth for OPTIONS requests, public routes, and uploads
     if (
-      request.method === 'OPTIONS' || 
+      request.method === 'OPTIONS' ||
       request.routeOptions.config?.isPublic ||
       request.url.startsWith('/uploads') ||
       request.url.startsWith('/docs')

@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "node --watch --import tsx src/server.ts",
+    "dev": "node --watch --trace-warnings --import tsx src/server.ts",
     "build": "node scripts/prepare-build.mjs && node esbuild.config.mjs",
     "build:prod": "cross-env NODE_ENV=production node scripts/prepare-build.mjs && node esbuild.config.mjs",
     "start": "node dist/server.js",
